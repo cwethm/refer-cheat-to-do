@@ -219,25 +219,25 @@ Implementation changes are present but slice approval is blocked until dependenc
 ## Test Results
 
 ### Focused Tests
-FAIL (blocked by missing dependencies: `vendor/autoload.php`)
+FAIL (blocked: `composer install` returns `Could not authenticate against github.com`)
 
 ### Integration Tests
-FAIL (blocked by missing dependencies: `vendor/autoload.php`)
+FAIL (blocked: `composer install` returns `Could not authenticate against github.com`)
 
 ### Authorization Tests
-FAIL (blocked by missing dependencies: `vendor/autoload.php`)
+FAIL (blocked: `composer install` returns `Could not authenticate against github.com`)
 
 ### Full Regression Suite
-FAIL (blocked by missing dependencies: `vendor/autoload.php`)
+FAIL (blocked: `composer install` returns `Could not authenticate against github.com`)
 
 ### Coding Standards
-FAIL (blocked by missing dependencies: `vendor/autoload.php`)
+FAIL (blocked: `composer install` returns `Could not authenticate against github.com`)
 
 ### Static Analysis
-FAIL (blocked by missing dependencies: `vendor/autoload.php`)
+FAIL (blocked: `composer install` returns `Could not authenticate against github.com`)
 
 ### Migration Verification
-FAIL (blocked by missing dependencies: `vendor/autoload.php`)
+FAIL (blocked: `composer install` returns `Could not authenticate against github.com`)
 
 ## Security Review
 
@@ -258,6 +258,7 @@ No speculative abstraction layers introduced.
 
 - no rate limiting in this slice
 - migration explicitly requires PostgreSQL because case-insensitive email uniqueness uses a functional index
+- environment currently requires configured GitHub Composer auth to install locked dependencies
 
 ## Deferred Work
 
@@ -266,6 +267,8 @@ No speculative abstraction layers introduced.
 ## Documentation Updated
 
 Yes
+
+- added `.github/workflows/copilot-setup-steps.yml` to preinstall Composer dependencies in future Copilot runs
 
 ## Slice Decision
 
