@@ -7,8 +7,6 @@ use Cake\Event\EventInterface;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use ArrayObject;
-use Cake\Database\Expression\QueryExpression;
-use Cake\ORM\Query\SelectQuery;
 use Cake\Validation\Validator;
 
 class UsersTable extends Table
@@ -54,12 +52,7 @@ class UsersTable extends Table
 
                 $query = $this->find()
                     ->select(['id'])
-                    ->where(function (QueryExpression $exp, SelectQuery $query) use ($email) {
-                        return $exp->eq(
-                            $query->func()->lower(['email' => 'identifier']),
-                            mb_strtolower($email),
-                        );
-                    });
+                    ->where(['email' => mb_strtolower($email)]);
                 if (!$entity->isNew() && $entity->get('id') !== null) {
                     $query->where(['id !=' => (int)$entity->get('id')]);
                 }

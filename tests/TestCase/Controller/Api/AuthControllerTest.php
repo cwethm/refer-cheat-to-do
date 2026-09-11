@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Controller\Api;
 
+use Cake\ORM\TableRegistry;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 
@@ -66,6 +67,25 @@ class AuthControllerTest extends TestCase
         $this->assertResponseOk();
         $this->assertResponseContains('"id": 1');
         $this->assertSession(1, 'Auth.user_id');
+    }
+
+    public function testLoginSucceedsForPersistedMixedCaseEmailAfterNormalization(): void
+    {
+        $users = TableRegistry::getTableLocator()->get('Users');
+        $user = $users->newEntity([
+            'email' => '  MixedCase@example.com ',
+            'password' => 'Password123!',
+        ]);
+        $users->saveOrFail($user);
+
+        $this->configRequest(['headers' => ['Accept' => 'application/json']]);
+        $this->post('/api/auth/login', [
+            'email' => 'mixedcase@example.com',
+            'password' => 'Password123!',
+        ]);
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"email": "mixedcase@example.com"');
     }
 
     public function testLoginFailsWithMissingCredentials(): void

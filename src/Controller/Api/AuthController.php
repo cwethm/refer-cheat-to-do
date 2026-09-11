@@ -4,10 +4,8 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use Cake\Auth\DefaultPasswordHasher;
-use Cake\Database\Expression\QueryExpression;
 use Cake\Datasource\FactoryLocator;
 use Cake\Http\Exception\UnauthorizedException;
-use Cake\ORM\Query\SelectQuery;
 
 class AuthController extends AppController
 {
@@ -30,9 +28,7 @@ class AuthController extends AppController
         $users = FactoryLocator::get('Table')->get('Users');
         $user = $users->find()
             ->select(['id', 'email', 'password', 'created', 'modified'])
-            ->where(function (QueryExpression $exp, SelectQuery $query) use ($email) {
-                return $exp->eq($query->func()->lower(['email' => 'identifier']), $email);
-            })
+            ->where(['email' => $email])
             ->disableHydration()
             ->first();
         if (!is_array($user)) {
