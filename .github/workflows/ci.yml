@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'copilot/**'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: intl, mbstring, pdo_pgsql
+          coverage: none
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: PHP syntax check
+        run: composer lint
+
+      - name: Coding standards
+        run: composer cs-check
+
+      - name: Static analysis
+        run: composer stan
+        env:
+          APP_NAME: refer-cheat-to-do
+          APP_ENV: ci
+          DEBUG: 'false'
+          SECURITY_SALT: ci-security-salt-for-static-analysis-only
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_DATABASE: refer_cheat_to_do
+          DB_USERNAME: refer_cheat_to_do
+          DB_PASSWORD: refer_cheat_to_do
+          TEST_DB_DATABASE: refer_cheat_to_do_test
+
+      - name: PHPUnit
+        run: composer test
+        env:
+          APP_NAME: refer-cheat-to-do
+          APP_ENV: test
+          DEBUG: 'false'
+          SECURITY_SALT: ci-security-salt-for-tests-only
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_DATABASE: refer_cheat_to_do
+          DB_USERNAME: refer_cheat_to_do
+          DB_PASSWORD: refer_cheat_to_do
+          TEST_DB_DATABASE: refer_cheat_to_do_test
