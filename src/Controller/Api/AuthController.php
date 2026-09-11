@@ -40,8 +40,6 @@ class AuthController extends AppController
         }
 
         $session = $this->request->getSession();
-        $session->delete('Auth.user_id');
-        $session->delete('Auth.identity');
         $session->renew();
         $session->write('Auth.user_id', (int)$user['id']);
         $session->write('Auth.identity', [

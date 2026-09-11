@@ -43,7 +43,24 @@ class UsersTable extends Table
 
     public function buildRules(RulesChecker $rules): RulesChecker
     {
-        $rules->add($rules->isUnique(['email']), ['errorField' => 'email']);
+        $rules->add(
+            function ($entity): bool {
+                $email = (string)$entity->get('email');
+                if ($email === '') {
+                    return true;
+                }
+
+                $query = $this->find()
+                    ->where(['LOWER(email)' => mb_strtolower($email)]);
+                if (!$entity->isNew() && $entity->get('id') !== null) {
+                    $query->where(['id !=' => (int)$entity->get('id')]);
+                }
+
+                return !$query->count();
+            },
+            'emailLowerUnique',
+            ['errorField' => 'email', 'message' => 'This email is already in use.'],
+        );
 
         return $rules;
     }

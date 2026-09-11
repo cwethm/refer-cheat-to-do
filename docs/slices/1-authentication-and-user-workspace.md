@@ -181,7 +181,7 @@ Introduce authenticated identity, secure credential handling, and ownership boun
 
 ## Database Changes
 
-- created `users` table with unique `email` index
+- created `users` table with case-insensitive unique index on `LOWER(email)`
 
 ## API Changes
 

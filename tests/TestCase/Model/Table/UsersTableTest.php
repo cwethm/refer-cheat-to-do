@@ -36,6 +36,18 @@ class UsersTableTest extends TestCase
         ]);
 
         $this->assertFalse((bool)$users->save($entity));
-        $this->assertArrayHasKey('_isUnique', $entity->getErrors()['email'] ?? []);
+        $this->assertArrayHasKey('emailLowerUnique', $entity->getErrors()['email'] ?? []);
+    }
+
+    public function testDuplicateEmailWithDifferentCaseIsRejected(): void
+    {
+        $users = TableRegistry::getTableLocator()->get('Users');
+        $entity = $users->newEntity([
+            'email' => 'OWNER@example.com',
+            'password' => 'Password123!',
+        ]);
+
+        $this->assertFalse((bool)$users->save($entity));
+        $this->assertArrayHasKey('emailLowerUnique', $entity->getErrors()['email'] ?? []);
     }
 }
