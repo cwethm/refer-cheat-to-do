@@ -28,7 +28,7 @@ class AuthController extends AppController
         $users = FactoryLocator::get('Table')->get('Users');
         $user = $users->find()
             ->select(['id', 'email', 'password', 'created', 'modified'])
-            ->where(['email' => $email])
+            ->where(['LOWER(email)' => $email])
             ->disableHydration()
             ->first();
         if (!is_array($user)) {
