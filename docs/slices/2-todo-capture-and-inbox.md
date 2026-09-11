@@ -136,3 +136,140 @@ An authenticated user can create a ToDo quickly, see it in an Inbox list, open i
 - migrations and rollback/reapply checks pass
 - coding standards, static analysis, and full regression suite pass
 - slice completion report recorded with decision
+
+---
+
+# Slice Completion Report
+
+## Slice
+Slice 2 — ToDo Capture and Inbox
+
+## Objective
+Deliver persistent ToDo capture and Inbox listing with user ownership boundaries and complete quality-gate verification.
+
+## Delivered
+- users and todos persistence schema via migrations
+- ToDo API endpoints for create/list/view/edit
+- authentication context endpoints (`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`)
+- ownership enforcement for ToDo list/detail/update queries
+- validation and failure-path handling for title/status/query/filter inputs
+- pagination metadata on ToDo list responses
+- regression-safe JSON response and error conventions maintained
+
+## Files Added
+- `config/Migrations/20260911095500_CreateUsersAndTodos.php`
+- `src/Controller/Api/AuthController.php`
+- `src/Controller/Api/TodosController.php`
+- `src/Http/Exception/ValidationException.php`
+- `src/Model/Entity/User.php`
+- `src/Model/Entity/Todo.php`
+- `src/Model/Table/UsersTable.php`
+- `src/Model/Table/TodosTable.php`
+- `tests/Fixture/UsersFixture.php`
+- `tests/Fixture/TodosFixture.php`
+- `tests/TestCase/Controller/Api/AuthControllerTest.php`
+- `tests/TestCase/Controller/Api/TodosControllerTest.php`
+- `tests/TestCase/Model/Table/TodosTableTest.php`
+
+## Files Modified
+- `.github/workflows/ci.yml`
+- `config/routes.php`
+- `src/Controller/Api/AppController.php`
+- `docs/slices/2-todo-capture-and-inbox.md`
+
+## Database Changes
+- created `users` table with unique email constraint
+- created `todos` table with owner foreign key and status support
+- added `todos_user_status_idx` index for inbox/status filtering
+
+## API Changes
+- added `POST /api/auth/login`
+- added `POST /api/auth/logout`
+- added `GET /api/auth/me`
+- added `POST /api/todos`
+- added `GET /api/todos`
+- added `GET /api/todos/{id}`
+- added `PATCH /api/todos/{id}`
+- all success responses remain under `data`; errors remain under `error`
+
+## Reusable Components Added
+- `App\Controller\Api\AppController::requireUserId()` reusable authenticated-user resolver for API controllers
+- `App\Http\Exception\ValidationException` reusable HTTP 422 exception for validation failures
+
+## Existing Shared Components Reused
+- `App\Controller\Api\AppController::respond()` for JSON success envelopes
+- `App\Error\ApiExceptionRenderer` for JSON error envelopes
+
+## Intentionally Local Logic
+- ToDo serialization and filter parsing were kept local to `TodosController` because there is a single caller in this slice.
+
+## Authorization Rules
+- anonymous users denied for ToDo create/list/view/update
+- users can read/update only ToDos where `todos.user_id` matches session user
+- client-supplied ownership assignment does not override server-side owner assignment
+
+## Tests Added
+- `tests/TestCase/Controller/Api/AuthControllerTest.php`
+- `tests/TestCase/Controller/Api/TodosControllerTest.php`
+- `tests/TestCase/Model/Table/TodosTableTest.php`
+- `tests/Fixture/UsersFixture.php`
+- `tests/Fixture/TodosFixture.php`
+
+## Test Results
+
+### Focused Tests
+PASS — new AuthController, TodosController, and TodosTable tests
+
+### Integration Tests
+PASS — table persistence and controller integration flows
+
+### API Tests
+PASS — ToDo and auth endpoint request/response behavior
+
+### Authorization Tests
+PASS — cross-user access denied and anonymous access denied
+
+### Negative Tests
+PASS — invalid status, missing title, invalid IDs, and missing auth cases
+
+### Full Regression Suite
+PASS — CI run #39 attempt #2 (`composer test`)
+
+### Coding Standards
+PASS — CI run #39 attempt #2 (`composer cs-check`)
+
+### Static Analysis
+PASS — CI run #39 attempt #2 (`composer stan`)
+
+### Migration Verification
+PASS — CI run #39 attempt #2
+- `bin/cake migrations migrate -c default`
+- `bin/cake migrations migrate -c test`
+- `bin/cake migrations rollback -c test`
+- `bin/cake migrations migrate -c test`
+
+## Security Review
+PASS — ownership is enforced server-side in list/detail/update queries, unauthorized access returns 401/404, and no cross-user read/write path remained.
+
+## Scope Review
+All delivered behavior stayed within Slice 2 scope (ToDo capture, inbox listing, edit/view, ownership, validation, and tests).
+
+## Code-Bloat Review
+No generic manager/factory abstraction introduced; only small table/controller/exception components with direct slice value were added.
+
+## Known Limitations
+- Session-based auth context is minimal and intended only as current-slice ownership context.
+
+## Deferred Work
+- tag/search lifecycle and richer filtering move to Slice 3
+- deeper authentication hardening can be expanded in future slices if required by evolving policy
+
+## Documentation Updated
+- `docs/slices/1-authentication-and-user-workspace.md`
+- `docs/slices/2-todo-capture-and-inbox.md`
+
+## Slice Decision
+APPROVED
+
+## Next Slice
+Slice 3 — Tags, Search, and Filtering
