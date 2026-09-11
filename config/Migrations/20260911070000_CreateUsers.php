@@ -14,12 +14,21 @@ class CreateUsers extends AbstractMigration
             ->addTimestamps('created', 'modified')
             ->create();
 
-        $this->execute('CREATE UNIQUE INDEX users_email_lower_unique ON users (LOWER(email));');
+        if ($this->isPostgresAdapter()) {
+            $this->execute('CREATE UNIQUE INDEX users_email_lower_unique ON users (LOWER(email));');
+        }
     }
 
     public function down(): void
     {
-        $this->execute('DROP INDEX IF EXISTS users_email_lower_unique;');
+        if ($this->isPostgresAdapter()) {
+            $this->execute('DROP INDEX IF EXISTS users_email_lower_unique;');
+        }
         $this->table('users')->drop()->save();
+    }
+
+    protected function isPostgresAdapter(): bool
+    {
+        return str_contains(strtolower($this->getAdapter()::class), 'postgres');
     }
 }

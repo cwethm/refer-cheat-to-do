@@ -23,9 +23,18 @@ class ApiAuthenticationMiddleware implements MiddlewareInterface
         if (
             is_array($identity)
             && isset($identity['id'])
-            && is_numeric($userId)
-            && (int)$identity['id'] === (int)$userId
+            && is_numeric($identity['id'])
         ) {
+            if (is_numeric($userId) && (int)$identity['id'] !== (int)$userId) {
+                $session->delete('Auth.user_id');
+                $session->delete('Auth.identity');
+
+                return $handler->handle($request);
+            }
+            if (!$session->check('Auth.user_id')) {
+                $session->write('Auth.user_id', (int)$identity['id']);
+            }
+
             $request = $request->withAttribute('identity', $identity);
 
             return $handler->handle($request);
