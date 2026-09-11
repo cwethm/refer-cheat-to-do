@@ -11,7 +11,7 @@ class AuthController extends AppController
 {
     public function login()
     {
-        $email = trim((string)$this->request->getData('email'));
+        $email = mb_strtolower(trim((string)$this->request->getData('email')));
         $password = (string)$this->request->getData('password');
 
         $errors = [];
@@ -26,7 +26,7 @@ class AuthController extends AppController
         }
 
         $users = FactoryLocator::get('Table')->get('Users');
-        $user = $users->find()->where(['email' => mb_strtolower($email)])->first();
+        $user = $users->find()->where(['email' => $email])->first();
 
         if ($user === null || !(new DefaultPasswordHasher())->check($password, (string)$user->get('password'))) {
             throw new UnauthorizedException('Invalid credentials.');

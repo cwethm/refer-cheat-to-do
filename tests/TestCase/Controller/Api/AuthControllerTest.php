@@ -39,6 +39,19 @@ class AuthControllerTest extends TestCase
         $this->assertResponseContains('"code": "UNAUTHORIZED"');
     }
 
+    public function testLoginSucceedsWithWhitespaceAroundEmail(): void
+    {
+        $this->configRequest(['headers' => ['Accept' => 'application/json']]);
+        $this->post('/api/auth/login', [
+            'email' => '  OWNER@example.com ',
+            'password' => 'Password123!',
+        ]);
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"id": 1');
+        $this->assertSession(1, 'Auth.user_id');
+    }
+
     public function testLoginFailsWithMissingCredentials(): void
     {
         $this->configRequest(['headers' => ['Accept' => 'application/json']]);

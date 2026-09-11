@@ -39,6 +39,6 @@ class ApiAuthenticationMiddleware implements MiddlewareInterface
     {
         $path = $request->getUri()->getPath();
 
-        return str_starts_with($path, '/api/') || $path === '/api' || $path === '/';
+        return str_starts_with($path, '/api/') || $path === '/api';
     }
 }
