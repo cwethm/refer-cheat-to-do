@@ -3,12 +3,12 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Http\Exception\ValidationException;
 use App\Model\Entity\Todo;
 use App\Model\Table\TodosTable;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\InternalErrorException;
 use Cake\Http\Exception\NotFoundException;
-use Cake\Http\Exception\UnprocessableEntityException;
 use Cake\Http\Response;
 
 class TodosController extends AppController
@@ -40,6 +40,7 @@ class TodosController extends AppController
 
         $items = [];
         foreach ($todos as $todo) {
+            /** @var \App\Model\Entity\Todo $todo */
             $items[] = $this->serializeTodo($todo);
         }
 
@@ -70,7 +71,7 @@ class TodosController extends AppController
         $todo->user_id = $userId;
 
         if ($todo->hasErrors()) {
-            throw new UnprocessableEntityException('Invalid ToDo payload.');
+            throw new ValidationException('Invalid ToDo payload.');
         }
         if (!$todosTable->save($todo)) {
             throw new InternalErrorException('Unable to save ToDo.');
@@ -106,7 +107,7 @@ class TodosController extends AppController
         $todosTable = $this->fetchTable('Todos');
         $todo = $todosTable->patchEntity($todo, $data, ['fields' => ['title', 'notes', 'status']]);
         if ($todo->hasErrors()) {
-            throw new UnprocessableEntityException('Invalid ToDo payload.');
+            throw new ValidationException('Invalid ToDo payload.');
         }
         if (!$todosTable->save($todo)) {
             throw new InternalErrorException('Unable to update ToDo.');

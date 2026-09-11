@@ -5,6 +5,15 @@ namespace App\Model\Entity;
 
 use Cake\ORM\Entity;
 
+/**
+ * @property int $id
+ * @property int $user_id
+ * @property string $title
+ * @property string|null $notes
+ * @property string $status
+ * @property \Cake\I18n\DateTime|null $created
+ * @property \Cake\I18n\DateTime|null $modified
+ */
 class Todo extends Entity
 {
     /**

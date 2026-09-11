@@ -5,6 +5,13 @@ namespace App\Model\Entity;
 
 use Cake\ORM\Entity;
 
+/**
+ * @property int $id
+ * @property string $email
+ * @property string $password
+ * @property \Cake\I18n\DateTime|null $created
+ * @property \Cake\I18n\DateTime|null $modified
+ */
 class User extends Entity
 {
     /**
