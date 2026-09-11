@@ -165,6 +165,7 @@ Implementation changes are present but slice approval is blocked until dependenc
 - `tests/TestCase/Controller/Api/AuthControllerTest.php`
 - `tests/TestCase/Controller/Api/WorkspaceControllerTest.php`
 - `tests/TestCase/Model/Table/UsersTableTest.php`
+- `tests/TestCase/Migrations/CreateUsersMigrationDefinitionTest.php`
 - `tests/TestCase/Policy/OwnershipPolicyTest.php`
 - `tests/TestCase/ApplicationTest.php`
 - `README.md`
