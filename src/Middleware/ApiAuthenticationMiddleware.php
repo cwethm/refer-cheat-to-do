@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Middleware;
 
-use Cake\Datasource\FactoryLocator;
 use Cake\Http\ServerRequest;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -25,22 +24,9 @@ class ApiAuthenticationMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        $userId = $request->getSession()->read('Auth.user_id');
-        if (is_numeric($userId)) {
-            $identity = FactoryLocator::get('Table')->get('Users')
-                ->find()
-                ->select(['id', 'email', 'created', 'modified'])
-                ->where(['id' => (int)$userId])
-                ->disableHydration()
-                ->first();
-
-            if (is_array($identity)) {
-                $request->getSession()->write('Auth.identity', $identity);
-                $request = $request->withAttribute('identity', $identity);
-            } else {
-                $request->getSession()->delete('Auth.user_id');
-                $request->getSession()->delete('Auth.identity');
-            }
+        if ($request->getSession()->check('Auth.user_id')) {
+            $request->getSession()->delete('Auth.user_id');
+            $request->getSession()->delete('Auth.identity');
         }
 
         return $handler->handle($request);

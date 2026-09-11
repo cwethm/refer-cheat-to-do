@@ -14,7 +14,15 @@ class WorkspaceControllerTest extends TestCase
 
     public function testOwnerCanAccessOwnWorkspace(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->session([
+            'Auth.user_id' => 1,
+            'Auth.identity' => [
+                'id' => 1,
+                'email' => 'owner@example.com',
+                'created' => '2026-01-01 00:00:00',
+                'modified' => '2026-01-01 00:00:00',
+            ],
+        ]);
         $this->configRequest(['headers' => ['Accept' => 'application/json']]);
 
         $this->get('/api/workspace/1');
@@ -25,7 +33,15 @@ class WorkspaceControllerTest extends TestCase
 
     public function testDifferentAuthenticatedUserIsDenied(): void
     {
-        $this->session(['Auth.user_id' => 2]);
+        $this->session([
+            'Auth.user_id' => 2,
+            'Auth.identity' => [
+                'id' => 2,
+                'email' => 'other@example.com',
+                'created' => '2026-01-01 00:00:00',
+                'modified' => '2026-01-01 00:00:00',
+            ],
+        ]);
         $this->configRequest(['headers' => ['Accept' => 'application/json']]);
 
         $this->get('/api/workspace/1');

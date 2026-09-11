@@ -14,27 +14,12 @@ class CreateUsers extends AbstractMigration
             ->addTimestamps('created', 'modified')
             ->create();
 
-        $schema = $this->schemaName();
-        $this->execute(sprintf(
-            'CREATE UNIQUE INDEX users_email_lower_unique ON %s.users (LOWER(email));',
-            $schema,
-        ));
+        $this->execute('CREATE UNIQUE INDEX users_email_lower_unique ON users (LOWER(email));');
     }
 
     public function down(): void
     {
-        $schema = $this->schemaName();
-        $this->execute(sprintf('DROP INDEX IF EXISTS %s.users_email_lower_unique;', $schema));
+        $this->execute('DROP INDEX IF EXISTS users_email_lower_unique;');
         $this->table('users')->drop()->save();
-    }
-
-    protected function schemaName(): string
-    {
-        $row = $this->fetchRow('SELECT current_schema() AS name');
-        if (is_array($row) && isset($row['name']) && is_string($row['name'])) {
-            return preg_replace('/[^a-zA-Z0-9_]/', '', $row['name']) ?: 'public';
-        }
-
-        return 'public';
     }
 }

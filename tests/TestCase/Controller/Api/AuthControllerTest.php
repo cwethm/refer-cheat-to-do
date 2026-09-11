@@ -12,6 +12,22 @@ class AuthControllerTest extends TestCase
 
     protected array $fixtures = ['app.Users'];
 
+    /**
+     * @return array<string, mixed>
+     */
+    protected function identitySession(): array
+    {
+        return [
+            'Auth.user_id' => 1,
+            'Auth.identity' => [
+                'id' => 1,
+                'email' => 'owner@example.com',
+                'created' => '2026-01-01 00:00:00',
+                'modified' => '2026-01-01 00:00:00',
+            ],
+        ];
+    }
+
     public function testLoginSucceedsWithCorrectCredentials(): void
     {
         $this->configRequest(['headers' => ['Accept' => 'application/json']]);
@@ -65,7 +81,7 @@ class AuthControllerTest extends TestCase
 
     public function testMeReturnsCurrentUserWhenAuthenticated(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->session($this->identitySession());
         $this->configRequest(['headers' => ['Accept' => 'application/json']]);
 
         $this->get('/api/auth/me');
@@ -86,7 +102,7 @@ class AuthControllerTest extends TestCase
 
     public function testLogoutInvalidatesSession(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->session($this->identitySession());
         $this->configRequest(['headers' => ['Accept' => 'application/json']]);
 
         $this->post('/api/auth/logout', []);
@@ -99,15 +115,9 @@ class AuthControllerTest extends TestCase
 
     public function testLogoutInvalidatesSessionWithIdentityPayload(): void
     {
-        $this->session([
-            'Auth.user_id' => 1,
-            'Auth.identity' => [
-                'id' => 1,
-                'email' => 'owner@example.com',
-                'created' => '2026-01-01 00:00:00',
-                'modified' => '2026-01-01 00:00:00',
-            ],
-        ]);
+        $session = $this->identitySession();
+        unset($session['Auth.user_id']);
+        $this->session($session);
         $this->configRequest(['headers' => ['Accept' => 'application/json']]);
 
         $this->post('/api/auth/logout', []);

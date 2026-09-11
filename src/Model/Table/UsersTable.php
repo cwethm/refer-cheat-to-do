@@ -51,12 +51,13 @@ class UsersTable extends Table
                 }
 
                 $query = $this->find()
+                    ->select(['id'])
                     ->where(['LOWER(email)' => mb_strtolower($email)]);
                 if (!$entity->isNew() && $entity->get('id') !== null) {
                     $query->where(['id !=' => (int)$entity->get('id')]);
                 }
 
-                return !$query->count();
+                return $query->first() === null;
             },
             'emailLowerUnique',
             ['errorField' => 'email', 'message' => 'This email is already in use.'],

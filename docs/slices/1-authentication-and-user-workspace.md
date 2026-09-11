@@ -145,6 +145,8 @@ Introduce authenticated identity, secure credential handling, and ownership boun
 
 ## Delivered
 
+Implementation changes are present but slice approval is blocked until dependency installation and full quality-gate execution are available.
+
 - users migration, table, entity, and validation/rules
 - API auth endpoints and workspace endpoints
 - authentication middleware and ownership policy
