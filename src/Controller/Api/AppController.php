@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use App\Controller\AppController as BaseController;
+use Cake\Http\Exception\UnauthorizedException;
 use Cake\Http\Response;
 use Cake\View\JsonView;
 
@@ -39,5 +40,21 @@ class AppController extends BaseController
         $this->setResponse($response);
 
         return $response;
+    }
+
+    /**
+     * Resolve and require the currently authenticated user id from session.
+     */
+    protected function requireUserId(): int
+    {
+        $userId = $this->request->getSession()->read('Auth.user_id');
+        if (is_int($userId) && $userId > 0) {
+            return $userId;
+        }
+        if (is_string($userId) && ctype_digit($userId)) {
+            return (int)$userId;
+        }
+
+        throw new UnauthorizedException('Authentication is required.');
     }
 }
