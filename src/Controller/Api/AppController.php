@@ -11,6 +11,12 @@ class AppController extends BaseController
 {
     protected array $viewClasses = [JsonView::class];
 
+    /**
+     * Serialize a successful API response payload.
+     *
+     * @param array<string, mixed> $data Response payload data.
+     * @param array<string, mixed> $meta Optional response metadata.
+     */
     protected function respond(array $data, array $meta = [], int $status = 200): Response
     {
         $payload = ['data' => $data];

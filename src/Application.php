@@ -21,6 +21,9 @@ use Cake\Routing\Middleware\RoutingMiddleware;
  */
 class Application extends BaseApplication
 {
+    /**
+     * Bootstrap application services and framework configuration.
+     */
     public function bootstrap(): void
     {
         parent::bootstrap();
@@ -31,6 +34,9 @@ class Application extends BaseApplication
         );
     }
 
+    /**
+     * Configure and return the application middleware queue.
+     */
     public function middleware(MiddlewareQueue $middlewareQueue): MiddlewareQueue
     {
         $middlewareQueue
@@ -45,10 +51,16 @@ class Application extends BaseApplication
         return $middlewareQueue;
     }
 
+    /**
+     * Register container services.
+     */
     public function services(ContainerInterface $container): void
     {
     }
 
+    /**
+     * Register and return the application event manager.
+     */
     public function events(EventManagerInterface $eventManager): EventManagerInterface
     {
         return $eventManager;
