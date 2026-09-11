@@ -96,4 +96,23 @@ class AuthControllerTest extends TestCase
         $this->get('/api/auth/me');
         $this->assertResponseCode(401);
     }
+
+    public function testLogoutInvalidatesSessionWithIdentityPayload(): void
+    {
+        $this->session([
+            'Auth.user_id' => 1,
+            'Auth.identity' => [
+                'id' => 1,
+                'email' => 'owner@example.com',
+                'created' => '2026-01-01 00:00:00',
+                'modified' => '2026-01-01 00:00:00',
+            ],
+        ]);
+        $this->configRequest(['headers' => ['Accept' => 'application/json']]);
+
+        $this->post('/api/auth/logout', []);
+        $this->assertResponseOk();
+        $this->assertSession(null, 'Auth.user_id');
+        $this->assertSession(null, 'Auth.identity');
+    }
 }

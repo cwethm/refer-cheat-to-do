@@ -23,11 +23,6 @@ class User extends Entity
             return $password;
         }
 
-        $info = password_get_info($password);
-        if ($info['algo'] !== null) {
-            return $password;
-        }
-
         return (new DefaultPasswordHasher())->hash($password);
     }
 }
