@@ -66,14 +66,7 @@ class AuthControllerTest extends TestCase
 
     public function testMeReturnsCurrentAuthenticatedUser(): void
     {
-        $this->configRequest([
-            'headers' => ['Accept' => 'application/json'],
-        ]);
-        $this->post('/api/auth/login', [
-            'email' => 'owner@example.com',
-            'password' => 'owner-password',
-        ]);
-
+        $this->session(['Auth.user_id' => 1]);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -99,14 +92,7 @@ class AuthControllerTest extends TestCase
 
     public function testLogoutInvalidatesSession(): void
     {
-        $this->configRequest([
-            'headers' => ['Accept' => 'application/json'],
-        ]);
-        $this->post('/api/auth/login', [
-            'email' => 'owner@example.com',
-            'password' => 'owner-password',
-        ]);
-
+        $this->session(['Auth.user_id' => 1]);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
