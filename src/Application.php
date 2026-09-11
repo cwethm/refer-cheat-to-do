@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App;
 
+use App\Middleware\ApiAuthenticationMiddleware;
 use App\Middleware\HostHeaderMiddleware;
 use Cake\Core\Configure;
 use Cake\Core\ContainerInterface;
@@ -40,7 +41,8 @@ class Application extends BaseApplication
                 'cacheTime' => Configure::read('Asset.cacheTime'),
             ]))
             ->add(new RoutingMiddleware($this))
-            ->add(new BodyParserMiddleware());
+            ->add(new BodyParserMiddleware())
+            ->add(new ApiAuthenticationMiddleware());
 
         return $middlewareQueue;
     }

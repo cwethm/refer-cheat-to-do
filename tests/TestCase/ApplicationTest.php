@@ -17,9 +17,11 @@ declare(strict_types=1);
 namespace App\Test\TestCase;
 
 use App\Application;
+use App\Middleware\ApiAuthenticationMiddleware;
 use App\Middleware\HostHeaderMiddleware;
 use Cake\Core\Configure;
 use Cake\Error\Middleware\ErrorHandlerMiddleware;
+use Cake\Http\Middleware\BodyParserMiddleware;
 use Cake\Http\MiddlewareQueue;
 use Cake\Routing\Middleware\AssetMiddleware;
 use Cake\Routing\Middleware\RoutingMiddleware;
@@ -84,5 +86,9 @@ class ApplicationTest extends TestCase
         $this->assertInstanceOf(AssetMiddleware::class, $middleware->current());
         $middleware->seek(3);
         $this->assertInstanceOf(RoutingMiddleware::class, $middleware->current());
+        $middleware->seek(4);
+        $this->assertInstanceOf(BodyParserMiddleware::class, $middleware->current());
+        $middleware->seek(5);
+        $this->assertInstanceOf(ApiAuthenticationMiddleware::class, $middleware->current());
     }
 }
