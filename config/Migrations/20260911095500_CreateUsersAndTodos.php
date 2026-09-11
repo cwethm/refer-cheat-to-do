@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-use Migrations\AbstractMigration;
+use Migrations\BaseMigration;
 
-class CreateUsersAndTodos extends AbstractMigration
+class CreateUsersAndTodos extends BaseMigration
 {
     /**
      * Create users and todos persistence tables.
