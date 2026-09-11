@@ -17,7 +17,7 @@ use Cake\Routing\Middleware\AssetMiddleware;
 use Cake\Routing\Middleware\RoutingMiddleware;
 
 /**
- * @extends \Cake\Http\BaseApplication<\App\Application>
+ * Application setup and middleware configuration.
  */
 class Application extends BaseApplication
 {
