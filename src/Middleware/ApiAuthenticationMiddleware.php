@@ -35,7 +35,11 @@ class ApiAuthenticationMiddleware implements MiddlewareInterface
                 ->first();
 
             if (is_array($identity)) {
+                $request->getSession()->write('Auth.identity', $identity);
                 $request = $request->withAttribute('identity', $identity);
+            } else {
+                $request->getSession()->delete('Auth.user_id');
+                $request->getSession()->delete('Auth.identity');
             }
         }
 

@@ -26,26 +26,33 @@ class AuthController extends AppController
         }
 
         $users = FactoryLocator::get('Table')->get('Users');
-        $user = $users->find()->where(['email' => $email])->first();
+        $user = $users->find()
+            ->select(['id', 'email', 'password', 'created', 'modified'])
+            ->where(['email' => $email])
+            ->disableHydration()
+            ->first();
+        if (!is_array($user)) {
+            throw new UnauthorizedException('Invalid credentials.');
+        }
 
-        if ($user === null || !(new DefaultPasswordHasher())->check($password, (string)$user->get('password'))) {
+        if (!(new DefaultPasswordHasher())->check($password, (string)$user['password'])) {
             throw new UnauthorizedException('Invalid credentials.');
         }
 
         $session = $this->request->getSession();
         $session->renew();
-        $session->write('Auth.user_id', (int)$user->get('id'));
+        $session->write('Auth.user_id', (int)$user['id']);
         $session->write('Auth.identity', [
-            'id' => (int)$user->get('id'),
-            'email' => (string)$user->get('email'),
-            'created' => $user->get('created'),
-            'modified' => $user->get('modified'),
+            'id' => (int)$user['id'],
+            'email' => (string)$user['email'],
+            'created' => $user['created'],
+            'modified' => $user['modified'],
         ]);
 
         return $this->respond([
             'user' => [
-                'id' => (int)$user->get('id'),
-                'email' => (string)$user->get('email'),
+            'id' => (int)$user['id'],
+            'email' => (string)$user['email'],
             ],
         ]);
     }
