@@ -7,6 +7,10 @@ class CreateUsers extends AbstractMigration
 {
     public function up(): void
     {
+        if (!$this->isPostgresAdapter()) {
+            throw new \RuntimeException('CreateUsers migration requires PostgreSQL for case-insensitive email uniqueness.');
+        }
+
         $table = $this->table('users');
         $table
             ->addColumn('email', 'string', ['limit' => 255, 'null' => false])
@@ -14,16 +18,16 @@ class CreateUsers extends AbstractMigration
             ->addTimestamps('created', 'modified')
             ->create();
 
-        if ($this->isPostgresAdapter()) {
-            $this->execute('CREATE UNIQUE INDEX users_email_lower_unique ON users (LOWER(email));');
-        }
+        $this->execute('CREATE UNIQUE INDEX users_email_lower_unique ON users (LOWER(email));');
     }
 
     public function down(): void
     {
-        if ($this->isPostgresAdapter()) {
-            $this->execute('DROP INDEX IF EXISTS users_email_lower_unique;');
+        if (!$this->isPostgresAdapter()) {
+            throw new \RuntimeException('CreateUsers migration rollback requires PostgreSQL.');
         }
+
+        $this->execute('DROP INDEX IF EXISTS users_email_lower_unique;');
         $this->table('users')->drop()->save();
     }
 

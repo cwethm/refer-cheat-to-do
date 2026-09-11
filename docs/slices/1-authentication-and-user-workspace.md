@@ -256,6 +256,7 @@ No speculative abstraction layers introduced.
 ## Known Limitations
 
 - no rate limiting in this slice
+- migration explicitly requires PostgreSQL because case-insensitive email uniqueness uses a functional index
 
 ## Deferred Work
 
