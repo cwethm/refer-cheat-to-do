@@ -17,16 +17,23 @@ class ApiAuthenticationMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        $identity = $request->getSession()->read('Auth.identity');
-        if (is_array($identity) && isset($identity['id'])) {
+        $session = $request->getSession();
+        $identity = $session->read('Auth.identity');
+        $userId = $session->read('Auth.user_id');
+        if (
+            is_array($identity)
+            && isset($identity['id'])
+            && is_numeric($userId)
+            && (int)$identity['id'] === (int)$userId
+        ) {
             $request = $request->withAttribute('identity', $identity);
 
             return $handler->handle($request);
         }
 
-        if ($request->getSession()->check('Auth.user_id')) {
-            $request->getSession()->delete('Auth.user_id');
-            $request->getSession()->delete('Auth.identity');
+        if ($session->check('Auth.user_id') || $session->check('Auth.identity')) {
+            $session->delete('Auth.user_id');
+            $session->delete('Auth.identity');
         }
 
         return $handler->handle($request);

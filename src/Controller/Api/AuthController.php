@@ -60,7 +60,10 @@ class AuthController extends AppController
     public function logout()
     {
         $this->requireAuthenticatedIdentity();
-        $this->request->getSession()->destroy();
+        $session = $this->request->getSession();
+        $session->delete('Auth.user_id');
+        $session->delete('Auth.identity');
+        $session->renew();
 
         return $this->respond(['message' => 'Logged out.']);
     }
