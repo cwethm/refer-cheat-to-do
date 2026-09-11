@@ -32,7 +32,6 @@ class WorkspaceController extends AppController
         return $this->respond([
             'workspace' => [
                 'user_id' => $userId,
-                'email' => (string)$identity['email'],
             ],
         ]);
     }

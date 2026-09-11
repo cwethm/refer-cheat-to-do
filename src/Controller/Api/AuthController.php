@@ -32,8 +32,10 @@ class AuthController extends AppController
             throw new UnauthorizedException('Invalid credentials.');
         }
 
-        $this->request->getSession()->renew();
-        $this->request->getSession()->write('Auth.user_id', (int)$user->get('id'));
+        $session = $this->request->getSession();
+        $session->write('Auth.user_id', (int)$user->get('id'));
+        $session->renew();
+        $session->write('Auth.user_id', (int)$user->get('id'));
 
         return $this->respond([
             'user' => [
