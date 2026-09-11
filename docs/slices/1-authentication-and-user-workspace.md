@@ -164,12 +164,20 @@ Introduce authenticated identity, secure credential handling, and ownership boun
 - `tests/TestCase/Controller/Api/WorkspaceControllerTest.php`
 - `tests/TestCase/Model/Table/UsersTableTest.php`
 - `tests/TestCase/Policy/OwnershipPolicyTest.php`
+- `tests/TestCase/ApplicationTest.php`
+- `README.md`
 
 ## Files Modified
 
 - `config/routes.php`
 - `src/Application.php`
 - `src/Controller/Api/AppController.php`
+- `src/Controller/Api/AuthController.php`
+- `src/Controller/Api/WorkspaceController.php`
+- `src/Middleware/ApiAuthenticationMiddleware.php`
+- `src/Model/Entity/User.php`
+- `src/Model/Table/UsersTable.php`
+- `tests/TestCase/Controller/Api/AuthControllerTest.php`
 
 ## Database Changes
 

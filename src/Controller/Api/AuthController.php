@@ -33,9 +33,14 @@ class AuthController extends AppController
         }
 
         $session = $this->request->getSession();
-        $session->write('Auth.user_id', (int)$user->get('id'));
         $session->renew();
         $session->write('Auth.user_id', (int)$user->get('id'));
+        $session->write('Auth.identity', [
+            'id' => (int)$user->get('id'),
+            'email' => (string)$user->get('email'),
+            'created' => $user->get('created'),
+            'modified' => $user->get('modified'),
+        ]);
 
         return $this->respond([
             'user' => [
@@ -49,6 +54,7 @@ class AuthController extends AppController
     {
         $this->requireAuthenticatedIdentity();
         $this->request->getSession()->delete('Auth.user_id');
+        $this->request->getSession()->delete('Auth.identity');
         $this->request->getSession()->renew();
 
         return $this->respond(['message' => 'Logged out.']);

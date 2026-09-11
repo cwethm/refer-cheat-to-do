@@ -18,6 +18,13 @@ class ApiAuthenticationMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
+        $identity = $request->getSession()->read('Auth.identity');
+        if (is_array($identity) && isset($identity['id'])) {
+            $request = $request->withAttribute('identity', $identity);
+
+            return $handler->handle($request);
+        }
+
         $userId = $request->getSession()->read('Auth.user_id');
         if (is_numeric($userId)) {
             $identity = FactoryLocator::get('Table')->get('Users')
