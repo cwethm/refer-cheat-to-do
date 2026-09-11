@@ -14,12 +14,12 @@ class CreateUsers extends AbstractMigration
             ->addTimestamps('created', 'modified')
             ->create();
 
-        $this->execute('CREATE UNIQUE INDEX users_email_lower_unique ON users (LOWER(email));');
+        $this->execute('CREATE UNIQUE INDEX users_email_lower_unique ON public.users (LOWER(email));');
     }
 
     public function down(): void
     {
-        $this->execute('DROP INDEX IF EXISTS users_email_lower_unique;');
+        $this->execute('DROP INDEX IF EXISTS public.users_email_lower_unique;');
         $this->table('users')->drop()->save();
     }
 }

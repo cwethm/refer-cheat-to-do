@@ -21,7 +21,6 @@ class UsersFixture extends TestFixture
         'modified' => ['type' => 'datetime', 'null' => false],
         '_constraints' => [
             'primary' => ['type' => 'primary', 'columns' => ['id']],
-            'users_email_unique' => ['type' => 'unique', 'columns' => ['email']],
         ],
     ];
 
