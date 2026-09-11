@@ -4,9 +4,11 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use App\Http\Exception\ValidationException;
+use App\Model\Entity\Tag;
 use App\Model\Entity\Todo;
 use App\Model\Table\TodosTable;
 use Cake\Http\Exception\BadRequestException;
+use Cake\Http\Exception\ConflictException;
 use Cake\Http\Exception\InternalErrorException;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
@@ -14,26 +16,47 @@ use Cake\Http\Response;
 class TodosController extends AppController
 {
     /**
-     * List ToDos for the current user, optionally filtered by status.
+     * List ToDos for the current user, optionally filtered by status, search text, or tag.
      */
     public function index(): Response
     {
         $userId = $this->requireUserId();
         $status = $this->readStatusFilter();
+        $search = $this->readSearchFilter();
+        $tagId = $this->readTagFilter();
         $page = $this->readPositiveQueryInt('page', 1);
         $limit = min($this->readPositiveQueryInt('limit', 20), 100);
 
         /** @var \App\Model\Table\TodosTable $todosTable */
         $todosTable = $this->fetchTable('Todos');
-        $query = $todosTable->find()->where(['user_id' => $userId]);
+        $query = $todosTable->find()->where(['Todos.user_id' => $userId]);
         if ($status !== null) {
-            $query->where(['status' => $status]);
+            $query->where(['Todos.status' => $status]);
+        }
+        if ($search !== null) {
+            $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search) . '%';
+            $query->where([
+                'OR' => [
+                    'Todos.title LIKE' => $like,
+                    'Todos.notes LIKE' => $like,
+                ],
+            ]);
+        }
+        if ($tagId !== null) {
+            $query->matching('Tags', function ($q) use ($tagId, $userId) {
+                return $q->where([
+                    'Tags.id' => $tagId,
+                    'Tags.user_id' => $userId,
+                ]);
+            });
         }
 
         $total = (clone $query)->count();
         $offset = ($page - 1) * $limit;
         $todos = $query
-            ->orderBy(['id' => 'DESC'])
+            ->distinct(['Todos.id'])
+            ->orderBy(['Todos.id' => 'DESC'])
+            ->contain(['Tags'])
             ->limit($limit)
             ->offset($offset)
             ->all();
@@ -92,6 +115,64 @@ class TodosController extends AppController
     }
 
     /**
+     * Attach a user-owned tag to a user-owned ToDo.
+     */
+    public function attachTag(string $id, string $tagId): Response
+    {
+        $userId = $this->requireUserId();
+        $todo = $this->fetchOwnedTodoOrFail($id, $userId);
+        $tag = $this->fetchOwnedTagOrFail($tagId, $userId);
+
+        $todosTags = $this->fetchTable('TodosTags');
+        $exists = $todosTags->exists([
+            'todo_id' => (int)$todo->id,
+            'tag_id' => (int)$tag->id,
+        ]);
+        if ($exists) {
+            throw new ConflictException('Tag is already attached to this ToDo.');
+        }
+
+        $join = $todosTags->newEntity([
+            'todo_id' => (int)$todo->id,
+            'tag_id' => (int)$tag->id,
+        ]);
+        if (!$todosTags->save($join)) {
+            throw new InternalErrorException('Unable to attach tag.');
+        }
+
+        return $this->respond([
+            'todo_id' => (int)$todo->id,
+            'tag_id' => (int)$tag->id,
+            'message' => 'Tag attached.',
+        ], [], 201);
+    }
+
+    /**
+     * Detach a user-owned tag from a user-owned ToDo.
+     */
+    public function detachTag(string $id, string $tagId): Response
+    {
+        $userId = $this->requireUserId();
+        $todo = $this->fetchOwnedTodoOrFail($id, $userId);
+        $tag = $this->fetchOwnedTagOrFail($tagId, $userId);
+
+        $todosTags = $this->fetchTable('TodosTags');
+        $deleted = $todosTags->deleteAll([
+            'todo_id' => (int)$todo->id,
+            'tag_id' => (int)$tag->id,
+        ]);
+        if ($deleted < 1) {
+            throw new NotFoundException('Tag attachment not found.');
+        }
+
+        return $this->respond([
+            'todo_id' => (int)$todo->id,
+            'tag_id' => (int)$tag->id,
+            'message' => 'Tag detached.',
+        ]);
+    }
+
+    /**
      * Update an existing owned ToDo.
      */
     public function edit(string $id): Response
@@ -133,6 +214,41 @@ class TodosController extends AppController
     }
 
     /**
+     * Resolve optional text query filter.
+     */
+    private function readSearchFilter(): ?string
+    {
+        $query = $this->request->getQuery('q');
+        if ($query === null || $query === '') {
+            return null;
+        }
+        if (!is_string($query)) {
+            throw new BadRequestException('Invalid search query.');
+        }
+
+        return trim($query);
+    }
+
+    /**
+     * Resolve optional tag filter and validate it.
+     */
+    private function readTagFilter(): ?int
+    {
+        $tag = $this->request->getQuery('tag');
+        if ($tag === null || $tag === '') {
+            return null;
+        }
+        if (is_int($tag) && $tag > 0) {
+            return $tag;
+        }
+        if (is_string($tag) && ctype_digit($tag) && (int)$tag > 0) {
+            return (int)$tag;
+        }
+
+        throw new BadRequestException('Invalid tag filter.');
+    }
+
+    /**
      * Read a positive integer query value.
      */
     private function readPositiveQueryInt(string $field, int $default): int
@@ -171,18 +287,52 @@ class TodosController extends AppController
     }
 
     /**
+     * Find an owned tag by id or fail with 404.
+     */
+    private function fetchOwnedTagOrFail(string $id, int $userId): Tag
+    {
+        if (!ctype_digit($id) || (int)$id < 1) {
+            throw new NotFoundException('Tag not found.');
+        }
+
+        /** @var \App\Model\Table\TagsTable $tagsTable */
+        $tagsTable = $this->fetchTable('Tags');
+        /** @var \App\Model\Entity\Tag|null $tag */
+        $tag = $tagsTable->find()
+            ->where(['id' => (int)$id, 'user_id' => $userId])
+            ->first();
+        if ($tag === null) {
+            throw new NotFoundException('Tag not found.');
+        }
+
+        return $tag;
+    }
+
+    /**
      * Serialize ToDo entity fields for API responses.
      *
      * @return array<string, mixed>
      */
     private function serializeTodo(Todo $todo): array
     {
+        $tags = [];
+        foreach ($todo->tags ?? [] as $tag) {
+            if (!$tag instanceof Tag) {
+                continue;
+            }
+            $tags[] = [
+                'id' => (int)$tag->id,
+                'name' => (string)$tag->name,
+            ];
+        }
+
         return [
             'id' => (int)$todo->id,
             'user_id' => (int)$todo->user_id,
             'title' => (string)$todo->title,
             'notes' => $todo->notes === null ? null : (string)$todo->notes,
             'status' => (string)$todo->status,
+            'tags' => $tags,
             'created' => $todo->created?->format(DATE_ATOM),
             'modified' => $todo->modified?->format(DATE_ATOM),
         ];

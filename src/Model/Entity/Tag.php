@@ -8,14 +8,11 @@ use Cake\ORM\Entity;
 /**
  * @property int $id
  * @property int $user_id
- * @property string $title
- * @property string|null $notes
- * @property string $status
+ * @property string $name
  * @property \Cake\I18n\DateTime|null $created
  * @property \Cake\I18n\DateTime|null $modified
- * @property list<\App\Model\Entity\Tag> $tags
  */
-class Todo extends Entity
+class Tag extends Entity
 {
     /**
      * Fields that can be mass assigned.
@@ -24,12 +21,10 @@ class Todo extends Entity
      */
     protected array $_accessible = [
         'user_id' => true,
-        'title' => true,
-        'notes' => true,
-        'status' => true,
+        'name' => true,
         'created' => true,
         'modified' => true,
         'user' => true,
-        'tags' => true,
+        'todos' => true,
     ];
 }
