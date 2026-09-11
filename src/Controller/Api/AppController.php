@@ -32,12 +32,10 @@ class AppController extends BaseController
             $payload['meta'] = $meta;
         }
 
-        $this->set($payload);
-        $this->viewBuilder()->setOption('serialize', array_keys($payload));
-
         $response = $this->getResponse()
             ->withType('application/json')
             ->withStatus($status);
+        $response->getBody()->write((string)json_encode($payload, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
         $this->setResponse($response);
 
         return $response;
