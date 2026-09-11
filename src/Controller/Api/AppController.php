@@ -27,7 +27,9 @@ class AppController extends BaseController
         $this->set($payload);
         $this->viewBuilder()->setOption('serialize', array_keys($payload));
 
-        $response = $this->getResponse()->withStatus($status);
+        $response = $this->getResponse()
+            ->withType('application/json')
+            ->withStatus($status);
         $this->setResponse($response);
 
         return $response;
