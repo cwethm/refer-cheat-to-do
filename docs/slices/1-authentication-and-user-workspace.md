@@ -167,20 +167,23 @@ Implementation changes are present but slice approval is blocked until dependenc
 - `tests/TestCase/Model/Table/UsersTableTest.php`
 - `tests/TestCase/Migrations/CreateUsersMigrationDefinitionTest.php`
 - `tests/TestCase/Policy/OwnershipPolicyTest.php`
-- `tests/TestCase/ApplicationTest.php`
-- `README.md`
+- `docs/slices/1-authentication-and-user-workspace.md`
+- `.github/workflows/copilot-setup-steps.yml`
 
 ## Files Modified
 
 - `config/routes.php`
 - `src/Application.php`
 - `src/Controller/Api/AppController.php`
+- `tests/TestCase/ApplicationTest.php`
+- `README.md`
 - `src/Controller/Api/AuthController.php`
 - `src/Controller/Api/WorkspaceController.php`
 - `src/Middleware/ApiAuthenticationMiddleware.php`
 - `src/Model/Entity/User.php`
 - `src/Model/Table/UsersTable.php`
 - `tests/TestCase/Controller/Api/AuthControllerTest.php`
+- `docs/slices/1-authentication-and-user-workspace.md`
 
 ## Database Changes
 
