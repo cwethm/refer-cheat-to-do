@@ -11,8 +11,6 @@ class User extends Entity
     protected array $_accessible = [
         'email' => true,
         'password' => true,
-        'created' => true,
-        'modified' => true,
     ];
 
     protected array $_hidden = [

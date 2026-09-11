@@ -3,9 +3,10 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\Datasource\EntityInterface;
+use Cake\Event\EventInterface;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
+use ArrayObject;
 use Cake\Validation\Validator;
 
 class UsersTable extends Table
@@ -47,10 +48,14 @@ class UsersTable extends Table
         return $rules;
     }
 
-    public function findForAuthentication(string $email): ?EntityInterface
+    /**
+     * @param \ArrayObject<string, mixed> $data
+     * @param \ArrayObject<string, mixed> $options
+     */
+    public function beforeMarshal(EventInterface $event, ArrayObject $data, ArrayObject $options): void
     {
-        return $this->find()
-            ->where(['email' => mb_strtolower(trim($email))])
-            ->first();
+        if (isset($data['email']) && is_string($data['email'])) {
+            $data['email'] = mb_strtolower(trim($data['email']));
+        }
     }
 }

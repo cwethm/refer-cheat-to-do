@@ -4,17 +4,19 @@ API-first foundation for a web-first information continuity, ToDo, research, and
 
 ## Current MVP scope
 
-This repository currently contains the development foundation for **MVP 1** only:
+This repository currently contains the foundation and authentication slice for **MVP 1**:
 
 - CakePHP 5 application skeleton
 - PostgreSQL-first configuration
 - JSON API conventions
 - initial health-check endpoint
+- authentication endpoints (`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`)
+- authenticated workspace endpoints (`/api/workspace`, `/api/workspace/{userId}`)
 - PHPUnit, coding standards, and static analysis setup
 - devcontainer/Docker-compatible development environment
 - GitHub Actions CI
 
-No domain schema beyond the framework foundation is implemented yet.
+Only the `users` domain schema is implemented so far. ToDo and all later roadmap domains are still pending.
 
 ## Technology stack
 
@@ -125,4 +127,4 @@ composer check
 
 ## Current project status
 
-The repository is ready for the next MVP slice: authentication and the first ToDo capture flow. The current code intentionally stops at the application foundation, shared API conventions, and developer tooling.
+The repository is ready for the next MVP slice: ToDo capture and Inbox. Authentication and user workspace foundations are in place.
