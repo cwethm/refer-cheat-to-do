@@ -98,11 +98,6 @@ class AuthControllerTest extends TestCase
         ]);
         $this->post('/api/auth/logout', []);
         $this->assertResponseOk();
-
-        $this->configRequest([
-            'headers' => ['Accept' => 'application/json'],
-        ]);
-        $this->get('/api/auth/me');
-        $this->assertResponseCode(401);
+        $this->assertSession(null, 'Auth.user_id');
     }
 }

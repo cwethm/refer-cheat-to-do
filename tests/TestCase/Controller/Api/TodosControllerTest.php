@@ -108,7 +108,7 @@ class TodosControllerTest extends TestCase
             'headers' => ['Accept' => 'application/json'],
         ]);
 
-        $this->get('/api/todos/3');
+        $this->get('/api/todos/12');
 
         $this->assertResponseCode(404);
         $this->assertResponseContains('"code": "NOT_FOUND"');
@@ -121,7 +121,7 @@ class TodosControllerTest extends TestCase
             'headers' => ['Accept' => 'application/json'],
         ]);
 
-        $this->patch('/api/todos/1', [
+        $this->patch('/api/todos/10', [
             'title' => 'Updated title',
             'status' => 'active',
             'user_id' => 2,
@@ -132,7 +132,7 @@ class TodosControllerTest extends TestCase
         $this->assertResponseContains('"status": "active"');
 
         $todos = TableRegistry::getTableLocator()->get('Todos');
-        $todo = $todos->get(1);
+        $todo = $todos->get(10);
         $this->assertSame(1, (int)$todo->user_id);
     }
 

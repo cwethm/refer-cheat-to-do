@@ -14,7 +14,7 @@ class TodosFixture extends TestFixture
     {
         $this->records = [
             [
-                'id' => 1,
+                'id' => 10,
                 'user_id' => 1,
                 'title' => 'Owner inbox todo',
                 'notes' => 'owner note',
@@ -23,7 +23,7 @@ class TodosFixture extends TestFixture
                 'modified' => '2026-01-01 00:00:00',
             ],
             [
-                'id' => 2,
+                'id' => 11,
                 'user_id' => 1,
                 'title' => 'Owner active todo',
                 'notes' => 'owner active',
@@ -32,7 +32,7 @@ class TodosFixture extends TestFixture
                 'modified' => '2026-01-01 00:00:00',
             ],
             [
-                'id' => 3,
+                'id' => 12,
                 'user_id' => 2,
                 'title' => 'Other user todo',
                 'notes' => 'other note',
