@@ -11,6 +11,9 @@ use Throwable;
 
 class ApiExceptionRenderer extends WebExceptionRenderer
 {
+    /**
+     * Render exceptions as JSON for API requests.
+     */
     public function render(): ResponseInterface
     {
         if (!$this->isApiRequest()) {
@@ -42,6 +45,9 @@ class ApiExceptionRenderer extends WebExceptionRenderer
         return $response;
     }
 
+    /**
+     * Determine whether the current request targets the API.
+     */
     protected function isApiRequest(): bool
     {
         $request = $this->controller->getRequest();
@@ -54,6 +60,9 @@ class ApiExceptionRenderer extends WebExceptionRenderer
             || $request->accepts('application/json');
     }
 
+    /**
+     * Map HTTP status codes to stable API error codes.
+     */
     protected function errorCode(Throwable $exception, int $status): string
     {
         return match ($status) {

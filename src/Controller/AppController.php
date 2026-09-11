@@ -7,6 +7,9 @@ use Cake\Controller\Controller;
 
 class AppController extends Controller
 {
+    /**
+     * Initialize shared controller components.
+     */
     public function initialize(): void
     {
         parent::initialize();
