@@ -9,7 +9,15 @@ use Cake\View\JsonView;
 
 class AppController extends BaseController
 {
-    protected array $viewClasses = [JsonView::class];
+    /**
+     * Use JsonView for API responses.
+     *
+     * @return array<int, string>
+     */
+    public function viewClasses(): array
+    {
+        return [JsonView::class];
+    }
 
     /**
      * Serialize a successful API response payload.
