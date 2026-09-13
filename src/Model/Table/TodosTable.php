@@ -32,6 +32,12 @@ class TodosTable extends Table
             'foreignKey' => 'user_id',
             'joinType' => 'INNER',
         ]);
+        $this->belongsToMany('Tags', [
+            'foreignKey' => 'todo_id',
+            'targetForeignKey' => 'tag_id',
+            'joinTable' => 'todos_tags',
+            'dependent' => false,
+        ]);
     }
 
     /**

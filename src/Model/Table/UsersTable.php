@@ -24,6 +24,10 @@ class UsersTable extends Table
             'foreignKey' => 'user_id',
             'dependent' => false,
         ]);
+        $this->hasMany('Tags', [
+            'foreignKey' => 'user_id',
+            'dependent' => false,
+        ]);
     }
 
     /**
