@@ -248,7 +248,7 @@ class TodosControllerTest extends TestCase
 
         $todo = array_values(array_filter(
             $decoded['data']['items'],
-            static fn (mixed $item): bool => is_array($item) && ($item['id'] ?? null) === 10,
+            static fn(mixed $item): bool => is_array($item) && ($item['id'] ?? null) === 10,
         ))[0] ?? null;
         $this->assertIsArray($todo);
         $this->assertArrayHasKey('tags', $todo);
