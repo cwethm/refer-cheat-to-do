@@ -65,7 +65,7 @@ class TagsController extends AppController
             throw new ValidationException('Invalid tag payload.');
         }
         if (!$tagsTable->save($tag)) {
-            if ($tag->hasErrors()) {
+            if ($tag->getErrors() !== []) {
                 throw new ValidationException('Invalid tag payload.');
             }
             throw new InternalErrorException('Unable to save tag.');
@@ -93,7 +93,7 @@ class TagsController extends AppController
             throw new ValidationException('Invalid tag payload.');
         }
         if (!$tagsTable->save($tag)) {
-            if ($tag->hasErrors()) {
+            if ($tag->getErrors() !== []) {
                 throw new ValidationException('Invalid tag payload.');
             }
             throw new InternalErrorException('Unable to update tag.');

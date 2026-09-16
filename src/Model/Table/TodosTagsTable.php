@@ -6,6 +6,8 @@ namespace App\Model\Table;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
+use RuntimeException;
+use Throwable;
 
 class TodosTagsTable extends Table
 {
@@ -59,5 +61,84 @@ class TodosTagsTable extends Table
         $rules->add($rules->isUnique(['todo_id', 'tag_id']), ['errorField' => 'tag_id']);
 
         return $rules;
+    }
+
+    /**
+     * Create a Todo/Tag relation and return false when it already exists.
+     */
+    public function attachIfMissing(int $todoId, int $tagId): bool
+    {
+        if ($this->exists(['todo_id' => $todoId, 'tag_id' => $tagId])) {
+            return false;
+        }
+
+        $join = $this->newEntity([
+            'todo_id' => $todoId,
+            'tag_id' => $tagId,
+        ]);
+        if ($join->hasErrors()) {
+            throw new RuntimeException('Invalid tag attachment payload.');
+        }
+
+        try {
+            $saved = $this->save($join);
+        } catch (Throwable $exception) {
+            if ($this->isUniqueViolationException($exception)) {
+                return false;
+            }
+
+            throw $exception;
+        }
+        if ($saved === false) {
+            if ($this->hasUniqueRuleError($join->getErrors())) {
+                return false;
+            }
+
+            throw new RuntimeException('Unable to persist tag attachment.');
+        }
+
+        return true;
+    }
+
+    /**
+     * Detect unique-constraint DB errors for race-safe conflict handling.
+     */
+    private function isUniqueViolationException(Throwable $exception): bool
+    {
+        $code = (string)$exception->getCode();
+        if ($code === '23505') {
+            return true;
+        }
+
+        $previous = $exception->getPrevious();
+        if ($previous instanceof Throwable) {
+            return $this->isUniqueViolationException($previous);
+        }
+
+        return false;
+    }
+
+    /**
+     * Detect ORM unique-rule failures from save() returning false.
+     *
+     * @param array<string, mixed> $errors
+     */
+    private function hasUniqueRuleError(array $errors): bool
+    {
+        foreach ($errors as $fieldErrors) {
+            if (!is_array($fieldErrors)) {
+                continue;
+            }
+            foreach ($fieldErrors as $key => $value) {
+                if ((string)$key === '_isUnique') {
+                    return true;
+                }
+                if (is_array($value) && $this->hasUniqueRuleError($value)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

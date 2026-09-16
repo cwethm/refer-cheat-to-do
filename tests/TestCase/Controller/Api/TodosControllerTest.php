@@ -248,7 +248,7 @@ class TodosControllerTest extends TestCase
 
         $todo = array_values(array_filter(
             $decoded['data']['items'],
-            static fn (mixed $item): bool => is_array($item) && ($item['id'] ?? null) === 10,
+            static fn(mixed $item): bool => is_array($item) && ($item['id'] ?? null) === 10,
         ))[0] ?? null;
         $this->assertIsArray($todo);
         $this->assertArrayHasKey('tags', $todo);
@@ -267,6 +267,21 @@ class TodosControllerTest extends TestCase
 
         $this->post('/api/todos/10/tags/100', []);
 
+        $this->assertResponseCode(409);
+        $this->assertResponseContains('"code": "CONFLICT"');
+    }
+
+    public function testAttachTagRejectsSecondAttachAttempt(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->post('/api/todos/10/tags/101', []);
+        $this->assertResponseCode(201);
+
+        $this->post('/api/todos/10/tags/101', []);
         $this->assertResponseCode(409);
         $this->assertResponseContains('"code": "CONFLICT"');
     }

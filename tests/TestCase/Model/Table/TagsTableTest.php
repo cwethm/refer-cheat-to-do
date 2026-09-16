@@ -39,7 +39,7 @@ class TagsTableTest extends TestCase
         $tag = $this->Tags->newEntity([
             'user_id' => 1,
             'name' => '',
-        ]);
+        ], ['accessibleFields' => ['user_id' => true]]);
 
         $this->assertTrue($tag->hasErrors());
         $this->assertArrayHasKey('name', $tag->getErrors());
@@ -50,7 +50,7 @@ class TagsTableTest extends TestCase
         $tag = $this->Tags->newEntity([
             'user_id' => 1,
             'name' => '  Research   Queue  ',
-        ]);
+        ], ['accessibleFields' => ['user_id' => true]]);
 
         $this->assertFalse($tag->hasErrors());
         $this->assertSame('Research Queue', $tag->name);
@@ -61,7 +61,7 @@ class TagsTableTest extends TestCase
         $tag = $this->Tags->newEntity([
             'user_id' => 1,
             'name' => '  important  ',
-        ]);
+        ], ['accessibleFields' => ['user_id' => true]]);
 
         $saved = $this->Tags->save($tag);
         $this->assertFalse($saved);
@@ -73,7 +73,7 @@ class TagsTableTest extends TestCase
         $tag = $this->Tags->newEntity([
             'user_id' => 2,
             'name' => 'Important',
-        ]);
+        ], ['accessibleFields' => ['user_id' => true]]);
 
         $saved = $this->Tags->save($tag);
         $this->assertNotFalse($saved);
