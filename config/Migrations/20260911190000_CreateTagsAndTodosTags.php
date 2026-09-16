@@ -22,9 +22,16 @@ class CreateTagsAndTodosTags extends BaseMigration
             ])
             ->create();
 
-        $this->execute(
-            "CREATE UNIQUE INDEX tags_user_name_normalized_unique ON tags (user_id, lower(regexp_replace(trim(name), '\\s+', ' ', 'g')))",
-        );
+        $adapterClass = strtolower(get_class($this->getAdapter()));
+        if (str_contains($adapterClass, 'postgres')) {
+            $this->execute(
+                "CREATE UNIQUE INDEX tags_user_name_normalized_unique ON tags (user_id, lower(regexp_replace(trim(name), '\\s+', ' ', 'g')))",
+            );
+        } else {
+            $this->execute(
+                'CREATE UNIQUE INDEX tags_user_name_normalized_unique ON tags (user_id, lower(trim(name)))',
+            );
+        }
 
         $this->table('todos_tags')
             ->addColumn('todo_id', 'integer', ['null' => false])

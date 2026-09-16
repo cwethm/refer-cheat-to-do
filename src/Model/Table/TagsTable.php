@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Model\Table;
 
 use Cake\Datasource\EntityInterface;
+use Cake\Database\Driver\Postgres;
 use Cake\Event\EventInterface;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
@@ -83,19 +84,26 @@ class TagsTable extends Table
 
             $normalizedName = self::normalizeName($name);
             $id = $entity->get('id');
-            $query = $this->find()->where(['user_id' => $userId]);
+            $query = $this->find()
+                ->select(['id'])
+                ->where(['user_id' => $userId]);
             if (is_int($id) && $id > 0) {
                 $query->where(['id !=' => $id]);
             }
-            $query->where(function ($exp, $query) use ($normalizedName) {
-                return $exp->eq(
-                    $query->newExpr("lower(regexp_replace(trim(name), '\\s+', ' ', 'g'))"),
-                    $normalizedName,
-                    'string',
-                );
-            });
 
-            return !$query->limit(1)->count();
+            if ($this->getConnection()->getDriver() instanceof Postgres) {
+                $query->where(function ($exp, $query) use ($normalizedName) {
+                    return $exp->eq(
+                        $query->newExpr("lower(regexp_replace(trim(name), '\\s+', ' ', 'g'))"),
+                        $normalizedName,
+                        'string',
+                    );
+                });
+            } else {
+                $query->where(['lower(trim(name)) =' => mb_strtolower(trim($name))]);
+            }
+
+            return $query->first() === null;
         }, 'uniqueNormalizedName', [
             'errorField' => 'name',
             'message' => 'Tag name must be unique per user.',
