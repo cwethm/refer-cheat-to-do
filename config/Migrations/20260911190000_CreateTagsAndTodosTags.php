@@ -27,10 +27,6 @@ class CreateTagsAndTodosTags extends BaseMigration
             $this->execute(
                 "CREATE UNIQUE INDEX tags_user_name_normalized_unique ON tags (user_id, lower(regexp_replace(trim(name), '\\s+', ' ', 'g')))",
             );
-        } else {
-            $this->execute(
-                'CREATE UNIQUE INDEX tags_user_name_normalized_unique ON tags (user_id, lower(trim(name)))',
-            );
         }
 
         $this->table('todos_tags')
@@ -54,7 +50,10 @@ class CreateTagsAndTodosTags extends BaseMigration
      */
     public function down(): void
     {
-        $this->execute('DROP INDEX IF EXISTS tags_user_name_normalized_unique');
+        $adapterClass = strtolower(get_class($this->getAdapter()));
+        if (str_contains($adapterClass, 'postgres')) {
+            $this->execute('DROP INDEX IF EXISTS tags_user_name_normalized_unique');
+        }
         $this->table('todos_tags')->drop()->save();
         $this->table('tags')->drop()->save();
     }

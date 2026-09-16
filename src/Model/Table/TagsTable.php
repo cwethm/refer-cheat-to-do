@@ -99,11 +99,20 @@ class TagsTable extends Table
                         'string',
                     );
                 });
-            } else {
-                $query->where(['lower(trim(name)) =' => mb_strtolower(trim($name))]);
+                return $query->first() === null;
             }
 
-            return $query->first() === null;
+            $existing = $query
+                ->select(['id', 'name'])
+                ->all();
+            foreach ($existing as $row) {
+                $rowName = $row->get('name');
+                if (is_string($rowName) && self::normalizeName($rowName) === $normalizedName) {
+                    return false;
+                }
+            }
+
+            return true;
         }, 'uniqueNormalizedName', [
             'errorField' => 'name',
             'message' => 'Tag name must be unique per user.',

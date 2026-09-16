@@ -338,7 +338,6 @@ class TodosController extends AppController
         $todo = $todosTable->find()
             ->contain(['Tags'])
             ->where(['id' => (int)$id, 'user_id' => $userId])
-            ->contain(['Tags'])
             ->first();
         if ($todo === null) {
             throw new NotFoundException('ToDo not found.');
