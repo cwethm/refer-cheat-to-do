@@ -25,12 +25,11 @@ jobs:
             export COMPOSER_AUTH="${ACTIONS_COMPOSER_AUTH}"
           fi
 
-          if [ -z "${COMPOSER_AUTH:-}" ]; then
-            echo "COMPOSER_AUTH is missing"
-            exit 1
+          if [ -n "${COMPOSER_AUTH:-}" ]; then
+            echo "COMPOSER_AUTH is configured"
+          else
+            echo "COMPOSER_AUTH is not configured; continuing without Composer auth"
           fi
-
-          echo "COMPOSER_AUTH is configured"
 
       - name: Validate Composer configuration
         env:
