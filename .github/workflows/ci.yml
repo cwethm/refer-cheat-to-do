@@ -61,10 +61,9 @@ jobs:
       - name: Prepare databases
         run: |
           export PGPASSWORD="$TEST_DB_PASSWORD"
-          until pg_isready -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" -d "$DB_DATABASE"; do
+          until pg_isready -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" -d template1; do
             sleep 1
           done
-          createdb -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" --owner="$DB_USERNAME" "$DB_DATABASE" || true
           createdb -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" --owner="$TEST_DB_USERNAME" "$TEST_DB_DATABASE" || true
 
       - name: Install dependencies

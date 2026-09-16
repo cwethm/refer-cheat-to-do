@@ -65,7 +65,7 @@ class TodosTagsTable extends Table
     /**
      * Create a Todo/Tag relation and return false when it already exists.
      */
-    public function attach(int $todoId, int $tagId): bool
+    public function attachIfMissing(int $todoId, int $tagId): bool
     {
         try {
             $this->getConnection()->insert($this->getTable(), [
@@ -91,13 +91,8 @@ class TodosTagsTable extends Table
      */
     private function isUniqueViolationException(Throwable $exception): bool
     {
-        $needle = strtolower($exception->getMessage());
-        if (str_contains($needle, 'duplicate key') || str_contains($needle, 'unique constraint')) {
-            return true;
-        }
-
         $code = (string)$exception->getCode();
-        if ($code === '23505' || str_contains($code, '23505')) {
+        if ($code === '23505') {
             return true;
         }
 

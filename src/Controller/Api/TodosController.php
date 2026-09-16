@@ -129,7 +129,7 @@ class TodosController extends AppController
         $todoId = (int)$todo->id;
         $resolvedTagId = (int)$tag->id;
         try {
-            $attached = $todosTags->attach($todoId, $resolvedTagId);
+            $attached = $todosTags->attachIfMissing($todoId, $resolvedTagId);
         } catch (Throwable $exception) {
             throw new InternalErrorException('Unable to attach tag.', null, $exception);
         }
