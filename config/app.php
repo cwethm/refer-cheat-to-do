@@ -17,6 +17,10 @@ $dbPort = (int)env('DB_PORT', '5432');
 $dbName = env('DB_DATABASE', 'refer_cheat_to_do');
 $dbUser = env('DB_USERNAME', 'refer_cheat_to_do');
 $dbPassword = env('DB_PASSWORD', 'refer_cheat_to_do');
+$testDbHost = env('TEST_DB_HOST', $dbHost);
+$testDbPort = (int)env('TEST_DB_PORT', (string)$dbPort);
+$testDbUser = env('TEST_DB_USERNAME', $dbUser);
+$testDbPassword = env('TEST_DB_PASSWORD', $dbPassword);
 $testDbName = env('TEST_DB_DATABASE', $dbName . '_test');
 
 return [
@@ -112,10 +116,10 @@ return [
         'test' => [
             'className' => Connection::class,
             'driver' => Postgres::class,
-            'host' => $dbHost,
-            'port' => $dbPort,
-            'username' => $dbUser,
-            'password' => $dbPassword,
+            'host' => $testDbHost,
+            'port' => $testDbPort,
+            'username' => $testDbUser,
+            'password' => $testDbPassword,
             'database' => $testDbName,
             'schema' => 'public',
             'encoding' => 'utf8',

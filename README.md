@@ -90,7 +90,11 @@ DB_PORT=5432
 DB_DATABASE=refer_cheat_to_do
 DB_USERNAME=refer_cheat_to_do
 DB_PASSWORD=refer_cheat_to_do
+TEST_DB_HOST=127.0.0.1
+TEST_DB_PORT=5432
 TEST_DB_DATABASE=refer_cheat_to_do_test
+TEST_DB_USERNAME=refer_cheat_to_do
+TEST_DB_PASSWORD=refer_cheat_to_do
 ```
 
 Create the databases before adding migrations or persistence-backed tests.

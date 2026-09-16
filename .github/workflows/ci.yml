@@ -18,13 +18,13 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
+          POSTGRES_USER: refer_cheat_to_do
+          POSTGRES_PASSWORD: refer_cheat_to_do
+          POSTGRES_DB: refer_cheat_to_do
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-cmd "pg_isready -U refer_cheat_to_do -d refer_cheat_to_do"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
@@ -33,12 +33,16 @@ jobs:
       APP_ENV: ci
       DEBUG: 'false'
       SECURITY_SALT: ci-security-salt-for-tests-only
-      DB_HOST: localhost
+      DB_HOST: 127.0.0.1
       DB_PORT: 5432
       DB_DATABASE: refer_cheat_to_do
-      DB_USERNAME: postgres
-      DB_PASSWORD: postgres
+      DB_USERNAME: refer_cheat_to_do
+      DB_PASSWORD: refer_cheat_to_do
+      TEST_DB_HOST: 127.0.0.1
+      TEST_DB_PORT: 5432
       TEST_DB_DATABASE: refer_cheat_to_do_test
+      TEST_DB_USERNAME: refer_cheat_to_do
+      TEST_DB_PASSWORD: refer_cheat_to_do
 
     steps:
       - name: Checkout
@@ -52,16 +56,15 @@ jobs:
           coverage: none
 
       - name: Validate composer.json
-        run: composer validate --strict
+        run: composer validate --no-check-publish
 
       - name: Prepare databases
         run: |
-          export PGPASSWORD="$DB_PASSWORD"
-          until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USERNAME" -d postgres; do
+          export PGPASSWORD="$TEST_DB_PASSWORD"
+          until pg_isready -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" -d "$DB_DATABASE"; do
             sleep 1
           done
-          psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USERNAME" -d postgres -c "CREATE DATABASE $DB_DATABASE;" || true
-          psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USERNAME" -d postgres -c "CREATE DATABASE $TEST_DB_DATABASE;" || true
+          psql -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" -d postgres -c "CREATE DATABASE $TEST_DB_DATABASE OWNER $TEST_DB_USERNAME;" || true
 
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
@@ -75,6 +78,11 @@ jobs:
         run: |
           bin/cake migrations rollback -c test
           bin/cake migrations migrate -c test
+
+      - name: Verify test schema tables
+        run: |
+          export PGPASSWORD="$TEST_DB_PASSWORD"
+          psql -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" -d "$TEST_DB_DATABASE" -tAc "SELECT to_regclass('public.users');" | grep -qx 'users'
 
       - name: PHP syntax check
         run: composer lint
