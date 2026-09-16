@@ -4,17 +4,20 @@ API-first foundation for a web-first information continuity, ToDo, research, and
 
 ## Current MVP scope
 
-This repository currently contains the development foundation for **MVP 1** only:
+This repository currently contains **MVP 1** work in progress:
 
-- CakePHP 5 application skeleton
-- PostgreSQL-first configuration
-- JSON API conventions
-- initial health-check endpoint
+- CakePHP 5 application skeleton with PostgreSQL-first configuration
+- JSON API conventions and a health-check endpoint
+- session-based authentication (`/api/auth/*`)
+- ToDo capture and inbox endpoints (`/api/todos`)
+- tags and todo/tag association endpoints (`/api/tags`, `/api/todos/{id}/tags/{tagId}`)
+- database migrations for `users`, `todos`, `tags`, and `todos_tags`
 - PHPUnit, coding standards, and static analysis setup
 - devcontainer/Docker-compatible development environment
 - GitHub Actions CI
 
-No domain schema beyond the framework foundation is implemented yet.
+There is no public self-registration endpoint yet; the first account is created
+directly in the database (see [Step 9](#9-create-the-first-user-account)).
 
 ## Technology stack
 
@@ -36,8 +39,10 @@ No domain schema beyond the framework foundation is implemented yet.
 │   └── workflows/
 ├── bin/
 ├── config/
+│   └── Migrations/
 ├── docs/
-│   └── adr/
+│   ├── adr/
+│   └── slices/
 ├── plugins/
 ├── src/
 ├── templates/
@@ -57,58 +62,342 @@ No domain schema beyond the framework foundation is implemented yet.
 - [docs/mvp-feature-list.md](docs/mvp-feature-list.md)
 - [docs/adr/](docs/adr/)
 
-## Local installation
+## Installing an instance on a new server
 
-1. Copy the environment template:
+The steps below install a production instance on a single Linux host running
+nginx + PHP-FPM, with PostgreSQL either on the same host or as a managed
+service. Commands use Ubuntu 24.04 LTS package names; adapt them for other
+distributions. Replace `todo.example.com`, paths, and credentials with your own
+values.
+
+### 0. Requirements
+
+| Component | Version | Notes |
+| --- | --- | --- |
+| PHP (CLI + FPM) | 8.3 or newer | extensions `intl`, `mbstring`, `pdo_pgsql` are required by `composer.json` |
+| Composer | 2.x | used to install PHP dependencies |
+| PostgreSQL | 14 or newer (16 is used in CI and the devcontainer) | local or managed |
+| Web server | nginx, or Apache with `mod_rewrite` | document root must be the `webroot/` directory |
+| Git | any recent version | used to deploy and update the code |
+| Outbound HTTPS | — | required so Composer can reach packagist.org |
+
+### 1. Install system packages
+
+```bash
+sudo apt update
+sudo apt install -y git unzip curl nginx postgresql postgresql-client \
+  php8.3-cli php8.3-fpm php8.3-intl php8.3-mbstring php8.3-pgsql php8.3-xml php8.3-curl
+```
+
+Omit the `postgresql` package when you use a managed database. Install
+Composer 2 following the instructions on <https://getcomposer.org/download/>,
+then confirm the toolchain:
+
+```bash
+php -v
+php -m | grep -E 'intl|mbstring|pdo_pgsql'
+composer --version
+```
+
+### 2. Deploy the code
+
+```bash
+sudo mkdir -p /var/www/refer-cheat-to-do
+sudo chown "$USER":www-data /var/www/refer-cheat-to-do
+git clone https://github.com/cwethm/refer-cheat-to-do.git /var/www/refer-cheat-to-do
+cd /var/www/refer-cheat-to-do
+```
+
+### 3. Create the PostgreSQL role and database
+
+For a PostgreSQL instance on the same host:
+
+```bash
+sudo -u postgres createuser --pwprompt refer_cheat_to_do
+sudo -u postgres createdb --owner=refer_cheat_to_do refer_cheat_to_do
+```
+
+Making the application role the database owner matters on PostgreSQL 15 and
+newer, where non-owners cannot create objects in the `public` schema. If the
+role does not own the database, grant schema rights explicitly:
+
+```sql
+GRANT ALL ON SCHEMA public TO refer_cheat_to_do;
+```
+
+For a managed database, create the database through the provider console and
+note the host, port, database name, credentials, and whether TLS is mandatory
+(see `DATABASE_URL` in the [environment variable reference](#environment-variable-reference)).
+
+### 4. Configure environment variables
+
+All runtime configuration is read from environment variables by `config/app.php`
+and `config/app_local.php`. There are two supported ways to supply them:
+
+- **Process environment (recommended for servers).** Set the variables in the
+  PHP-FPM pool for web requests and export them in the shell/systemd unit used
+  for console commands.
+- **`.env` file in the repository root.** `config/bootstrap.php` loads
+  `.env` only when `APP_NAME` is not already present in the environment *and*
+  the `josegonzalez/dotenv` package is installed. That package is a **dev**
+  dependency, so a `.env` file combined with a `--no-dev` install (and no
+  `APP_NAME` exported) fails with a missing-class error. Use the process
+  environment for `--no-dev` installs, or install dev dependencies if you
+  prefer `.env`.
+
+Generate a unique application salt:
+
+```bash
+php -r 'echo bin2hex(random_bytes(32)), PHP_EOL;'
+```
+
+Add the variables to the PHP-FPM pool, for example in
+`/etc/php/8.3/fpm/pool.d/www.conf`:
+
+```ini
+env[APP_NAME] = refer-cheat-to-do
+env[APP_ENV] = production
+env[DEBUG] = false
+env[SECURITY_SALT] = paste-the-generated-salt-here
+env[APP_FULL_BASE_URL] = https://todo.example.com
+env[DB_HOST] = 127.0.0.1
+env[DB_PORT] = 5432
+env[DB_DATABASE] = refer_cheat_to_do
+env[DB_USERNAME] = refer_cheat_to_do
+env[DB_PASSWORD] = the-database-password
+```
+
+`APP_FULL_BASE_URL` is mandatory whenever `DEBUG=false`: `HostHeaderMiddleware`
+returns a 500 error when it is missing and rejects requests whose `Host` header
+does not match it.
+
+For console commands (migrations, maintenance), keep the same values in a
+root-owned file such as `/etc/refer-cheat-to-do.env` (`chmod 600`) and load it
+before running `bin/cake`:
+
+```bash
+set -a; . /etc/refer-cheat-to-do.env; set +a
+```
+
+### 5. Install PHP dependencies
+
+```bash
+composer install --no-dev --no-interaction --optimize-autoloader
+```
+
+The `post-install-cmd` hook (`App\Console\Installer`) copies
+`config/app_local.example.php` to `config/app_local.php` when that file is
+missing and creates the writable `logs/` and `tmp/` directories.
+`config/app_local.php` only reads environment variables, so it needs no manual
+editing. Drop `--no-dev` if you also want to run the test suite or use a `.env`
+file on this server.
+
+### 6. Run database migrations
+
+```bash
+bin/cake migrations migrate -c default
+bin/cake migrations status -c default
+```
+
+This creates the `users`, `todos`, `tags`, and `todos_tags` tables.
+
+### 7. Set ownership and permissions
+
+```bash
+sudo chown -R "$USER":www-data /var/www/refer-cheat-to-do
+sudo chmod -R g+w /var/www/refer-cheat-to-do/logs /var/www/refer-cheat-to-do/tmp
+```
+
+Only `logs/` and `tmp/` need to be writable by the PHP-FPM user; application
+code does not. Authentication state is kept in PHP sessions, so PHP's
+`session.save_path` must also be writable by the PHP-FPM user.
+
+### 8. Configure the web server
+
+The document root must be the `webroot/` directory.
+
+Create `/etc/nginx/sites-available/refer-cheat-to-do`:
+
+```nginx
+server {
+    listen 80;
+    server_name todo.example.com;
+
+    root /var/www/refer-cheat-to-do/webroot;
+    index index.php;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        try_files $uri =404;
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+    }
+
+    location ~ /\.(?!well-known) {
+        deny all;
+    }
+}
+```
+
+Enable it and reload the services:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/refer-cheat-to-do /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+sudo systemctl restart php8.3-fpm
+```
+
+With Apache, point the virtual host at either `webroot/` or the repository root
+(the committed `.htaccess` files rewrite requests into `webroot/`), enable
+`mod_rewrite` with `sudo a2enmod rewrite`, and set `AllowOverride All` for the
+directory.
+
+Terminate TLS in front of the application (for example
+`sudo certbot --nginx -d todo.example.com`, or at a load balancer) and make sure
+`APP_FULL_BASE_URL` matches the public HTTPS URL.
+
+### 9. Create the first user account
+
+The API has no registration endpoint yet, so insert the first user directly.
+Generate a hash with the same algorithm the `User` entity uses
+(`password_hash()` with `PASSWORD_DEFAULT`):
+
+```bash
+php -r 'echo password_hash("replace-with-a-strong-password", PASSWORD_DEFAULT), PHP_EOL;'
+```
+
+```bash
+psql -h 127.0.0.1 -U refer_cheat_to_do -d refer_cheat_to_do \
+  -c "INSERT INTO users (email, password, created, modified) VALUES ('owner@example.com', 'paste-the-generated-hash-here', NOW(), NOW());"
+```
+
+Store the email in lowercase: the login endpoint trims and lowercases the
+submitted email before looking the account up. Passwords must be at least eight
+characters.
+
+### 10. Verify the installation
+
+```bash
+curl -s https://todo.example.com/api/health
+```
+
+Expected response:
+
+```json
+{
+  "data": {
+    "status": "ok",
+    "application": {
+      "name": "refer-cheat-to-do",
+      "environment": "production",
+      "debug": false
+    }
+  }
+}
+```
+
+Run an end-to-end smoke test of the session-based API:
+
+```bash
+curl -s -c /tmp/cookies.txt -H 'Content-Type: application/json' \
+  -d '{"email":"owner@example.com","password":"replace-with-a-strong-password"}' \
+  https://todo.example.com/api/auth/login
+
+curl -s -b /tmp/cookies.txt https://todo.example.com/api/auth/me
+
+curl -s -b /tmp/cookies.txt -H 'Content-Type: application/json' \
+  -d '{"title":"First todo"}' https://todo.example.com/api/todos
+
+rm -f /tmp/cookies.txt
+```
+
+### 11. Harden the instance
+
+- keep `DEBUG=false` and `APP_ENV=production`
+- use a unique `SECURITY_SALT` per environment and never commit it
+- restrict environment files to `chmod 600` and keep credentials out of shell history
+- serve the application over HTTPS only and set `session.cookie_secure=1`,
+  `session.cookie_httponly=1`, and `session.cookie_samesite=Lax` in `php.ini`
+- limit PostgreSQL network access to the application host, or require TLS for managed databases
+- add log rotation for `logs/*.log` and schedule database backups
+- apply updates as described below
+
+## Updating an existing deployment
+
+```bash
+cd /var/www/refer-cheat-to-do
+git pull --ff-only
+composer install --no-dev --no-interaction --optimize-autoloader
+bin/cake migrations migrate -c default
+bin/cake cache clear_all
+sudo systemctl reload php8.3-fpm
+```
+
+## Environment variable reference
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `APP_NAME` | `refer-cheat-to-do` | application name, cache prefixes, health payload |
+| `APP_ENV` | `production` | environment label reported by `/api/health` |
+| `DEBUG` | `false` | enables debug output; must be `false` in production |
+| `SECURITY_SALT` | placeholder value | secret used for hashing/signing; set a unique value |
+| `APP_FULL_BASE_URL` | none | public base URL; required when `DEBUG=false` |
+| `APP_ENCODING` / `APP_DEFAULT_LOCALE` / `APP_DEFAULT_TIMEZONE` | `UTF-8` / `en_US` / `UTC` | localization defaults |
+| `DB_HOST` / `DB_PORT` / `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | `localhost` / `5432` / `refer_cheat_to_do` / `refer_cheat_to_do` / `refer_cheat_to_do` | primary PostgreSQL connection |
+| `DATABASE_URL` | none | full DSN that overrides the individual `DB_*` values; query arguments become driver options, so a TLS-only managed database can use `...?ssl_mode=require` |
+| `TEST_DB_HOST` / `TEST_DB_PORT` / `TEST_DB_DATABASE` / `TEST_DB_USERNAME` / `TEST_DB_PASSWORD` | fall back to the `DB_*` values, database defaults to `<DB_DATABASE>_test` | PHPUnit connection |
+| `DATABASE_TEST_URL` | none | full DSN for the test connection |
+
+`.env.example` contains a development-oriented starting point for these values.
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+| --- | --- |
+| 500 error mentioning `App.fullBaseUrl is not configured` | `APP_FULL_BASE_URL` is unset while `DEBUG=false`; set it and reload PHP-FPM |
+| 400 `Invalid Host header` | the request `Host` does not match the host in `APP_FULL_BASE_URL`; fix the value or the proxy configuration |
+| `Class "josegonzalez\Dotenv\Loader" not found` | a `.env` file exists but dev dependencies are not installed; remove `.env` and use process environment variables, or run `composer install` without `--no-dev` |
+| `could not find driver` | `php8.3-pgsql` is missing, or PHP-FPM was not restarted after installing it |
+| Migrations fail with permission errors | the database role lacks rights on the `public` schema; make it the database owner or grant them |
+| Writes fail with permission errors | `logs/` and `tmp/` are not writable by the PHP-FPM user |
+| Every authenticated request returns 401 | session cookies are not being sent back, or PHP's session save path is not writable |
+
+## Local development
+
+Open the repository in the devcontainer for PHP 8.3 and PostgreSQL that are
+already configured, or install the same prerequisites natively. Then:
+
+1. Copy the environment template and adjust the values:
    ```bash
    cp .env.example .env
    ```
-2. Install Composer dependencies:
+2. Install dependencies (including dev dependencies, which provide the `.env`
+   loader, PHPUnit, and the static analysis tools):
    ```bash
    composer install
    ```
-3. Create the application tmp/log directories if needed:
+3. Create the application and test databases if they do not exist:
    ```bash
-   mkdir -p logs tmp/cache/{models,persistent} tmp/sessions tmp/tests
+   createdb refer_cheat_to_do
+   createdb refer_cheat_to_do_test
    ```
-4. Start the development server:
+4. Apply migrations to both connections:
+   ```bash
+   bin/cake migrations migrate -c default
+   bin/cake migrations migrate -c test
+   ```
+5. Start the development server:
    ```bash
    bin/cake server -H 0.0.0.0 -p 8765
    ```
-5. Verify the API:
+6. Verify the API:
    ```bash
    curl http://localhost:8765/api/health
    ```
-
-## Database setup
-
-Native/local PostgreSQL settings come from `.env`:
-
-```dotenv
-DB_HOST=localhost
-DB_PORT=5432
-DB_DATABASE=refer_cheat_to_do
-DB_USERNAME=refer_cheat_to_do
-DB_PASSWORD=refer_cheat_to_do
-TEST_DB_HOST=127.0.0.1
-TEST_DB_PORT=5432
-TEST_DB_DATABASE=refer_cheat_to_do_test
-TEST_DB_USERNAME=refer_cheat_to_do
-TEST_DB_PASSWORD=refer_cheat_to_do
-```
-
-Create the databases before adding migrations or persistence-backed tests.
-
-## Devcontainer / Docker
-
-Open the repository in a devcontainer to start with PHP 8.3 and PostgreSQL preconfigured.
-
-Inside the container, run:
-
-```bash
-composer install
-bin/cake server -H 0.0.0.0 -p 8765
-```
 
 ## Test, lint, and static analysis commands
 
@@ -129,4 +418,7 @@ composer check
 
 ## Current project status
 
-The repository is ready for the next MVP slice: authentication and the first ToDo capture flow. The current code intentionally stops at the application foundation, shared API conventions, and developer tooling.
+Authentication, ToDo capture, and tagging slices are implemented on top of the
+application foundation, shared API conventions, and developer tooling. Account
+self-registration, richer research and knowledge-refinement workflows, and the
+remaining roadmap capabilities are still pending.
