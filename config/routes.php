@@ -51,6 +51,43 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'Todos', 'action' => 'detachTag', '_method' => 'DELETE'],
             ['pass' => ['id', 'tagId'], 'id' => '\d+', 'tagId' => '\d+'],
         );
+        $builder->connect('/projects', ['controller' => 'Projects', 'action' => 'index', '_method' => 'GET']);
+        $builder->connect('/projects', ['controller' => 'Projects', 'action' => 'add', '_method' => 'POST']);
+        $builder->connect(
+            '/projects/{id}',
+            ['controller' => 'Projects', 'action' => 'view', '_method' => 'GET'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/projects/{id}',
+            ['controller' => 'Projects', 'action' => 'edit', '_method' => 'PATCH'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/projects/{id}',
+            ['controller' => 'Projects', 'action' => 'delete', '_method' => 'DELETE'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/projects/{id}/sections',
+            ['controller' => 'Projects', 'action' => 'sections', '_method' => 'GET'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/projects/{id}/sections',
+            ['controller' => 'Projects', 'action' => 'addSection', '_method' => 'POST'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/projects/{id}/sections/{sectionId}',
+            ['controller' => 'Projects', 'action' => 'editSection', '_method' => 'PATCH'],
+            ['pass' => ['id', 'sectionId'], 'id' => '\d+', 'sectionId' => '\d+'],
+        );
+        $builder->connect(
+            '/projects/{id}/sections/{sectionId}',
+            ['controller' => 'Projects', 'action' => 'deleteSection', '_method' => 'DELETE'],
+            ['pass' => ['id', 'sectionId'], 'id' => '\d+', 'sectionId' => '\d+'],
+        );
         $builder->connect('/health', ['controller' => 'Health', 'action' => 'index', '_method' => 'GET']);
     });
 };

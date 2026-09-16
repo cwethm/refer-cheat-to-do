@@ -43,6 +43,10 @@ class TodosTable extends Table
             'foreignKey' => 'user_id',
             'joinType' => 'INNER',
         ]);
+        $this->belongsTo('ProjectSections', [
+            'foreignKey' => 'project_section_id',
+            'joinType' => 'LEFT',
+        ]);
         $this->belongsToMany('Tags', [
             'foreignKey' => 'todo_id',
             'targetForeignKey' => 'tag_id',
@@ -91,6 +95,11 @@ class TodosTable extends Table
             ->notEmptyString('title');
 
         $validator
+            ->integer('project_section_id')
+            ->greaterThan('project_section_id', 0)
+            ->allowEmptyString('project_section_id');
+
+        $validator
             ->scalar('notes')
             ->allowEmptyString('notes');
 
@@ -110,6 +119,9 @@ class TodosTable extends Table
     public function buildRules(RulesChecker $rules): RulesChecker
     {
         $rules->add($rules->existsIn(['user_id'], 'Users'), ['errorField' => 'user_id']);
+        $rules->add($rules->existsIn(['project_section_id'], 'ProjectSections', [
+            'allowNullableNulls' => true,
+        ]), ['errorField' => 'project_section_id']);
 
         return $rules;
     }

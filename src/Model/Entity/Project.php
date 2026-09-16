@@ -8,30 +8,26 @@ use Cake\ORM\Entity;
 /**
  * @property int $id
  * @property int $user_id
- * @property string $title
- * @property string|null $notes
- * @property string $status
- * @property int|null $project_section_id
+ * @property string $name
+ * @property string|null $description
  * @property \Cake\I18n\DateTime|null $created
  * @property \Cake\I18n\DateTime|null $modified
- * @property list<\App\Model\Entity\Tag> $tags
+ * @property list<\App\Model\Entity\ProjectSection> $project_sections
  */
-class Todo extends Entity
+class Project extends Entity
 {
     /**
-     * Fields that can be mass assigned.
+     * Fields that can be mass assigned. Ownership is server-controlled.
      *
      * @var array<string, bool>
      */
     protected array $_accessible = [
-        'user_id' => true,
-        'title' => true,
-        'notes' => true,
-        'status' => true,
-        'project_section_id' => false,
+        'user_id' => false,
+        'name' => true,
+        'description' => true,
         'created' => true,
         'modified' => true,
         'user' => true,
-        'tags' => true,
+        'project_sections' => false,
     ];
 }

@@ -19,6 +19,8 @@ class TodosControllerTest extends TestCase
         'app.Todos',
         'app.Tags',
         'app.TodosTags',
+        'app.Projects',
+        'app.ProjectSections',
     ];
 
     public function testListReturnsOnlyCurrentUserTodos(): void
@@ -526,6 +528,164 @@ class TodosControllerTest extends TestCase
         $this->post('/api/todos');
 
         $this->assertResponseCode(400);
+    }
+
+    public function testAssignTodoToOwnedSection(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->patch('/api/todos/10', ['project_section_id' => 300]);
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"project_section_id": 300');
+
+        $todos = TableRegistry::getTableLocator()->get('Todos');
+        $this->assertSame(300, (int)$todos->get(10)->project_section_id);
+    }
+
+    public function testMoveTodoBetweenSections(): void
+    {
+        $todos = TableRegistry::getTableLocator()->get('Todos');
+        $todo = $todos->get(10);
+        $todo->set('project_section_id', 300);
+        $todos->saveOrFail($todo);
+
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->patch('/api/todos/10', ['project_section_id' => 301]);
+
+        $this->assertResponseOk();
+        $this->assertSame(301, (int)$todos->get(10)->project_section_id);
+    }
+
+    public function testUnassignTodoFromSection(): void
+    {
+        $todos = TableRegistry::getTableLocator()->get('Todos');
+        $todo = $todos->get(10);
+        $todo->set('project_section_id', 300);
+        $todos->saveOrFail($todo);
+
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->patch('/api/todos/10', ['project_section_id' => null]);
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"project_section_id": null');
+        $this->assertNull($todos->get(10)->project_section_id);
+    }
+
+    public function testAssignRejectsCrossUserSection(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->patch('/api/todos/10', ['project_section_id' => 303]);
+
+        $this->assertResponseCode(404);
+
+        $todos = TableRegistry::getTableLocator()->get('Todos');
+        $this->assertNull($todos->get(10)->project_section_id);
+    }
+
+    public function testAssignRejectsInvalidSectionValue(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->patch('/api/todos/10', ['project_section_id' => 'abc']);
+
+        $this->assertResponseCode(400);
+    }
+
+    public function testProjectFilterReturnsAssignedTodos(): void
+    {
+        $todos = TableRegistry::getTableLocator()->get('Todos');
+        $todo = $todos->get(10);
+        $todo->set('project_section_id', 300);
+        $todos->saveOrFail($todo);
+
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?project=200');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Owner inbox todo"');
+        $this->assertResponseNotContains('"Owner active todo"');
+    }
+
+    public function testSectionFilterCombinesWithStatusFilter(): void
+    {
+        $todos = TableRegistry::getTableLocator()->get('Todos');
+        foreach ([10, 11] as $id) {
+            $todo = $todos->get($id);
+            $todo->set('project_section_id', 300);
+            $todos->saveOrFail($todo);
+        }
+
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?section=300&status=active');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Owner active todo"');
+        $this->assertResponseNotContains('"Owner inbox todo"');
+    }
+
+    public function testCrossUserProjectFilterReturnsNoResults(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?project=201');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"total": 0');
+    }
+
+    public function testListRejectsInvalidProjectFilter(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?project=zero');
+
+        $this->assertResponseCode(400);
+    }
+
+    public function testUnassignedTodosRemainListedWithoutProjectFilter(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"project_section_id": null');
     }
 
     public function testAnonymousTodoAccessIsDenied(): void

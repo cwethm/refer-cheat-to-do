@@ -25,6 +25,8 @@ class TodosController extends AppController
         $status = $this->readStatusFilter();
         $search = $this->readSearchFilter();
         $tagId = $this->readTagFilter();
+        $projectId = $this->readPositiveIdFilter('project');
+        $sectionId = $this->readPositiveIdFilter('section');
         $page = $this->readPositiveQueryInt('page', 1);
         $limit = min($this->readPositiveQueryInt('limit', 20), 100);
 
@@ -49,6 +51,20 @@ class TodosController extends AppController
                     'Tags.id' => $tagId,
                     'Tags.user_id' => $userId,
                 ]);
+            });
+        }
+
+        if ($projectId !== null || $sectionId !== null) {
+            $query->innerJoinWith('ProjectSections.Projects', function ($q) use ($projectId, $sectionId, $userId) {
+                $conditions = ['Projects.user_id' => $userId];
+                if ($projectId !== null) {
+                    $conditions['Projects.id'] = $projectId;
+                }
+                if ($sectionId !== null) {
+                    $conditions['ProjectSections.id'] = $sectionId;
+                }
+
+                return $q->where($conditions);
             });
         }
 
@@ -183,6 +199,9 @@ class TodosController extends AppController
         /** @var \App\Model\Table\TodosTable $todosTable */
         $todosTable = $this->fetchTable('Todos');
         $todo = $todosTable->patchEntity($todo, $data, ['fields' => ['title', 'notes', 'status']]);
+        if (array_key_exists('project_section_id', $data)) {
+            $todo->set('project_section_id', $this->resolveOwnedSectionId($data['project_section_id'], $userId));
+        }
         if ($todo->hasErrors()) {
             throw new ValidationException('Invalid ToDo payload.');
         }
@@ -231,6 +250,54 @@ class TodosController extends AppController
         }
 
         return $query;
+    }
+
+    /**
+     * Resolve a positive integer id filter from the query string.
+     */
+    private function readPositiveIdFilter(string $field): ?int
+    {
+        $value = $this->request->getQuery($field);
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_int($value) && $value > 0) {
+            return $value;
+        }
+        if (is_string($value) && ctype_digit($value) && (int)$value > 0) {
+            return (int)$value;
+        }
+
+        throw new BadRequestException(sprintf('Invalid %s filter.', $field));
+    }
+
+    /**
+     * Resolve a client-supplied ProjectSection reference against the authenticated owner.
+     *
+     * Ownership is always resolved server-side; `null` unassigns the ToDo.
+     */
+    private function resolveOwnedSectionId(mixed $value, int $userId): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_string($value) && ctype_digit($value)) {
+            $value = (int)$value;
+        }
+        if (!is_int($value) || $value < 1) {
+            throw new BadRequestException('Invalid project section.');
+        }
+
+        $sections = $this->fetchTable('ProjectSections');
+        $exists = $sections->find()
+            ->innerJoinWith('Projects', fn($q) => $q->where(['Projects.user_id' => $userId]))
+            ->where(['ProjectSections.id' => $value])
+            ->count();
+        if ($exists < 1) {
+            throw new NotFoundException('Section not found.');
+        }
+
+        return $value;
     }
 
     /**
@@ -336,6 +403,7 @@ class TodosController extends AppController
             'title' => (string)$todo->title,
             'notes' => $todo->notes === null ? null : (string)$todo->notes,
             'status' => (string)$todo->status,
+            'project_section_id' => $todo->project_section_id === null ? null : (int)$todo->project_section_id,
             'tags' => $tags,
             'created' => $todo->created?->format(DATE_ATOM),
             'modified' => $todo->modified?->format(DATE_ATOM),
