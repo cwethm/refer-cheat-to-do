@@ -6,6 +6,7 @@ namespace App\Controller\Api;
 use App\Http\Exception\ValidationException;
 use App\Model\Entity\Project;
 use App\Model\Entity\ProjectSection;
+use App\Service\CapabilityService;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\ConflictException;
 use Cake\Http\Exception\InternalErrorException;
@@ -69,7 +70,7 @@ class ProjectsController extends AppController
     public function view(string $id): Response
     {
         $userId = $this->requireUserId();
-        $project = $this->fetchOwnedProjectOrFail($id, $userId, true);
+        $project = $this->fetchReadableProjectOrFail($id, $userId);
 
         return $this->respond(['project' => $this->serializeProject($project, true)]);
     }
@@ -263,6 +264,42 @@ class ProjectsController extends AppController
         /** @var \App\Model\Entity\Project|null $project */
         $project = $query->first();
         if ($project === null) {
+            throw new NotFoundException('Project not found.');
+        }
+
+        return $project;
+    }
+
+    /**
+     * Find a project the caller owns or explicitly holds `read` on, or fail with 404.
+     *
+     * Read access for a non-owner requires an explicit capability grant; nothing is inferred from
+     * Library membership or from any other capability.
+     */
+    private function fetchReadableProjectOrFail(string $id, int $userId): Project
+    {
+        if (!ctype_digit($id) || (int)$id < 1) {
+            throw new NotFoundException('Project not found.');
+        }
+
+        /** @var \App\Model\Entity\Project|null $project */
+        $project = $this->fetchTable('Projects')->find()
+            ->where(['Projects.id' => (int)$id])
+            ->contain(['ProjectSections' => ['Todos']])
+            ->first();
+        if ($project === null) {
+            throw new NotFoundException('Project not found.');
+        }
+        if ((int)$project->user_id === $userId) {
+            return $project;
+        }
+        $allowed = $this->capabilities()->allows(
+            $userId,
+            CapabilityService::CAP_READ,
+            CapabilityService::RESOURCE_PROJECT,
+            (int)$project->id,
+        );
+        if (!$allowed) {
             throw new NotFoundException('Project not found.');
         }
 

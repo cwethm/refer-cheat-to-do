@@ -6,6 +6,7 @@ namespace App\Controller\Api;
 use App\Http\Exception\ValidationException;
 use App\Model\Entity\Notebook;
 use App\Model\Entity\NotebookSection;
+use App\Service\CapabilityService;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\ConflictException;
 use Cake\Http\Exception\InternalErrorException;
@@ -72,7 +73,7 @@ class NotebooksController extends AppController
     public function view(string $id): Response
     {
         $userId = $this->requireUserId();
-        $notebook = $this->fetchOwnedNotebookOrFail($id, $userId, true);
+        $notebook = $this->fetchReadableNotebookOrFail($id, $userId);
 
         return $this->respond(['notebook' => $this->serializeNotebook($notebook, true)]);
     }
@@ -266,6 +267,42 @@ class NotebooksController extends AppController
         /** @var \App\Model\Entity\Notebook|null $notebook */
         $notebook = $query->first();
         if ($notebook === null) {
+            throw new NotFoundException('Notebook not found.');
+        }
+
+        return $notebook;
+    }
+
+    /**
+     * Find a notebook the caller owns or explicitly holds `read` on, or fail with 404.
+     *
+     * Read access for a non-owner requires an explicit capability grant; nothing is inferred from
+     * Library membership or from any other capability.
+     */
+    private function fetchReadableNotebookOrFail(string $id, int $userId): Notebook
+    {
+        if (!ctype_digit($id) || (int)$id < 1) {
+            throw new NotFoundException('Notebook not found.');
+        }
+
+        /** @var \App\Model\Entity\Notebook|null $notebook */
+        $notebook = $this->fetchTable('Notebooks')->find()
+            ->where(['Notebooks.id' => (int)$id])
+            ->contain(['NotebookSections' => ['Todos']])
+            ->first();
+        if ($notebook === null) {
+            throw new NotFoundException('Notebook not found.');
+        }
+        if ((int)$notebook->user_id === $userId) {
+            return $notebook;
+        }
+        $allowed = $this->capabilities()->allows(
+            $userId,
+            CapabilityService::CAP_READ,
+            CapabilityService::RESOURCE_NOTEBOOK,
+            (int)$notebook->id,
+        );
+        if (!$allowed) {
             throw new NotFoundException('Notebook not found.');
         }
 

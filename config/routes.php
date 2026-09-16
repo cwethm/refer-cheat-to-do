@@ -223,6 +223,19 @@ return function (RouteBuilder $routes): void {
                 'memberId' => '\d+',
             ],
         );
+        $builder->connect(
+            '/capabilities',
+            ['controller' => 'Capabilities', 'action' => 'index', '_method' => 'GET'],
+        );
+        $builder->connect(
+            '/capabilities',
+            ['controller' => 'Capabilities', 'action' => 'add', '_method' => 'POST'],
+        );
+        $builder->connect(
+            '/capabilities/{id}',
+            ['controller' => 'Capabilities', 'action' => 'delete', '_method' => 'DELETE'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
         $builder->connect('/health', ['controller' => 'Health', 'action' => 'index', '_method' => 'GET']);
     });
 };
