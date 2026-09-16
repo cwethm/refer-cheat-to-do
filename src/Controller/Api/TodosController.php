@@ -124,23 +124,17 @@ class TodosController extends AppController
         $todo = $this->fetchOwnedTodoOrFail($id, $userId);
         $tag = $this->fetchOwnedTagOrFail($tagId, $userId);
 
+        /** @var \App\Model\Table\TodosTagsTable $todosTags */
         $todosTags = $this->fetchTable('TodosTags');
         $todoId = (int)$todo->id;
         $resolvedTagId = (int)$tag->id;
         try {
-            $todosTags->getConnection()->insert('todos_tags', [
-                'todo_id' => $todoId,
-                'tag_id' => $resolvedTagId,
-            ], [
-                'todo_id' => 'integer',
-                'tag_id' => 'integer',
-            ]);
+            $attached = $todosTags->attach($todoId, $resolvedTagId);
         } catch (Throwable $exception) {
-            if ($this->isUniqueViolationException($exception)) {
-                throw new ConflictException('Tag is already attached to this ToDo.');
-            }
-
             throw new InternalErrorException('Unable to attach tag.');
+        }
+        if (!$attached) {
+            throw new ConflictException('Tag is already attached to this ToDo.');
         }
 
         return $this->respond([
@@ -148,29 +142,6 @@ class TodosController extends AppController
             'tag_id' => $resolvedTagId,
             'message' => 'Tag attached.',
         ], [], 201);
-    }
-
-    /**
-     * Detect unique-constraint DB errors for race-safe conflict handling.
-     */
-    private function isUniqueViolationException(Throwable $exception): bool
-    {
-        $needle = strtolower($exception->getMessage());
-        if (str_contains($needle, 'duplicate key') || str_contains($needle, 'unique constraint')) {
-            return true;
-        }
-
-        $code = (string)$exception->getCode();
-        if ($code === '23505' || str_contains($code, '23505')) {
-            return true;
-        }
-
-        $previous = $exception->getPrevious();
-        if ($previous instanceof Throwable) {
-            return $this->isUniqueViolationException($previous);
-        }
-
-        return false;
     }
 
     /**
