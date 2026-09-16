@@ -125,15 +125,16 @@ class TodosController extends AppController
         $tag = $this->fetchOwnedTagOrFail($tagId, $userId);
 
         $todosTags = $this->fetchTable('TodosTags');
-        if ($todosTags->exists(['todo_id' => (int)$todo->id, 'tag_id' => (int)$tag->id])) {
-            throw new ConflictException('Tag is already attached to this ToDo.');
-        }
-        $join = $todosTags->newEntity([
-            'todo_id' => (int)$todo->id,
-            'tag_id' => (int)$tag->id,
-        ]);
+        $todoId = (int)$todo->id;
+        $resolvedTagId = (int)$tag->id;
         try {
-            $saved = $todosTags->save($join);
+            $todosTags->getConnection()->insert('todos_tags', [
+                'todo_id' => $todoId,
+                'tag_id' => $resolvedTagId,
+            ], [
+                'todo_id' => 'integer',
+                'tag_id' => 'integer',
+            ]);
         } catch (Throwable $exception) {
             if ($this->isUniqueViolationException($exception)) {
                 throw new ConflictException('Tag is already attached to this ToDo.');
@@ -142,17 +143,9 @@ class TodosController extends AppController
             throw new InternalErrorException('Unable to attach tag.');
         }
 
-        if (!$saved) {
-            if ($this->hasUniqueRuleError($join->getErrors())) {
-                throw new ConflictException('Tag is already attached to this ToDo.');
-            }
-
-            throw new InternalErrorException('Unable to attach tag.');
-        }
-
         return $this->respond([
-            'todo_id' => (int)$todo->id,
-            'tag_id' => (int)$tag->id,
+            'todo_id' => $todoId,
+            'tag_id' => $resolvedTagId,
             'message' => 'Tag attached.',
         ], [], 201);
     }
@@ -175,30 +168,6 @@ class TodosController extends AppController
         $previous = $exception->getPrevious();
         if ($previous instanceof Throwable) {
             return $this->isUniqueViolationException($previous);
-        }
-
-        return false;
-    }
-
-    /**
-     * Detect ORM unique-rule failures from save() returning false.
-     *
-     * @param array<string, mixed> $errors
-     */
-    private function hasUniqueRuleError(array $errors): bool
-    {
-        foreach ($errors as $fieldErrors) {
-            if (!is_array($fieldErrors)) {
-                continue;
-            }
-            foreach ($fieldErrors as $key => $value) {
-                if ((string)$key === '_isUnique') {
-                    return true;
-                }
-                if (is_array($value) && $this->hasUniqueRuleError($value)) {
-                    return true;
-                }
-            }
         }
 
         return false;
