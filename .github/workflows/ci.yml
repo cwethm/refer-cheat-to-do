@@ -64,7 +64,7 @@ jobs:
           until pg_isready -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" -d "$DB_DATABASE"; do
             sleep 1
           done
-          psql -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" -d postgres -c "CREATE DATABASE $TEST_DB_DATABASE OWNER $TEST_DB_USERNAME;" || true
+          psql -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" -d "$DB_DATABASE" -c "CREATE DATABASE $TEST_DB_DATABASE OWNER $TEST_DB_USERNAME;" || true
 
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
@@ -82,7 +82,9 @@ jobs:
       - name: Verify test schema tables
         run: |
           export PGPASSWORD="$TEST_DB_PASSWORD"
-          psql -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" -d "$TEST_DB_DATABASE" -tAc "SELECT to_regclass('public.users');" | grep -qx 'users'
+          for table in users todos tags todos_tags; do
+            psql -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" -d "$TEST_DB_DATABASE" -tAc "SELECT to_regclass('public.${table}');" | grep -qx "$table"
+          done
 
       - name: PHP syntax check
         run: composer lint
