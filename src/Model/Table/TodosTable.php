@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
+use App\Model\Entity\Todo;
+use Cake\ORM\Query\SelectQuery;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -15,6 +17,15 @@ class TodosTable extends Table
      * @var list<string>
      */
     public const ALLOWED_STATUSES = ['inbox', 'active'];
+
+    /**
+     * Authoritative containment used whenever a ToDo is serialized with its Tags.
+     *
+     * @var array<string, mixed>
+     */
+    private const TAG_CONTAIN = [
+        'Tags' => ['sort' => ['Tags.name' => 'ASC', 'Tags.id' => 'ASC']],
+    ];
 
     /**
      * Initialize todos table configuration.
@@ -38,6 +49,28 @@ class TodosTable extends Table
             'joinTable' => 'todos_tags',
             'dependent' => false,
         ]);
+    }
+
+    /**
+     * Finder applying the authoritative Tag containment for serialized ToDos.
+     *
+     * @param \Cake\ORM\Query\SelectQuery<\App\Model\Entity\Todo> $query Query to decorate.
+     * @return \Cake\ORM\Query\SelectQuery<\App\Model\Entity\Todo>
+     */
+    public function findWithTags(SelectQuery $query): SelectQuery
+    {
+        return $query->contain(self::TAG_CONTAIN);
+    }
+
+    /**
+     * Load the authoritative Tag association onto an already persisted ToDo.
+     */
+    public function loadTags(Todo $todo): Todo
+    {
+        /** @var \App\Model\Entity\Todo $loaded */
+        $loaded = $this->loadInto($todo, self::TAG_CONTAIN);
+
+        return $loaded;
     }
 
     /**

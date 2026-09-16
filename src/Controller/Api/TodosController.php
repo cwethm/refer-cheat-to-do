@@ -30,7 +30,7 @@ class TodosController extends AppController
 
         /** @var \App\Model\Table\TodosTable $todosTable */
         $todosTable = $this->fetchTable('Todos');
-        $query = $todosTable->find()->where(['Todos.user_id' => $userId]);
+        $query = $todosTable->find('withTags')->where(['Todos.user_id' => $userId]);
         if ($status !== null) {
             $query->where(['Todos.status' => $status]);
         }
@@ -57,7 +57,6 @@ class TodosController extends AppController
         $todos = $query
             ->distinct(['Todos.id'])
             ->orderBy(['Todos.id' => 'DESC'])
-            ->contain(['Tags'])
             ->limit($limit)
             ->offset($offset)
             ->all();
@@ -101,7 +100,7 @@ class TodosController extends AppController
             throw new InternalErrorException('Unable to save ToDo.');
         }
 
-        return $this->respond(['todo' => $this->serializeTodo($todo)], [], 201);
+        return $this->respond(['todo' => $this->serializeTodo($todosTable->loadTags($todo))], [], 201);
     }
 
     /**
@@ -191,7 +190,7 @@ class TodosController extends AppController
             throw new InternalErrorException('Unable to update ToDo.');
         }
 
-        return $this->respond(['todo' => $this->serializeTodo($todo)]);
+        return $this->respond(['todo' => $this->serializeTodo($todosTable->loadTags($todo))]);
     }
 
     /**
@@ -212,6 +211,9 @@ class TodosController extends AppController
 
     /**
      * Resolve optional text query filter.
+     *
+     * Documented policy: an empty or whitespace-only `q` value applies no text filter
+     * instead of degrading into an unbounded `LIKE '%%'` scan.
      */
     private function readSearchFilter(): ?string
     {
@@ -278,8 +280,7 @@ class TodosController extends AppController
         /** @var \App\Model\Table\TodosTable $todosTable */
         $todosTable = $this->fetchTable('Todos');
         /** @var \App\Model\Entity\Todo|null $todo */
-        $todo = $todosTable->find()
-            ->contain(['Tags'])
+        $todo = $todosTable->find('withTags')
             ->where(['id' => (int)$id, 'user_id' => $userId])
             ->first();
         if ($todo === null) {

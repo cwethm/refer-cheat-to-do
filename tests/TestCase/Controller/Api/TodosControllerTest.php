@@ -315,6 +315,219 @@ class TodosControllerTest extends TestCase
         $this->assertFalse($todosTags->exists(['todo_id' => 10, 'tag_id' => 100]));
     }
 
+    public function testCreateResponseIncludesTagsCollection(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->post('/api/todos', ['title' => 'Todo without tags']);
+
+        $this->assertResponseCode(201);
+        $this->assertResponseContains('"tags": []');
+    }
+
+    public function testEditResponseIncludesAttachedTags(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->patch('/api/todos/10', ['title' => 'Renamed todo']);
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"title": "Renamed todo"');
+        $this->assertResponseContains('"tags": [');
+        $this->assertResponseContains('"name": "Important"');
+    }
+
+    public function testWhitespaceOnlySearchAppliesNoTextFilter(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?q=%20%20%20');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Owner inbox todo"');
+        $this->assertResponseContains('"Owner active todo"');
+        $this->assertResponseNotContains('"Other user todo"');
+    }
+
+    public function testEmptySearchAppliesNoTextFilter(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?q=');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Owner inbox todo"');
+        $this->assertResponseContains('"Owner active todo"');
+    }
+
+    public function testSearchEscapesWildcardCharacters(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?q=%25');
+
+        $this->assertResponseOk();
+        $this->assertResponseNotContains('"Owner inbox todo"');
+        $this->assertResponseContains('"total": 0');
+    }
+
+    public function testCombinedTagAndStatusAndTextFilters(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?q=Owner&status=inbox&tag=100');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Owner inbox todo"');
+        $this->assertResponseNotContains('"Owner active todo"');
+    }
+
+    public function testCrossUserTagFilterReturnsNoResults(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?tag=102');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"total": 0');
+        $this->assertResponseNotContains('"Other user todo"');
+    }
+
+    public function testNotesSearchReturnsMatchingTodos(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?q=owner%20active');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Owner active todo"');
+        $this->assertResponseNotContains('"Owner inbox todo"');
+    }
+
+    public function testListRejectsInvalidPagination(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?page=0');
+
+        $this->assertResponseCode(400);
+        $this->assertResponseContains('"code": "BAD_REQUEST"');
+    }
+
+    public function testListOrderingIsDeterministicallyDescendingById(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos');
+
+        $this->assertResponseOk();
+        $body = (string)$this->_response->getBody();
+        $this->assertLessThan(
+            (int)strpos($body, '"Owner inbox todo"'),
+            (int)strpos($body, '"Owner active todo"'),
+        );
+    }
+
+    public function testViewRejectsMalformedId(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos/abc');
+
+        $this->assertResponseCode(404);
+        $this->assertResponseContains('"code": "NOT_FOUND"');
+    }
+
+    public function testAttachTagRejectsUnknownTag(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->post('/api/todos/10/tags/9999');
+
+        $this->assertResponseCode(404);
+    }
+
+    public function testAttachTagRejectsCrossUserTodo(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->post('/api/todos/12/tags/100');
+
+        $this->assertResponseCode(404);
+    }
+
+    public function testDeletingTagRemovesOnlyTheRelationship(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->delete('/api/tags/100');
+
+        $this->assertResponseOk();
+
+        $todosTags = TableRegistry::getTableLocator()->get('TodosTags');
+        $this->assertFalse($todosTags->exists(['tag_id' => 100]));
+        $todos = TableRegistry::getTableLocator()->get('Todos');
+        $this->assertTrue($todos->exists(['id' => 10]));
+    }
+
+    public function testCreateRejectsMalformedJsonBody(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => [
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+            ],
+            'input' => '{"title": "broken"',
+        ]);
+
+        $this->post('/api/todos');
+
+        $this->assertResponseCode(400);
+    }
+
     public function testAnonymousTodoAccessIsDenied(): void
     {
         $this->configRequest([

@@ -64,14 +64,13 @@ class TodosTagsTable extends Table
     }
 
     /**
-     * Create a Todo/Tag relation and return false when it already exists.
+     * Attempt to create a Todo/Tag relation, returning false when the pair already exists.
+     *
+     * The insert is attempted directly so the database unique constraint, rather than a
+     * check-then-insert lookup, is the authoritative protection against concurrent duplicates.
      */
     public function attachIfMissing(int $todoId, int $tagId): bool
     {
-        if ($this->exists(['todo_id' => $todoId, 'tag_id' => $tagId])) {
-            return false;
-        }
-
         $join = $this->newEntity([
             'todo_id' => $todoId,
             'tag_id' => $tagId,
@@ -81,7 +80,7 @@ class TodosTagsTable extends Table
         }
 
         try {
-            $saved = $this->save($join);
+            $saved = $this->save($join, ['checkExisting' => false]);
         } catch (Throwable $exception) {
             if ($this->isUniqueViolationException($exception)) {
                 return false;
