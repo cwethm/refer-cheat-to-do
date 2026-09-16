@@ -17,6 +17,8 @@ class TodosControllerTest extends TestCase
     protected array $fixtures = [
         'app.Users',
         'app.Todos',
+        'app.Tags',
+        'app.TodosTags',
     ];
 
     public function testListReturnsOnlyCurrentUserTodos(): void
@@ -49,6 +51,34 @@ class TodosControllerTest extends TestCase
         $this->assertResponseNotContains('"Owner active todo"');
     }
 
+    public function testTextSearchReturnsMatchingTodos(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?q=active');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Owner active todo"');
+        $this->assertResponseNotContains('"Owner inbox todo"');
+    }
+
+    public function testTagFilterReturnsMatchingOwnedTodos(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?tag=100');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Owner inbox todo"');
+        $this->assertResponseNotContains('"Owner active todo"');
+    }
+
     public function testListRejectsInvalidStatusFilter(): void
     {
         $this->session(['Auth.user_id' => 1]);
@@ -57,6 +87,19 @@ class TodosControllerTest extends TestCase
         ]);
 
         $this->get('/api/todos?status=trash');
+
+        $this->assertResponseCode(400);
+        $this->assertResponseContains('"code": "BAD_REQUEST"');
+    }
+
+    public function testListRejectsInvalidTagFilter(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?tag=zero');
 
         $this->assertResponseCode(400);
         $this->assertResponseContains('"code": "BAD_REQUEST"');
@@ -114,6 +157,21 @@ class TodosControllerTest extends TestCase
         $this->assertResponseContains('"code": "NOT_FOUND"');
     }
 
+    public function testViewIncludesAttachedTagsInTodoPayload(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos/10');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"tags": [');
+        $this->assertResponseContains('"id": 100');
+        $this->assertResponseContains('"name": "Important"');
+    }
+
     public function testEditUpdatesAllowedFields(): void
     {
         $this->session(['Auth.user_id' => 1]);
@@ -149,6 +207,97 @@ class TodosControllerTest extends TestCase
 
         $this->assertResponseCode(404);
         $this->assertResponseContains('"code": "NOT_FOUND"');
+    }
+
+    public function testAttachTagCreatesTodoTagRelationship(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->post('/api/todos/10/tags/101', []);
+
+        $this->assertResponseCode(201);
+        $this->assertResponseContains('"Tag attached."');
+
+        $todosTags = TableRegistry::getTableLocator()->get('TodosTags');
+        $this->assertTrue($todosTags->exists(['todo_id' => 10, 'tag_id' => 101]));
+    }
+
+    public function testListIncludesAttachedTagsInTodoPayload(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->post('/api/todos/10/tags/101', []);
+        $this->assertResponseCode(201);
+
+        $this->get('/api/todos');
+        $this->assertResponseOk();
+
+        /** @var array<string, mixed>|null $decoded */
+        $decoded = json_decode((string)$this->_response->getBody(), true);
+        $this->assertIsArray($decoded);
+        $this->assertArrayHasKey('data', $decoded);
+        $this->assertIsArray($decoded['data']);
+        $this->assertArrayHasKey('items', $decoded['data']);
+        $this->assertIsArray($decoded['data']['items']);
+
+        $todo = array_values(array_filter(
+            $decoded['data']['items'],
+            static fn (mixed $item): bool => is_array($item) && ($item['id'] ?? null) === 10,
+        ))[0] ?? null;
+        $this->assertIsArray($todo);
+        $this->assertArrayHasKey('tags', $todo);
+        $this->assertContains(
+            ['id' => 101, 'name' => 'Reading'],
+            $todo['tags'],
+        );
+    }
+
+    public function testAttachTagRejectsDuplicateRelationship(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->post('/api/todos/10/tags/100', []);
+
+        $this->assertResponseCode(409);
+        $this->assertResponseContains('"code": "CONFLICT"');
+    }
+
+    public function testAttachTagRejectsCrossUserTag(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->post('/api/todos/10/tags/102', []);
+
+        $this->assertResponseCode(404);
+        $this->assertResponseContains('"code": "NOT_FOUND"');
+    }
+
+    public function testDetachTagDeletesTodoTagRelationship(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->delete('/api/todos/10/tags/100');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Tag detached."');
+
+        $todosTags = TableRegistry::getTableLocator()->get('TodosTags');
+        $this->assertFalse($todosTags->exists(['todo_id' => 10, 'tag_id' => 100]));
     }
 
     public function testAnonymousTodoAccessIsDenied(): void

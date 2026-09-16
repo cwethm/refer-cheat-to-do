@@ -29,6 +29,28 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'Todos', 'action' => 'edit', '_method' => 'PATCH'],
             ['pass' => ['id'], 'id' => '\d+'],
         );
+        $builder->connect('/tags', ['controller' => 'Tags', 'action' => 'index', '_method' => 'GET']);
+        $builder->connect('/tags', ['controller' => 'Tags', 'action' => 'add', '_method' => 'POST']);
+        $builder->connect(
+            '/tags/{id}',
+            ['controller' => 'Tags', 'action' => 'edit', '_method' => 'PATCH'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/tags/{id}',
+            ['controller' => 'Tags', 'action' => 'delete', '_method' => 'DELETE'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/todos/{id}/tags/{tagId}',
+            ['controller' => 'Todos', 'action' => 'attachTag', '_method' => 'POST'],
+            ['pass' => ['id', 'tagId'], 'id' => '\d+', 'tagId' => '\d+'],
+        );
+        $builder->connect(
+            '/todos/{id}/tags/{tagId}',
+            ['controller' => 'Todos', 'action' => 'detachTag', '_method' => 'DELETE'],
+            ['pass' => ['id', 'tagId'], 'id' => '\d+', 'tagId' => '\d+'],
+        );
         $builder->connect('/health', ['controller' => 'Health', 'action' => 'index', '_method' => 'GET']);
     });
 };
