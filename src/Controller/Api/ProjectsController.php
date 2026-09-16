@@ -61,6 +61,8 @@ class ProjectsController extends AppController
             throw new ValidationException('Invalid project payload.');
         }
 
+        $this->activity()->record($userId, 'project.created', 'project', (int)$project->id);
+
         return $this->respond(['project' => $this->serializeProject($project)], [], 201);
     }
 
@@ -111,6 +113,8 @@ class ProjectsController extends AppController
         if (!$projects->delete($project)) {
             throw new InternalErrorException('Unable to delete project.');
         }
+
+        $this->activity()->record($userId, 'project.deleted', 'project', (int)$id);
 
         return $this->respond(['message' => 'Project deleted.']);
     }

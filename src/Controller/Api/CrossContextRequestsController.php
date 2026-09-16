@@ -26,6 +26,11 @@ class CrossContextRequestsController extends AppController
             throw $this->translate($exception);
         }
 
+        $this->activity()->record($userId, 'request.sent', 'cross_context_request', (int)$request->id, [
+            'target_type' => (string)$request->target_type,
+            'target_id' => (int)$request->target_id,
+        ]);
+
         return $this->respond(['request' => $this->serialize($request)], [], 201);
     }
 
@@ -88,6 +93,11 @@ class CrossContextRequestsController extends AppController
             throw $this->translate($exception);
         }
 
+        $this->activity()->record($userId, 'request.modified', 'cross_context_request', (int)$request->id, [
+            'target_type' => (string)$request->target_type,
+            'target_id' => (int)$request->target_id,
+        ]);
+
         return $this->respond(['request' => $this->serialize($request)]);
     }
 
@@ -117,6 +127,11 @@ class CrossContextRequestsController extends AppController
             throw $this->translate($exception);
         }
 
+        $this->activity()->record($userId, 'request.accepted', 'cross_context_request', (int)$request->id, [
+            'target_type' => (string)$request->target_type,
+            'target_id' => (int)$request->target_id,
+        ]);
+
         return $this->respond(['request' => $this->serialize($request)]);
     }
 
@@ -135,6 +150,11 @@ class CrossContextRequestsController extends AppController
             throw $this->translate($exception);
         }
 
+        $this->activity()->record($userId, 'request.rejected', 'cross_context_request', (int)$request->id, [
+            'target_type' => (string)$request->target_type,
+            'target_id' => (int)$request->target_id,
+        ]);
+
         return $this->respond(['request' => $this->serialize($request)]);
     }
 
@@ -152,6 +172,11 @@ class CrossContextRequestsController extends AppController
         } catch (DomainException $exception) {
             throw $this->translate($exception);
         }
+
+        $this->activity()->record($userId, 'request.callback', 'cross_context_request', (int)$request->id, [
+            'target_type' => (string)$request->target_type,
+            'target_id' => (int)$request->target_id,
+        ]);
 
         return $this->respond(['request' => $this->serialize($request)]);
     }

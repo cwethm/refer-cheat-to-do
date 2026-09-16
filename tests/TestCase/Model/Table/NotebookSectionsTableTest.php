@@ -16,6 +16,7 @@ class NotebookSectionsTableTest extends TestCase
      */
     protected array $fixtures = [
         'app.Users',
+        'app.ActivityRecords',
         'app.Notebooks',
         'app.NotebookSections',
         'app.Todos',

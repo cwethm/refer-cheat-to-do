@@ -17,6 +17,7 @@ class CrossContextRequestsControllerTest extends TestCase
      */
     protected array $fixtures = [
         'app.Users',
+        'app.ActivityRecords',
         'app.Projects',
         'app.ProjectSections',
         'app.Notebooks',

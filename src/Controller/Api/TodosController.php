@@ -145,6 +145,10 @@ class TodosController extends AppController
             throw new InternalErrorException('Unable to save ToDo.');
         }
 
+        $this->activity()->record($userId, 'todo.created', 'todo', (int)$todo->id, [
+            'status' => (string)$todo->status,
+        ]);
+
         return $this->respond(['todo' => $this->serializeTodo($todosTable->loadTags($todo))], [], 201);
     }
 
@@ -181,6 +185,8 @@ class TodosController extends AppController
             throw new ConflictException('Tag is already attached to this ToDo.');
         }
 
+        $this->activity()->record($userId, 'todo.tag_attached', 'todo', $todoId, ['tag_id' => $resolvedTagId]);
+
         return $this->respond([
             'todo_id' => $todoId,
             'tag_id' => $resolvedTagId,
@@ -205,6 +211,10 @@ class TodosController extends AppController
         if ($deleted < 1) {
             throw new NotFoundException('Tag attachment not found.');
         }
+
+        $this->activity()->record($userId, 'todo.tag_detached', 'todo', (int)$todo->id, [
+            'tag_id' => (int)$tag->id,
+        ]);
 
         return $this->respond([
             'todo_id' => (int)$todo->id,
@@ -255,6 +265,13 @@ class TodosController extends AppController
         if (!$todosTable->save($todo)) {
             throw new InternalErrorException('Unable to update ToDo.');
         }
+
+        $this->activity()->record($userId, 'todo.updated', 'todo', (int)$todo->id, [
+            'fields' => array_values(array_intersect(
+                ['title', 'notes', 'status', 'project_section_id', 'notebook_section_id'],
+                array_keys($data),
+            )),
+        ]);
 
         return $this->respond(['todo' => $this->serializeTodo($todosTable->loadTags($todo))]);
     }
@@ -324,6 +341,8 @@ class TodosController extends AppController
         } catch (DomainException $exception) {
             throw new ConflictException($exception->getMessage(), null, $exception);
         }
+
+        $this->activity()->record($userId, 'todo.deleted', 'todo', (int)$id);
 
         return $this->respond(['id' => (int)$id, 'message' => 'ToDo permanently deleted.']);
     }
@@ -716,6 +735,8 @@ class TodosController extends AppController
 
         /** @var \App\Model\Table\TodosTable $todosTable */
         $todosTable = $this->fetchTable('Todos');
+
+        $this->activity()->record($userId, 'todo.' . $status, 'todo', (int)$todo->id, ['status' => $status]);
 
         return $this->respond(['todo' => $this->serializeTodo($todosTable->loadTags($todo))]);
     }

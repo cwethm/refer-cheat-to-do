@@ -273,6 +273,10 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'CrossContextRequests', 'action' => 'callback', '_method' => 'POST'],
             ['pass' => ['id'], 'id' => '\d+'],
         );
+        $builder->connect(
+            '/activity',
+            ['controller' => 'Activity', 'action' => 'index', '_method' => 'GET'],
+        );
         $builder->connect('/health', ['controller' => 'Health', 'action' => 'index', '_method' => 'GET']);
     });
 };

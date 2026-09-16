@@ -16,6 +16,7 @@ class TagsControllerTest extends TestCase
      */
     protected array $fixtures = [
         'app.Users',
+        'app.ActivityRecords',
         'app.Todos',
         'app.Tags',
         'app.TodosTags',

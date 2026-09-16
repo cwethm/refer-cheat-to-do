@@ -64,6 +64,8 @@ class NotebooksController extends AppController
             throw new ValidationException('Invalid notebook payload.');
         }
 
+        $this->activity()->record($userId, 'notebook.created', 'notebook', (int)$notebook->id);
+
         return $this->respond(['notebook' => $this->serializeNotebook($notebook)], [], 201);
     }
 
@@ -114,6 +116,8 @@ class NotebooksController extends AppController
         if (!$notebooks->delete($notebook)) {
             throw new InternalErrorException('Unable to delete notebook.');
         }
+
+        $this->activity()->record($userId, 'notebook.deleted', 'notebook', (int)$id);
 
         return $this->respond(['message' => 'Notebook deleted.']);
     }

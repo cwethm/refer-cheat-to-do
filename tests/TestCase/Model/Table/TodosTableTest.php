@@ -14,6 +14,7 @@ class TodosTableTest extends TestCase
      */
     protected array $fixtures = [
         'app.Users',
+        'app.ActivityRecords',
     ];
 
     protected TodosTable $Todos;

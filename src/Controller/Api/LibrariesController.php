@@ -60,6 +60,8 @@ class LibrariesController extends AppController
             throw new ValidationException('Invalid library payload.');
         }
 
+        $this->activity()->record($userId, 'library.created', 'library', (int)$library->id);
+
         return $this->respond(['library' => $this->serializeLibrary($library)], [], 201);
     }
 
@@ -110,6 +112,8 @@ class LibrariesController extends AppController
             throw new InternalErrorException('Unable to delete library.');
         }
 
+        $this->activity()->record($userId, 'library.deleted', 'library', (int)$id);
+
         return $this->respond(['message' => 'Library deleted.']);
     }
 
@@ -147,6 +151,14 @@ class LibrariesController extends AppController
             throw new NotFoundException('Library member not found.', null, $exception);
         }
 
+        $this->activity()->record(
+            $userId,
+            'library.member_added',
+            'library',
+            (int)$library->id,
+            ['member_type' => $memberType, 'member_id' => (int)$memberId],
+        );
+
         return $this->respond([
             'library_id' => (int)$library->id,
             'member_type' => $memberType,
@@ -171,6 +183,14 @@ class LibrariesController extends AppController
         } catch (DomainException $exception) {
             throw new NotFoundException('Library member not found.', null, $exception);
         }
+
+        $this->activity()->record(
+            $userId,
+            'library.member_removed',
+            'library',
+            (int)$library->id,
+            ['member_type' => $memberType, 'member_id' => (int)$memberId],
+        );
 
         return $this->respond([
             'library_id' => (int)$library->id,

@@ -63,6 +63,13 @@ class CapabilitiesController extends AppController
             throw $this->translate($exception);
         }
 
+        $this->activity()->record($userId, 'capability.granted', 'capability_grant', (int)$grant->id, [
+            'capability' => (string)$grant->capability,
+            'subject_user_id' => (int)$grant->subject_user_id,
+            'resource_type' => (string)$grant->resource_type,
+            'resource_id' => (int)$grant->resource_id,
+        ]);
+
         return $this->respond(['grant' => $this->serializeGrant($grant)], [], 201);
     }
 
@@ -81,6 +88,13 @@ class CapabilitiesController extends AppController
         } catch (DomainException $exception) {
             throw $this->translate($exception);
         }
+
+        $this->activity()->record($userId, 'capability.revoked', 'capability_grant', (int)$grant->id, [
+            'capability' => (string)$grant->capability,
+            'subject_user_id' => (int)$grant->subject_user_id,
+            'resource_type' => (string)$grant->resource_type,
+            'resource_id' => (int)$grant->resource_id,
+        ]);
 
         return $this->respond([
             'grant' => $this->serializeGrant($grant),
