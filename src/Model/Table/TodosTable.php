@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Model\Table;
 
 use App\Model\Entity\Todo;
+use App\Service\ReviewSchedulingService;
 use Cake\Datasource\EntityInterface;
 use Cake\ORM\Query\SelectQuery;
 use Cake\ORM\RulesChecker;
@@ -136,6 +137,22 @@ class TodosTable extends Table
         $validator
             ->dateTime('trashed_at')
             ->allowEmptyDateTime('trashed_at');
+
+        $validator
+            ->dateTime('last_reviewed_at')
+            ->allowEmptyDateTime('last_reviewed_at');
+
+        $validator
+            ->dateTime('next_review_at')
+            ->allowEmptyDateTime('next_review_at');
+
+        $validator
+            ->integer('review_interval_days')
+            ->range('review_interval_days', [
+                ReviewSchedulingService::MIN_INTERVAL_DAYS,
+                ReviewSchedulingService::MAX_INTERVAL_DAYS,
+            ])
+            ->notEmptyString('review_interval_days');
 
         $validator
             ->scalar('previous_status')

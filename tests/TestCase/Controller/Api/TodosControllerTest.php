@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Controller\Api;
 
 use Cake\Database\Exception\QueryException;
+use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
@@ -1012,6 +1013,209 @@ class TodosControllerTest extends TestCase
 
         $this->assertResponseOk();
         $this->assertResponseContains('"Important"');
+    }
+
+    public function testReviewQueueReturnsOnlyOwnedEligibleTodosWithReasons(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->get('/api/todos/review-queue');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Owner inbox todo"');
+        $this->assertResponseNotContains('"Other user todo"');
+        $this->assertResponseContains('"never_reviewed"');
+        $this->assertResponseContains('"no_section"');
+    }
+
+    public function testReviewQueueExcludesArchivedAndTrashedTodos(): void
+    {
+        $this->moveTodoTo(10, 'archive');
+        $this->moveTodoTo(11, 'trash');
+
+        $this->authenticatedJsonRequest();
+        $this->get('/api/todos/review-queue');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"total": 0');
+    }
+
+    public function testReviewQueueExcludesDoneTodos(): void
+    {
+        $this->moveTodoTo(10, 'complete');
+
+        $this->authenticatedJsonRequest();
+        $this->get('/api/todos/review-queue');
+
+        $this->assertResponseOk();
+        $this->assertResponseNotContains('"Owner inbox todo"');
+    }
+
+    public function testRestoredTodoReappearsInReviewQueue(): void
+    {
+        $this->moveTodoTo(10, 'trash');
+        $this->moveTodoTo(10, 'restore');
+
+        $this->authenticatedJsonRequest();
+        $this->get('/api/todos/review-queue');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Owner inbox todo"');
+    }
+
+    public function testReviewQueueIsOrderedByNextReviewThenId(): void
+    {
+        $this->authenticatedJsonRequest();
+        $this->post('/api/todos/11/snooze', json_encode(['days' => 1]));
+        $this->assertResponseOk();
+
+        $this->authenticatedJsonRequest();
+        $this->get('/api/todos/review-queue');
+
+        $this->assertResponseOk();
+        $body = (string)$this->_response->getBody();
+        $this->assertLessThan(
+            (int)strpos($body, 'Owner active todo'),
+            (int)strpos($body, 'Owner inbox todo'),
+        );
+    }
+
+    public function testMarkReviewedUpdatesTimestampsAndClearsReviewReasons(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos/10/reviewed', json_encode(['review_interval_days' => 14]));
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"review_interval_days": 14');
+        $this->assertResponseNotContains('"last_reviewed_at": null');
+        $this->assertResponseNotContains('"next_review_at": null');
+    }
+
+    public function testMarkReviewedAcceptsExplicitNextReviewDate(): void
+    {
+        $this->authenticatedJsonRequest();
+        $future = DateTime::now()->addDays(45)->format(DATE_ATOM);
+
+        $this->post('/api/todos/10/reviewed', json_encode(['next_review_at' => $future]));
+
+        $this->assertResponseOk();
+    }
+
+    public function testSnoozeUpdatesNextReview(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos/10/snooze', json_encode(['days' => 10]));
+
+        $this->assertResponseOk();
+        $this->assertResponseNotContains('"next_review_at": null');
+        $this->assertResponseContains('"last_reviewed_at": null');
+    }
+
+    public function testAddingTagRemovesTheUntaggedReviewReason(): void
+    {
+        $this->authenticatedJsonRequest();
+        $this->post('/api/todos/11/tags/100', '{}');
+        $this->assertResponseSuccess();
+
+        $this->authenticatedJsonRequest();
+        $this->get('/api/todos/review-queue');
+        $this->assertResponseOk();
+
+        $decoded = json_decode((string)$this->_response->getBody(), true);
+        $this->assertIsArray($decoded);
+        foreach ($decoded['data']['items'] as $entry) {
+            if ($entry['todo']['id'] === 11) {
+                $this->assertNotContains('no_tags', $entry['reasons']);
+            }
+        }
+    }
+
+    public function testMarkReviewedRejectsInvalidInterval(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos/10/reviewed', json_encode(['review_interval_days' => 0]));
+
+        $this->assertResponseCode(422);
+    }
+
+    public function testMarkReviewedRejectsMalformedDate(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos/10/reviewed', json_encode(['next_review_at' => 'not-a-date']));
+
+        $this->assertResponseCode(422);
+    }
+
+    public function testMarkReviewedRejectsPastDate(): void
+    {
+        $this->authenticatedJsonRequest();
+        $past = DateTime::now()->subDays(1)->format(DATE_ATOM);
+
+        $this->post('/api/todos/10/reviewed', json_encode(['next_review_at' => $past]));
+
+        $this->assertResponseCode(422);
+    }
+
+    public function testSnoozeRejectsMissingArguments(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos/10/snooze', '{}');
+
+        $this->assertResponseCode(422);
+    }
+
+    public function testSnoozeRejectsBothArguments(): void
+    {
+        $this->authenticatedJsonRequest();
+        $future = DateTime::now()->addDays(3)->format(DATE_ATOM);
+
+        $this->post('/api/todos/10/snooze', json_encode(['days' => 3, 'until' => $future]));
+
+        $this->assertResponseCode(422);
+    }
+
+    public function testReviewActionOnAnotherUsersTodoIsDenied(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos/12/reviewed', '{}');
+
+        $this->assertResponseCode(404);
+    }
+
+    public function testAnonymousReviewQueueIsDenied(): void
+    {
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos/review-queue');
+
+        $this->assertResponseCode(401);
+    }
+
+    public function testReviewQueueRejectsInvalidPagination(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->get('/api/todos/review-queue?page=0');
+
+        $this->assertResponseCode(400);
+    }
+
+    public function testReviewActionsDoNotChangeStatus(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos/10/reviewed', '{}');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"status": "inbox"');
     }
 
     public function testAnonymousTodoAccessIsDenied(): void

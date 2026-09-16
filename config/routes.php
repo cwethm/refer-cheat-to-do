@@ -29,6 +29,20 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'Todos', 'action' => 'edit', '_method' => 'PATCH'],
             ['pass' => ['id'], 'id' => '\d+'],
         );
+        $builder->connect(
+            '/todos/review-queue',
+            ['controller' => 'Todos', 'action' => 'reviewQueue', '_method' => 'GET'],
+        );
+        $builder->connect(
+            '/todos/{id}/reviewed',
+            ['controller' => 'Todos', 'action' => 'markReviewed', '_method' => 'POST'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/todos/{id}/snooze',
+            ['controller' => 'Todos', 'action' => 'snooze', '_method' => 'POST'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
         foreach (['activate', 'complete', 'archive', 'trash', 'restore'] as $lifecycleAction) {
             $builder->connect(
                 '/todos/{id}/' . $lifecycleAction,

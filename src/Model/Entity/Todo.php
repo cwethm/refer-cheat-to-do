@@ -16,6 +16,9 @@ use Cake\ORM\Entity;
  * @property string|null $previous_status
  * @property \Cake\I18n\DateTime|null $archived_at
  * @property \Cake\I18n\DateTime|null $trashed_at
+ * @property \Cake\I18n\DateTime|null $last_reviewed_at
+ * @property \Cake\I18n\DateTime|null $next_review_at
+ * @property int $review_interval_days
  * @property \Cake\I18n\DateTime|null $created
  * @property \Cake\I18n\DateTime|null $modified
  * @property list<\App\Model\Entity\Tag> $tags
@@ -37,6 +40,9 @@ class Todo extends Entity
         'previous_status' => false,
         'archived_at' => false,
         'trashed_at' => false,
+        'last_reviewed_at' => false,
+        'next_review_at' => false,
+        'review_interval_days' => false,
         'created' => true,
         'modified' => true,
         'user' => true,

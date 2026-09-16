@@ -7,13 +7,17 @@ use App\Http\Exception\ValidationException;
 use App\Model\Entity\Tag;
 use App\Model\Entity\Todo;
 use App\Model\Table\TodosTable;
+use App\Service\OrphanDetectionService;
+use App\Service\ReviewSchedulingService;
 use App\Service\TodoLifecycleService;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\ConflictException;
 use Cake\Http\Exception\InternalErrorException;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
+use Cake\I18n\DateTime;
 use DomainException;
+use InvalidArgumentException;
 use Throwable;
 
 class TodosController extends AppController
@@ -324,6 +328,173 @@ class TodosController extends AppController
     }
 
     /**
+     * Return the current user's review queue with explainable reasons.
+     */
+    public function reviewQueue(): Response
+    {
+        $userId = $this->requireUserId();
+        $page = $this->readPositiveQueryInt('page', 1);
+        $limit = min($this->readPositiveQueryInt('limit', 20), 100);
+        $now = DateTime::now();
+
+        /** @var \App\Model\Table\TodosTable $todosTable */
+        $todosTable = $this->fetchTable('Todos');
+        $candidates = $todosTable->find('withTags')
+            ->where([
+                'Todos.user_id' => $userId,
+                'Todos.status NOT IN' => OrphanDetectionService::EXCLUDED_STATUSES,
+            ])
+            ->orderBy(['Todos.next_review_at ASC NULLS FIRST', 'Todos.id' => 'ASC'])
+            ->all();
+
+        $orphans = new OrphanDetectionService();
+        $queue = [];
+        foreach ($candidates as $todo) {
+            /** @var \App\Model\Entity\Todo $todo */
+            $reasons = $orphans->reasonsFor($todo, $now);
+            if ($reasons === []) {
+                continue;
+            }
+            $queue[] = [
+                'todo' => $this->serializeTodo($todo),
+                'reasons' => $reasons,
+                'suggested_actions' => $orphans->suggestedActions($reasons),
+            ];
+        }
+
+        $total = count($queue);
+        $items = array_slice($queue, ($page - 1) * $limit, $limit);
+
+        return $this->respond(
+            ['items' => array_values($items)],
+            ['pagination' => ['page' => $page, 'limit' => $limit, 'total' => $total]],
+        );
+    }
+
+    /**
+     * Record a review of an owned ToDo and schedule the next one.
+     */
+    public function markReviewed(string $id): Response
+    {
+        $userId = $this->requireUserId();
+        $todo = $this->fetchOwnedTodoOrFail($id, $userId);
+        $data = $this->readJsonObject();
+
+        $interval = $this->readOptionalPositiveInt($data, 'review_interval_days');
+        $nextReviewAt = $this->readOptionalDateTime($data, 'next_review_at');
+
+        try {
+            $todo = $this->reviewScheduling()->markReviewed($todo, $interval, $nextReviewAt);
+        } catch (DomainException $exception) {
+            throw new ValidationException($exception->getMessage());
+        }
+
+        /** @var \App\Model\Table\TodosTable $todosTable */
+        $todosTable = $this->fetchTable('Todos');
+
+        return $this->respond(['todo' => $this->serializeTodo($todosTable->loadTags($todo))]);
+    }
+
+    /**
+     * Push the next review of an owned ToDo into the future.
+     */
+    public function snooze(string $id): Response
+    {
+        $userId = $this->requireUserId();
+        $todo = $this->fetchOwnedTodoOrFail($id, $userId);
+        $data = $this->readJsonObject();
+
+        $days = $this->readOptionalPositiveInt($data, 'days');
+        $until = $this->readOptionalDateTime($data, 'until');
+
+        try {
+            $todo = $this->reviewScheduling()->snooze($todo, $days, $until);
+        } catch (DomainException $exception) {
+            throw new ValidationException($exception->getMessage());
+        }
+
+        /** @var \App\Model\Table\TodosTable $todosTable */
+        $todosTable = $this->fetchTable('Todos');
+
+        return $this->respond(['todo' => $this->serializeTodo($todosTable->loadTags($todo))]);
+    }
+
+    /**
+     * Resolve the review scheduling authority.
+     */
+    private function reviewScheduling(): ReviewSchedulingService
+    {
+        /** @var \App\Model\Table\TodosTable $todosTable */
+        $todosTable = $this->fetchTable('Todos');
+
+        return new ReviewSchedulingService($todosTable);
+    }
+
+    /**
+     * Read the request body as a JSON object.
+     *
+     * @return array<string, mixed>
+     */
+    private function readJsonObject(): array
+    {
+        $data = $this->request->getData();
+        if ($data === null || $data === '') {
+            return [];
+        }
+        if (!is_array($data)) {
+            throw new BadRequestException('Malformed request body.');
+        }
+
+        return $data;
+    }
+
+    /**
+     * Read an optional positive integer field from a request body.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function readOptionalPositiveInt(array $data, string $field): ?int
+    {
+        if (!array_key_exists($field, $data) || $data[$field] === null || $data[$field] === '') {
+            return null;
+        }
+        $value = $data[$field];
+        if (is_int($value) && $value > 0) {
+            return $value;
+        }
+        if (is_string($value) && ctype_digit($value) && (int)$value > 0) {
+            return (int)$value;
+        }
+
+        throw new ValidationException(sprintf('Invalid `%s` value.', $field));
+    }
+
+    /**
+     * Read an optional ISO-8601 date-time field from a request body.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function readOptionalDateTime(array $data, string $field): ?DateTime
+    {
+        if (!array_key_exists($field, $data) || $data[$field] === null || $data[$field] === '') {
+            return null;
+        }
+        $value = $data[$field];
+        if (!is_string($value)) {
+            throw new ValidationException(sprintf('Invalid `%s` value.', $field));
+        }
+        foreach ([DATE_ATOM, 'Y-m-d\TH:i:s', 'Y-m-d H:i:s', 'Y-m-d'] as $format) {
+            try {
+                return DateTime::createFromFormat($format, $value);
+            } catch (InvalidArgumentException) {
+                continue;
+            }
+        }
+
+        throw new ValidationException(sprintf('Invalid `%s` value.', $field));
+    }
+
+    /**
      * Resolve the lifecycle authority for ToDo transitions.
      */
     private function lifecycle(): TodoLifecycleService
@@ -568,6 +739,9 @@ class TodosController extends AppController
             'status' => (string)$todo->status,
             'archived_at' => $todo->archived_at?->format(DATE_ATOM),
             'trashed_at' => $todo->trashed_at?->format(DATE_ATOM),
+            'last_reviewed_at' => $todo->last_reviewed_at?->format(DATE_ATOM),
+            'next_review_at' => $todo->next_review_at?->format(DATE_ATOM),
+            'review_interval_days' => (int)$todo->review_interval_days,
             'project_section_id' => $todo->project_section_id === null ? null : (int)$todo->project_section_id,
             'notebook_section_id' => $todo->notebook_section_id === null ? null : (int)$todo->notebook_section_id,
             'tags' => $tags,
