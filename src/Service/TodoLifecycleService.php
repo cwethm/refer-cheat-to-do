@@ -130,6 +130,9 @@ class TodoLifecycleService
         if ((string)$todo->status !== self::STATUS_TRASHED) {
             throw new DomainException('Only trashed ToDos can be permanently deleted.');
         }
+        if ($this->todos->exists(['parent_todo_id' => (int)$todo->id])) {
+            throw new DomainException('Detach or delete the child ToDos first.');
+        }
 
         $this->todos->deleteOrFail($todo);
     }

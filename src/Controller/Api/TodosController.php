@@ -10,6 +10,7 @@ use App\Model\Table\TodosTable;
 use App\Service\OrphanDetectionService;
 use App\Service\ReviewSchedulingService;
 use App\Service\TodoLifecycleService;
+use App\Service\TodoRelationshipService;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\ConflictException;
 use Cake\Http\Exception\InternalErrorException;
@@ -420,6 +421,200 @@ class TodosController extends AppController
     }
 
     /**
+     * Link two owned ToDos as related work.
+     */
+    public function relate(string $id, string $relatedId): Response
+    {
+        $userId = $this->requireUserId();
+        $todo = $this->fetchOwnedTodoOrFail($id, $userId);
+        $other = $this->fetchOwnedTodoOrFail($relatedId, $userId);
+
+        try {
+            $this->relationships()->relate($todo, $other);
+        } catch (DomainException $exception) {
+            throw new ConflictException($exception->getMessage(), null, $exception);
+        }
+
+        return $this->respond(
+            ['todo_id' => (int)$todo->id, 'related_todo_id' => (int)$other->id],
+            [],
+            201,
+        );
+    }
+
+    /**
+     * Remove the link between two owned ToDos.
+     */
+    public function unrelate(string $id, string $relatedId): Response
+    {
+        $userId = $this->requireUserId();
+        $todo = $this->fetchOwnedTodoOrFail($id, $userId);
+        $other = $this->fetchOwnedTodoOrFail($relatedId, $userId);
+
+        try {
+            $this->relationships()->unrelate($todo, $other);
+        } catch (DomainException $exception) {
+            throw new NotFoundException($exception->getMessage(), null, $exception);
+        }
+
+        return $this->respond([
+            'todo_id' => (int)$todo->id,
+            'related_todo_id' => (int)$other->id,
+            'message' => 'Relationship removed.',
+        ]);
+    }
+
+    /**
+     * Set or clear the parent of an owned ToDo.
+     */
+    public function setParent(string $id): Response
+    {
+        $userId = $this->requireUserId();
+        $todo = $this->fetchOwnedTodoOrFail($id, $userId);
+        $data = $this->readJsonObject();
+
+        $parent = null;
+        $parentId = $data['parent_todo_id'] ?? null;
+        if ($parentId !== null && $parentId !== '') {
+            if (!is_int($parentId) && !(is_string($parentId) && ctype_digit($parentId))) {
+                throw new ValidationException('Invalid `parent_todo_id` value.');
+            }
+            $parent = $this->fetchOwnedTodoOrFail((string)$parentId, $userId);
+        }
+
+        try {
+            $todo = $this->relationships()->setParent($todo, $parent);
+        } catch (DomainException $exception) {
+            throw new ConflictException($exception->getMessage(), null, $exception);
+        }
+
+        /** @var \App\Model\Table\TodosTable $todosTable */
+        $todosTable = $this->fetchTable('Todos');
+
+        return $this->respond(['todo' => $this->serializeTodo($todosTable->loadTags($todo))]);
+    }
+
+    /**
+     * Set or clear the terminal objective of an owned ToDo.
+     */
+    public function setObjective(string $id): Response
+    {
+        $userId = $this->requireUserId();
+        $todo = $this->fetchOwnedTodoOrFail($id, $userId);
+        $data = $this->readJsonObject();
+
+        $objective = $data['terminal_objective'] ?? null;
+        if ($objective !== null && !is_string($objective)) {
+            throw new ValidationException('Invalid `terminal_objective` value.');
+        }
+
+        try {
+            $todo = $this->relationships()->setTerminalObjective($todo, $objective);
+        } catch (DomainException $exception) {
+            throw new ValidationException($exception->getMessage());
+        }
+
+        /** @var \App\Model\Table\TodosTable $todosTable */
+        $todosTable = $this->fetchTable('Todos');
+
+        return $this->respond(['todo' => $this->serializeTodo($todosTable->loadTags($todo))]);
+    }
+
+    /**
+     * Report a child ToDo's result back to its parent.
+     */
+    public function reportResult(string $id): Response
+    {
+        $userId = $this->requireUserId();
+        $todo = $this->fetchOwnedTodoOrFail($id, $userId);
+        $data = $this->readJsonObject();
+
+        $result = $data['result'] ?? null;
+        if (!is_string($result)) {
+            throw new ValidationException('A `result` summary is required.');
+        }
+
+        try {
+            $todo = $this->relationships()->reportResult($todo, $result);
+        } catch (DomainException $exception) {
+            throw new ConflictException($exception->getMessage(), null, $exception);
+        }
+
+        /** @var \App\Model\Table\TodosTable $todosTable */
+        $todosTable = $this->fetchTable('Todos');
+
+        return $this->respond(['todo' => $this->serializeTodo($todosTable->loadTags($todo))]);
+    }
+
+    /**
+     * Return the parent, children and related ToDos of an owned ToDo.
+     */
+    public function hierarchy(string $id): Response
+    {
+        $userId = $this->requireUserId();
+        $todo = $this->fetchOwnedTodoOrFail($id, $userId);
+        $relationships = $this->relationships();
+
+        /** @var \App\Model\Table\TodosTable $todosTable */
+        $todosTable = $this->fetchTable('Todos');
+        $parent = null;
+        if ($todo->parent_todo_id !== null) {
+            /** @var \App\Model\Entity\Todo|null $parentEntity */
+            $parentEntity = $todosTable->find('withTags')
+                ->where(['Todos.id' => (int)$todo->parent_todo_id, 'Todos.user_id' => $userId])
+                ->first();
+            $parent = $parentEntity === null ? null : $this->serializeTodo($parentEntity);
+        }
+
+        return $this->respond([
+            'todo' => $this->serializeTodo($todo),
+            'parent' => $parent,
+            'children' => $this->serializeTodoIds($relationships->childIds($todo), $userId),
+            'related' => $this->serializeTodoIds($relationships->relatedIds($todo), $userId),
+        ]);
+    }
+
+    /**
+     * Serialize owned ToDos referenced by id, skipping anything not owned by the caller.
+     *
+     * @param list<int> $ids
+     * @return list<array<string, mixed>>
+     */
+    private function serializeTodoIds(array $ids, int $userId): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        /** @var \App\Model\Table\TodosTable $todosTable */
+        $todosTable = $this->fetchTable('Todos');
+        $items = [];
+        $rows = $todosTable->find('withTags')
+            ->where(['Todos.id IN' => $ids, 'Todos.user_id' => $userId])
+            ->orderBy(['Todos.id' => 'ASC'])
+            ->all();
+        foreach ($rows as $row) {
+            /** @var \App\Model\Entity\Todo $row */
+            $items[] = $this->serializeTodo($row);
+        }
+
+        return $items;
+    }
+
+    /**
+     * Resolve the relationship authority for ToDo links and hierarchy.
+     */
+    private function relationships(): TodoRelationshipService
+    {
+        /** @var \App\Model\Table\TodosTable $todosTable */
+        $todosTable = $this->fetchTable('Todos');
+        /** @var \App\Model\Table\RelatedTodosTable $relatedTodos */
+        $relatedTodos = $this->fetchTable('RelatedTodos');
+
+        return new TodoRelationshipService($todosTable, $relatedTodos);
+    }
+
+    /**
      * Resolve the review scheduling authority.
      */
     private function reviewScheduling(): ReviewSchedulingService
@@ -742,6 +937,10 @@ class TodosController extends AppController
             'last_reviewed_at' => $todo->last_reviewed_at?->format(DATE_ATOM),
             'next_review_at' => $todo->next_review_at?->format(DATE_ATOM),
             'review_interval_days' => (int)$todo->review_interval_days,
+            'parent_todo_id' => $todo->parent_todo_id === null ? null : (int)$todo->parent_todo_id,
+            'terminal_objective' => $todo->terminal_objective === null ? null : (string)$todo->terminal_objective,
+            'objective_satisfied_at' => $todo->objective_satisfied_at?->format(DATE_ATOM),
+            'result_summary' => $todo->result_summary === null ? null : (string)$todo->result_summary,
             'project_section_id' => $todo->project_section_id === null ? null : (int)$todo->project_section_id,
             'notebook_section_id' => $todo->notebook_section_id === null ? null : (int)$todo->notebook_section_id,
             'tags' => $tags,

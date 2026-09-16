@@ -21,6 +21,7 @@ class TodosControllerTest extends TestCase
         'app.Todos',
         'app.Tags',
         'app.TodosTags',
+        'app.RelatedTodos',
         'app.Projects',
         'app.ProjectSections',
         'app.Notebooks',
@@ -1213,6 +1214,272 @@ class TodosControllerTest extends TestCase
         $this->authenticatedJsonRequest();
 
         $this->post('/api/todos/10/reviewed', '{}');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"status": "inbox"');
+    }
+
+    public function testRelateAndHierarchyExposeRelatedTodos(): void
+    {
+        $this->authenticatedJsonRequest();
+        $this->post('/api/todos/10/related/11', '{}');
+        $this->assertResponseCode(201);
+
+        $this->authenticatedJsonRequest();
+        $this->get('/api/todos/10/hierarchy');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Owner active todo"');
+    }
+
+    public function testRelateIsRejectedForDuplicatePair(): void
+    {
+        $this->authenticatedJsonRequest();
+        $this->post('/api/todos/10/related/11', '{}');
+        $this->assertResponseCode(201);
+
+        $this->authenticatedJsonRequest();
+        $this->post('/api/todos/11/related/10', '{}');
+
+        $this->assertResponseCode(409);
+    }
+
+    public function testRelateRejectsSelfReference(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos/10/related/10', '{}');
+
+        $this->assertResponseCode(409);
+    }
+
+    public function testRelateToAnotherUsersTodoReturnsNotFound(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos/10/related/12', '{}');
+
+        $this->assertResponseCode(404);
+    }
+
+    public function testRelateToUnknownTodoReturnsNotFound(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos/10/related/999999', '{}');
+
+        $this->assertResponseCode(404);
+    }
+
+    public function testUnrelateRemovesLinkWithoutDeletingTodos(): void
+    {
+        $this->authenticatedJsonRequest();
+        $this->post('/api/todos/10/related/11', '{}');
+        $this->assertResponseCode(201);
+
+        $this->authenticatedJsonRequest();
+        $this->delete('/api/todos/11/related/10');
+        $this->assertResponseOk();
+
+        $this->authenticatedJsonRequest();
+        $this->get('/api/todos/10');
+        $this->assertResponseOk();
+
+        $this->authenticatedJsonRequest();
+        $this->get('/api/todos/11');
+        $this->assertResponseOk();
+    }
+
+    public function testUnrelateUnknownLinkReturnsNotFound(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->delete('/api/todos/10/related/11');
+
+        $this->assertResponseCode(404);
+    }
+
+    public function testSetParentCreatesChildRelationship(): void
+    {
+        $this->authenticatedJsonRequest();
+        $this->patch('/api/todos/11/parent', json_encode(['parent_todo_id' => 10]));
+        $this->assertResponseOk();
+        $this->assertResponseContains('"parent_todo_id": 10');
+
+        $this->authenticatedJsonRequest();
+        $this->get('/api/todos/10/hierarchy');
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Owner active todo"');
+    }
+
+    public function testSetParentAcceptsNullToDetach(): void
+    {
+        $this->authenticatedJsonRequest();
+        $this->patch('/api/todos/11/parent', json_encode(['parent_todo_id' => 10]));
+        $this->assertResponseOk();
+
+        $this->authenticatedJsonRequest();
+        $this->patch('/api/todos/11/parent', json_encode(['parent_todo_id' => null]));
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"parent_todo_id": null');
+    }
+
+    public function testSetParentRejectsCycle(): void
+    {
+        $this->authenticatedJsonRequest();
+        $this->patch('/api/todos/11/parent', json_encode(['parent_todo_id' => 10]));
+        $this->assertResponseOk();
+
+        $this->authenticatedJsonRequest();
+        $this->patch('/api/todos/10/parent', json_encode(['parent_todo_id' => 11]));
+
+        $this->assertResponseCode(409);
+    }
+
+    public function testSetParentRejectsSelfParent(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->patch('/api/todos/10/parent', json_encode(['parent_todo_id' => 10]));
+
+        $this->assertResponseCode(409);
+    }
+
+    public function testSetParentRejectsAnotherUsersTodo(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->patch('/api/todos/10/parent', json_encode(['parent_todo_id' => 12]));
+
+        $this->assertResponseCode(404);
+    }
+
+    public function testSetParentRejectsMalformedValue(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->patch('/api/todos/10/parent', json_encode(['parent_todo_id' => 'abc']));
+
+        $this->assertResponseCode(422);
+    }
+
+    public function testTerminalObjectiveCanBeSetAndCleared(): void
+    {
+        $this->authenticatedJsonRequest();
+        $this->patch('/api/todos/10/objective', json_encode(['terminal_objective' => 'Answer the question']));
+        $this->assertResponseOk();
+        $this->assertResponseContains('"terminal_objective": "Answer the question"');
+
+        $this->authenticatedJsonRequest();
+        $this->patch('/api/todos/10/objective', json_encode(['terminal_objective' => null]));
+        $this->assertResponseOk();
+        $this->assertResponseContains('"terminal_objective": null');
+    }
+
+    public function testTerminalObjectiveRejectsNonStringValue(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->patch('/api/todos/10/objective', json_encode(['terminal_objective' => ['nope']]));
+
+        $this->assertResponseCode(422);
+    }
+
+    public function testChildReportsResultWithoutMutatingParent(): void
+    {
+        $this->authenticatedJsonRequest();
+        $this->patch('/api/todos/11/parent', json_encode(['parent_todo_id' => 10]));
+        $this->assertResponseOk();
+
+        $this->authenticatedJsonRequest();
+        $this->post('/api/todos/11/result', json_encode(['result' => 'Investigation complete']));
+        $this->assertResponseOk();
+        $this->assertResponseContains('"result_summary": "Investigation complete"');
+
+        $this->authenticatedJsonRequest();
+        $this->get('/api/todos/10');
+        $this->assertResponseOk();
+        $this->assertResponseContains('"status": "inbox"');
+        $this->assertResponseContains('"result_summary": null');
+        $this->assertResponseContains('"objective_satisfied_at": null');
+    }
+
+    public function testReportResultRequiresParent(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos/10/result', json_encode(['result' => 'No parent']));
+
+        $this->assertResponseCode(409);
+    }
+
+    public function testReportResultIsNotRepeatable(): void
+    {
+        $this->authenticatedJsonRequest();
+        $this->patch('/api/todos/11/parent', json_encode(['parent_todo_id' => 10]));
+        $this->assertResponseOk();
+
+        $this->authenticatedJsonRequest();
+        $this->post('/api/todos/11/result', json_encode(['result' => 'First']));
+        $this->assertResponseOk();
+
+        $this->authenticatedJsonRequest();
+        $this->post('/api/todos/11/result', json_encode(['result' => 'Second']));
+
+        $this->assertResponseCode(409);
+    }
+
+    public function testReportResultRejectsMalformedPayload(): void
+    {
+        $this->authenticatedJsonRequest();
+        $this->patch('/api/todos/11/parent', json_encode(['parent_todo_id' => 10]));
+        $this->assertResponseOk();
+
+        $this->authenticatedJsonRequest();
+        $this->post('/api/todos/11/result', json_encode(['result' => 42]));
+
+        $this->assertResponseCode(422);
+    }
+
+    public function testPermanentDeleteIsBlockedWhileChildrenExist(): void
+    {
+        $this->authenticatedJsonRequest();
+        $this->patch('/api/todos/11/parent', json_encode(['parent_todo_id' => 10]));
+        $this->assertResponseOk();
+
+        $this->moveTodoTo(10, 'trash');
+
+        $this->authenticatedJsonRequest();
+        $this->delete('/api/todos/10/permanent');
+
+        $this->assertResponseCode(409);
+    }
+
+    public function testHierarchyOnAnotherUsersTodoReturnsNotFound(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->get('/api/todos/12/hierarchy');
+
+        $this->assertResponseCode(404);
+    }
+
+    public function testAnonymousRelationshipActionIsDenied(): void
+    {
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json', 'Content-Type' => 'application/json'],
+        ]);
+
+        $this->post('/api/todos/10/related/11', '{}');
+
+        $this->assertResponseCode(401);
+    }
+
+    public function testTerminalObjectiveDoesNotChangeLifecycleStatus(): void
+    {
+        $this->authenticatedJsonRequest();
+        $this->patch('/api/todos/10/objective', json_encode(['terminal_objective' => 'Ship it']));
 
         $this->assertResponseOk();
         $this->assertResponseContains('"status": "inbox"');

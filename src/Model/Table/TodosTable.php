@@ -5,6 +5,7 @@ namespace App\Model\Table;
 
 use App\Model\Entity\Todo;
 use App\Service\ReviewSchedulingService;
+use App\Service\TodoRelationshipService;
 use Cake\Datasource\EntityInterface;
 use Cake\ORM\Query\SelectQuery;
 use Cake\ORM\RulesChecker;
@@ -61,6 +62,16 @@ class TodosTable extends Table
         $this->belongsTo('NotebookSections', [
             'foreignKey' => 'notebook_section_id',
             'joinType' => 'LEFT',
+        ]);
+        $this->belongsTo('ParentTodo', [
+            'className' => 'Todos',
+            'foreignKey' => 'parent_todo_id',
+            'joinType' => 'LEFT',
+        ]);
+        $this->hasMany('ChildTodos', [
+            'className' => 'Todos',
+            'foreignKey' => 'parent_todo_id',
+            'dependent' => false,
         ]);
         $this->belongsToMany('Tags', [
             'foreignKey' => 'todo_id',
@@ -155,6 +166,25 @@ class TodosTable extends Table
             ->notEmptyString('review_interval_days');
 
         $validator
+            ->integer('parent_todo_id')
+            ->greaterThan('parent_todo_id', 0)
+            ->allowEmptyString('parent_todo_id');
+
+        $validator
+            ->scalar('terminal_objective')
+            ->maxLength('terminal_objective', TodoRelationshipService::MAX_OBJECTIVE_LENGTH)
+            ->allowEmptyString('terminal_objective');
+
+        $validator
+            ->scalar('result_summary')
+            ->maxLength('result_summary', TodoRelationshipService::MAX_OBJECTIVE_LENGTH)
+            ->allowEmptyString('result_summary');
+
+        $validator
+            ->dateTime('objective_satisfied_at')
+            ->allowEmptyDateTime('objective_satisfied_at');
+
+        $validator
             ->scalar('previous_status')
             ->inList('previous_status', self::ALLOWED_STATUSES)
             ->allowEmptyString('previous_status');
@@ -168,6 +198,9 @@ class TodosTable extends Table
     public function buildRules(RulesChecker $rules): RulesChecker
     {
         $rules->add($rules->existsIn(['user_id'], 'Users'), ['errorField' => 'user_id']);
+        $rules->add($rules->existsIn(['parent_todo_id'], 'ParentTodo', [
+            'allowNullableNulls' => true,
+        ]), ['errorField' => 'parent_todo_id']);
         $rules->add($rules->existsIn(['project_section_id'], 'ProjectSections', [
             'allowNullableNulls' => true,
         ]), ['errorField' => 'project_section_id']);

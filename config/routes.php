@@ -34,6 +34,36 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'Todos', 'action' => 'reviewQueue', '_method' => 'GET'],
         );
         $builder->connect(
+            '/todos/{id}/hierarchy',
+            ['controller' => 'Todos', 'action' => 'hierarchy', '_method' => 'GET'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/todos/{id}/parent',
+            ['controller' => 'Todos', 'action' => 'setParent', '_method' => 'PATCH'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/todos/{id}/objective',
+            ['controller' => 'Todos', 'action' => 'setObjective', '_method' => 'PATCH'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/todos/{id}/result',
+            ['controller' => 'Todos', 'action' => 'reportResult', '_method' => 'POST'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/todos/{id}/related/{relatedId}',
+            ['controller' => 'Todos', 'action' => 'relate', '_method' => 'POST'],
+            ['pass' => ['id', 'relatedId'], 'id' => '\d+', 'relatedId' => '\d+'],
+        );
+        $builder->connect(
+            '/todos/{id}/related/{relatedId}',
+            ['controller' => 'Todos', 'action' => 'unrelate', '_method' => 'DELETE'],
+            ['pass' => ['id', 'relatedId'], 'id' => '\d+', 'relatedId' => '\d+'],
+        );
+        $builder->connect(
             '/todos/{id}/reviewed',
             ['controller' => 'Todos', 'action' => 'markReviewed', '_method' => 'POST'],
             ['pass' => ['id'], 'id' => '\d+'],
