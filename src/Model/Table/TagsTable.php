@@ -89,7 +89,7 @@ class TagsTable extends Table
             }
             $query->where(function ($exp, $query) use ($normalizedName) {
                 return $exp->eq(
-                    $query->newExpr("lower(regexp_replace(trim(name), '\\s+', ' ', 'g'))"),
+                    $query->expr("lower(regexp_replace(trim(name), '\\s+', ' ', 'g'))"),
                     $normalizedName,
                     'string',
                 );

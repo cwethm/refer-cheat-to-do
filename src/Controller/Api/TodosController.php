@@ -125,6 +125,9 @@ class TodosController extends AppController
         $tag = $this->fetchOwnedTagOrFail($tagId, $userId);
 
         $todosTags = $this->fetchTable('TodosTags');
+        if ($todosTags->exists(['todo_id' => (int)$todo->id, 'tag_id' => (int)$tag->id])) {
+            throw new ConflictException('Tag is already attached to this ToDo.');
+        }
         $join = $todosTags->newEntity([
             'todo_id' => (int)$todo->id,
             'tag_id' => (int)$tag->id,
