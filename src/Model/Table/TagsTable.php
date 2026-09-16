@@ -83,22 +83,19 @@ class TagsTable extends Table
 
             $normalizedName = self::normalizeName($name);
             $id = $entity->get('id');
-            $existing = $this->find()
-                ->select(['id', 'name'])
-                ->where(['user_id' => $userId])
-                ->all();
-            foreach ($existing as $row) {
-                $rowId = $row->get('id');
-                if (is_int($id) && is_int($rowId) && $id === $rowId) {
-                    continue;
-                }
-                $rowName = $row->get('name');
-                if (is_string($rowName) && self::normalizeName($rowName) === $normalizedName) {
-                    return false;
-                }
+            $query = $this->find()->where(['user_id' => $userId]);
+            if (is_int($id) && $id > 0) {
+                $query->where(['id !=' => $id]);
             }
+            $query->where(function ($exp, $query) use ($normalizedName) {
+                return $exp->eq(
+                    $query->newExpr("lower(regexp_replace(trim(name), '\\s+', ' ', 'g'))"),
+                    $normalizedName,
+                    'string',
+                );
+            });
 
-            return true;
+            return !$query->limit(1)->count();
         }, 'uniqueNormalizedName', [
             'errorField' => 'name',
             'message' => 'Tag name must be unique per user.',

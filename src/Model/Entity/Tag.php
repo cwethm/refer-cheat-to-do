@@ -20,7 +20,7 @@ class Tag extends Entity
      * @var array<string, bool>
      */
     protected array $_accessible = [
-        'user_id' => true,
+        'user_id' => false,
         'name' => true,
         'created' => true,
         'modified' => true,

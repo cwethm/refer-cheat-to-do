@@ -157,6 +157,21 @@ class TodosControllerTest extends TestCase
         $this->assertResponseContains('"code": "NOT_FOUND"');
     }
 
+    public function testViewIncludesAttachedTagsInTodoPayload(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos/10');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"tags": [');
+        $this->assertResponseContains('"id": 100');
+        $this->assertResponseContains('"name": "Important"');
+    }
+
     public function testEditUpdatesAllowedFields(): void
     {
         $this->session(['Auth.user_id' => 1]);

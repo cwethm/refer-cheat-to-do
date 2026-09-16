@@ -336,6 +336,7 @@ class TodosController extends AppController
         $todosTable = $this->fetchTable('Todos');
         /** @var \App\Model\Entity\Todo|null $todo */
         $todo = $todosTable->find()
+            ->contain(['Tags'])
             ->where(['id' => (int)$id, 'user_id' => $userId])
             ->first();
         if ($todo === null) {
