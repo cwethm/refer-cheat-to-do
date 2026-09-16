@@ -4,34 +4,34 @@ declare(strict_types=1);
 namespace App\Model\Table;
 
 use App\Model\Behavior\SectionOrderingBehavior;
-use App\Model\Entity\ProjectSection;
+use App\Model\Entity\NotebookSection;
 use ArrayObject;
 use Cake\Event\EventInterface;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
-class ProjectSectionsTable extends Table
+class NotebookSectionsTable extends Table
 {
     /**
-     * Initialize project_sections table configuration.
+     * Initialize notebook_sections table configuration.
      */
     public function initialize(array $config): void
     {
         parent::initialize($config);
 
-        $this->setTable('project_sections');
+        $this->setTable('notebook_sections');
         $this->setDisplayField('name');
         $this->setPrimaryKey('id');
         $this->addBehavior('Timestamp');
-        $this->addBehavior('SectionOrdering', ['parentField' => 'project_id']);
+        $this->addBehavior('SectionOrdering', ['parentField' => 'notebook_id']);
 
-        $this->belongsTo('Projects', [
-            'foreignKey' => 'project_id',
+        $this->belongsTo('Notebooks', [
+            'foreignKey' => 'notebook_id',
             'joinType' => 'INNER',
         ]);
         $this->hasMany('Todos', [
-            'foreignKey' => 'project_section_id',
+            'foreignKey' => 'notebook_section_id',
             'sort' => ['Todos.id' => 'ASC'],
             'dependent' => false,
         ]);
@@ -52,15 +52,15 @@ class ProjectSectionsTable extends Table
     }
 
     /**
-     * Define project section validators.
+     * Define notebook section validators.
      */
     public function validationDefault(Validator $validator): Validator
     {
         $validator
-            ->integer('project_id')
-            ->greaterThan('project_id', 0)
-            ->requirePresence('project_id', 'create')
-            ->notEmptyString('project_id');
+            ->integer('notebook_id')
+            ->greaterThan('notebook_id', 0)
+            ->requirePresence('notebook_id', 'create')
+            ->notEmptyString('notebook_id');
 
         $validator
             ->scalar('name')
@@ -78,11 +78,11 @@ class ProjectSectionsTable extends Table
     }
 
     /**
-     * Add project section integrity rules.
+     * Add notebook section integrity rules.
      */
     public function buildRules(RulesChecker $rules): RulesChecker
     {
-        $rules->add($rules->existsIn(['project_id'], 'Projects'), ['errorField' => 'project_id']);
+        $rules->add($rules->existsIn(['notebook_id'], 'Notebooks'), ['errorField' => 'notebook_id']);
 
         return $rules;
     }
@@ -99,26 +99,26 @@ class ProjectSectionsTable extends Table
     }
 
     /**
-     * Next available ordering position within a project.
+     * Next available ordering position within a notebook.
      */
-    public function nextPosition(int $projectId): int
+    public function nextPosition(int $notebookId): int
     {
-        return $this->ordering()->nextPosition($projectId);
+        return $this->ordering()->nextPosition($notebookId);
     }
 
     /**
-     * Move a section to an explicit 1-based position within its project.
+     * Move a section to an explicit 1-based position within its notebook.
      */
-    public function moveToPosition(ProjectSection $section, int $position): void
+    public function moveToPosition(NotebookSection $section, int $position): void
     {
         $this->ordering()->moveToPosition($section, $position);
     }
 
     /**
-     * Keep section positions contiguous within a project.
+     * Keep section positions contiguous within a notebook.
      */
-    public function renumberPositions(int $projectId): void
+    public function renumberPositions(int $notebookId): void
     {
-        $this->ordering()->renumberPositions($projectId);
+        $this->ordering()->renumberPositions($notebookId);
     }
 }

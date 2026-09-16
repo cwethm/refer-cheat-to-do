@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Model\Table;
 
 use App\Model\Entity\Todo;
+use Cake\Datasource\EntityInterface;
 use Cake\ORM\Query\SelectQuery;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
@@ -45,6 +46,10 @@ class TodosTable extends Table
         ]);
         $this->belongsTo('ProjectSections', [
             'foreignKey' => 'project_section_id',
+            'joinType' => 'LEFT',
+        ]);
+        $this->belongsTo('NotebookSections', [
+            'foreignKey' => 'notebook_section_id',
             'joinType' => 'LEFT',
         ]);
         $this->belongsToMany('Tags', [
@@ -100,6 +105,11 @@ class TodosTable extends Table
             ->allowEmptyString('project_section_id');
 
         $validator
+            ->integer('notebook_section_id')
+            ->greaterThan('notebook_section_id', 0)
+            ->allowEmptyString('notebook_section_id');
+
+        $validator
             ->scalar('notes')
             ->allowEmptyString('notes');
 
@@ -122,6 +132,19 @@ class TodosTable extends Table
         $rules->add($rules->existsIn(['project_section_id'], 'ProjectSections', [
             'allowNullableNulls' => true,
         ]), ['errorField' => 'project_section_id']);
+        $rules->add($rules->existsIn(['notebook_section_id'], 'NotebookSections', [
+            'allowNullableNulls' => true,
+        ]), ['errorField' => 'notebook_section_id']);
+        // ADR 0001: a ToDo belongs to at most one organizational section.
+        $rules->add(
+            fn(EntityInterface $entity): bool => $entity->get('project_section_id') === null
+                || $entity->get('notebook_section_id') === null,
+            'singleOrganizationalSection',
+            [
+                'errorField' => 'notebook_section_id',
+                'message' => 'A ToDo may belong to only one organizational section.',
+            ],
+        );
 
         return $rules;
     }

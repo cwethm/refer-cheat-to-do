@@ -88,6 +88,43 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'Projects', 'action' => 'deleteSection', '_method' => 'DELETE'],
             ['pass' => ['id', 'sectionId'], 'id' => '\d+', 'sectionId' => '\d+'],
         );
+        $builder->connect('/notebooks', ['controller' => 'Notebooks', 'action' => 'index', '_method' => 'GET']);
+        $builder->connect('/notebooks', ['controller' => 'Notebooks', 'action' => 'add', '_method' => 'POST']);
+        $builder->connect(
+            '/notebooks/{id}',
+            ['controller' => 'Notebooks', 'action' => 'view', '_method' => 'GET'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/notebooks/{id}',
+            ['controller' => 'Notebooks', 'action' => 'edit', '_method' => 'PATCH'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/notebooks/{id}',
+            ['controller' => 'Notebooks', 'action' => 'delete', '_method' => 'DELETE'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/notebooks/{id}/sections',
+            ['controller' => 'Notebooks', 'action' => 'sections', '_method' => 'GET'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/notebooks/{id}/sections',
+            ['controller' => 'Notebooks', 'action' => 'addSection', '_method' => 'POST'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/notebooks/{id}/sections/{sectionId}',
+            ['controller' => 'Notebooks', 'action' => 'editSection', '_method' => 'PATCH'],
+            ['pass' => ['id', 'sectionId'], 'id' => '\d+', 'sectionId' => '\d+'],
+        );
+        $builder->connect(
+            '/notebooks/{id}/sections/{sectionId}',
+            ['controller' => 'Notebooks', 'action' => 'deleteSection', '_method' => 'DELETE'],
+            ['pass' => ['id', 'sectionId'], 'id' => '\d+', 'sectionId' => '\d+'],
+        );
         $builder->connect('/health', ['controller' => 'Health', 'action' => 'index', '_method' => 'GET']);
     });
 };

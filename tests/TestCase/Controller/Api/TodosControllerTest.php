@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Controller\Api;
 
+use Cake\Database\Exception\QueryException;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
@@ -21,6 +22,8 @@ class TodosControllerTest extends TestCase
         'app.TodosTags',
         'app.Projects',
         'app.ProjectSections',
+        'app.Notebooks',
+        'app.NotebookSections',
     ];
 
     public function testListReturnsOnlyCurrentUserTodos(): void
@@ -686,6 +689,138 @@ class TodosControllerTest extends TestCase
 
         $this->assertResponseOk();
         $this->assertResponseContains('"project_section_id": null');
+    }
+
+    public function testAssignTodoToOwnedNotebookSection(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->patch('/api/todos/10', ['notebook_section_id' => 500]);
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"notebook_section_id": 500');
+
+        $todos = TableRegistry::getTableLocator()->get('Todos');
+        $this->assertSame(500, (int)$todos->get(10)->notebook_section_id);
+    }
+
+    public function testAssignRejectsCrossUserNotebookSection(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->patch('/api/todos/10', ['notebook_section_id' => 503]);
+
+        $this->assertResponseCode(404);
+    }
+
+    public function testSimultaneousProjectAndNotebookAssignmentIsRejected(): void
+    {
+        $todos = TableRegistry::getTableLocator()->get('Todos');
+        $todo = $todos->get(10);
+        $todo->set('project_section_id', 300);
+        $todos->saveOrFail($todo);
+
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->patch('/api/todos/10', ['notebook_section_id' => 500]);
+
+        $this->assertResponseCode(409);
+        $this->assertResponseContains('"code": "CONFLICT"');
+        $this->assertNull($todos->get(10)->notebook_section_id);
+        $this->assertSame(300, (int)$todos->get(10)->project_section_id);
+    }
+
+    public function testMoveTodoFromProjectSectionToNotebookSectionInOneRequest(): void
+    {
+        $todos = TableRegistry::getTableLocator()->get('Todos');
+        $todo = $todos->get(10);
+        $todo->set('project_section_id', 300);
+        $todos->saveOrFail($todo);
+
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->patch('/api/todos/10', [
+            'project_section_id' => null,
+            'notebook_section_id' => 500,
+        ]);
+
+        $this->assertResponseOk();
+        $updated = $todos->get(10);
+        $this->assertNull($updated->project_section_id);
+        $this->assertSame(500, (int)$updated->notebook_section_id);
+    }
+
+    public function testDatabaseRejectsDualSectionAssignment(): void
+    {
+        $todos = TableRegistry::getTableLocator()->get('Todos');
+
+        $this->expectException(QueryException::class);
+        $todos->getConnection()->update('todos', [
+            'project_section_id' => 300,
+            'notebook_section_id' => 500,
+        ], ['id' => 10]);
+    }
+
+    public function testNotebookFilterReturnsAssignedTodos(): void
+    {
+        $todos = TableRegistry::getTableLocator()->get('Todos');
+        $todo = $todos->get(10);
+        $todo->set('notebook_section_id', 500);
+        $todos->saveOrFail($todo);
+
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?notebook=400');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Owner inbox todo"');
+        $this->assertResponseNotContains('"Owner active todo"');
+    }
+
+    public function testNotebookSectionFilterCombinesWithTagFilter(): void
+    {
+        $todos = TableRegistry::getTableLocator()->get('Todos');
+        $todo = $todos->get(10);
+        $todo->set('notebook_section_id', 500);
+        $todos->saveOrFail($todo);
+
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?notebook_section=500&tag=100');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Owner inbox todo"');
+    }
+
+    public function testCrossUserNotebookFilterReturnsNoResults(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/todos?notebook=401');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"total": 0');
     }
 
     public function testAnonymousTodoAccessIsDenied(): void

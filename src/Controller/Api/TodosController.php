@@ -27,6 +27,8 @@ class TodosController extends AppController
         $tagId = $this->readTagFilter();
         $projectId = $this->readPositiveIdFilter('project');
         $sectionId = $this->readPositiveIdFilter('section');
+        $notebookId = $this->readPositiveIdFilter('notebook');
+        $notebookSectionId = $this->readPositiveIdFilter('notebook_section');
         $page = $this->readPositiveQueryInt('page', 1);
         $limit = min($this->readPositiveQueryInt('limit', 20), 100);
 
@@ -66,6 +68,23 @@ class TodosController extends AppController
 
                 return $q->where($conditions);
             });
+        }
+
+        if ($notebookId !== null || $notebookSectionId !== null) {
+            $query->innerJoinWith(
+                'NotebookSections.Notebooks',
+                function ($q) use ($notebookId, $notebookSectionId, $userId) {
+                    $conditions = ['Notebooks.user_id' => $userId];
+                    if ($notebookId !== null) {
+                        $conditions['Notebooks.id'] = $notebookId;
+                    }
+                    if ($notebookSectionId !== null) {
+                        $conditions['NotebookSections.id'] = $notebookSectionId;
+                    }
+
+                    return $q->where($conditions);
+                },
+            );
         }
 
         $total = (clone $query)->count();
@@ -200,7 +219,23 @@ class TodosController extends AppController
         $todosTable = $this->fetchTable('Todos');
         $todo = $todosTable->patchEntity($todo, $data, ['fields' => ['title', 'notes', 'status']]);
         if (array_key_exists('project_section_id', $data)) {
-            $todo->set('project_section_id', $this->resolveOwnedSectionId($data['project_section_id'], $userId));
+            $todo->set('project_section_id', $this->resolveOwnedSectionId(
+                $data['project_section_id'],
+                $userId,
+                'ProjectSections',
+                'Projects',
+            ));
+        }
+        if (array_key_exists('notebook_section_id', $data)) {
+            $todo->set('notebook_section_id', $this->resolveOwnedSectionId(
+                $data['notebook_section_id'],
+                $userId,
+                'NotebookSections',
+                'Notebooks',
+            ));
+        }
+        if ($todo->project_section_id !== null && $todo->notebook_section_id !== null) {
+            throw new ConflictException('A ToDo may belong to only one organizational section.');
         }
         if ($todo->hasErrors()) {
             throw new ValidationException('Invalid ToDo payload.');
@@ -272,11 +307,11 @@ class TodosController extends AppController
     }
 
     /**
-     * Resolve a client-supplied ProjectSection reference against the authenticated owner.
+     * Resolve a client-supplied section reference against the authenticated owner.
      *
      * Ownership is always resolved server-side; `null` unassigns the ToDo.
      */
-    private function resolveOwnedSectionId(mixed $value, int $userId): ?int
+    private function resolveOwnedSectionId(mixed $value, int $userId, string $table, string $owner): ?int
     {
         if ($value === null || $value === '') {
             return null;
@@ -288,10 +323,10 @@ class TodosController extends AppController
             throw new BadRequestException('Invalid project section.');
         }
 
-        $sections = $this->fetchTable('ProjectSections');
+        $sections = $this->fetchTable($table);
         $exists = $sections->find()
-            ->innerJoinWith('Projects', fn($q) => $q->where(['Projects.user_id' => $userId]))
-            ->where(['ProjectSections.id' => $value])
+            ->innerJoinWith($owner, fn($q) => $q->where([$owner . '.user_id' => $userId]))
+            ->where([$table . '.id' => $value])
             ->count();
         if ($exists < 1) {
             throw new NotFoundException('Section not found.');
@@ -404,6 +439,7 @@ class TodosController extends AppController
             'notes' => $todo->notes === null ? null : (string)$todo->notes,
             'status' => (string)$todo->status,
             'project_section_id' => $todo->project_section_id === null ? null : (int)$todo->project_section_id,
+            'notebook_section_id' => $todo->notebook_section_id === null ? null : (int)$todo->notebook_section_id,
             'tags' => $tags,
             'created' => $todo->created?->format(DATE_ATOM),
             'modified' => $todo->modified?->format(DATE_ATOM),
