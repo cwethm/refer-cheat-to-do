@@ -23,7 +23,7 @@ class CreateTagsAndTodosTags extends BaseMigration
             ->create();
 
         $this->execute(
-            'CREATE UNIQUE INDEX tags_user_name_normalized_unique ON tags (user_id, lower(trim(name)))',
+            "CREATE UNIQUE INDEX tags_user_name_normalized_unique ON tags (user_id, lower(regexp_replace(trim(name), '\\s+', ' ', 'g')))",
         );
 
         $this->table('todos_tags')
