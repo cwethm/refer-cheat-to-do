@@ -5,12 +5,12 @@ namespace App\Test\Fixture;
 
 use Cake\TestSuite\Fixture\TestFixture;
 
-class RelatedTodosFixture extends TestFixture
+class LibrariesNotebooksFixture extends TestFixture
 {
     /**
      * Database table backing this fixture.
      */
-    public string $table = 'related_todos';
+    public string $table = 'libraries_notebooks';
 
     /**
      * Initialize fixture records.

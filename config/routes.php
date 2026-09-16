@@ -181,6 +181,48 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'Notebooks', 'action' => 'deleteSection', '_method' => 'DELETE'],
             ['pass' => ['id', 'sectionId'], 'id' => '\d+', 'sectionId' => '\d+'],
         );
+        $builder->connect('/libraries', ['controller' => 'Libraries', 'action' => 'index', '_method' => 'GET']);
+        $builder->connect('/libraries', ['controller' => 'Libraries', 'action' => 'add', '_method' => 'POST']);
+        $builder->connect(
+            '/libraries/{id}',
+            ['controller' => 'Libraries', 'action' => 'view', '_method' => 'GET'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/libraries/{id}',
+            ['controller' => 'Libraries', 'action' => 'edit', '_method' => 'PATCH'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/libraries/{id}',
+            ['controller' => 'Libraries', 'action' => 'delete', '_method' => 'DELETE'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/libraries/{id}/members',
+            ['controller' => 'Libraries', 'action' => 'members', '_method' => 'GET'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/libraries/{id}/members/{memberType}/{memberId}',
+            ['controller' => 'Libraries', 'action' => 'addMember', '_method' => 'POST'],
+            [
+                'pass' => ['id', 'memberType', 'memberId'],
+                'id' => '\d+',
+                'memberType' => '[a-z]+',
+                'memberId' => '\d+',
+            ],
+        );
+        $builder->connect(
+            '/libraries/{id}/members/{memberType}/{memberId}',
+            ['controller' => 'Libraries', 'action' => 'removeMember', '_method' => 'DELETE'],
+            [
+                'pass' => ['id', 'memberType', 'memberId'],
+                'id' => '\d+',
+                'memberType' => '[a-z]+',
+                'memberId' => '\d+',
+            ],
+        );
         $builder->connect('/health', ['controller' => 'Health', 'action' => 'index', '_method' => 'GET']);
     });
 };
