@@ -14,24 +14,42 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Verify Composer auth is present
+      - name: Verify Composer authentication
+        env:
+          ACTIONS_COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
         run: |
+          # Copilot cloud agent supplies COMPOSER_AUTH directly.
+          # A manually-run GitHub Actions workflow instead uses
+          # the separate Actions secret as a fallback.
+          if [ -z "${COMPOSER_AUTH:-}" ] && [ -n "${ACTIONS_COMPOSER_AUTH:-}" ]; then
+            export COMPOSER_AUTH="${ACTIONS_COMPOSER_AUTH}"
+          fi
+
           if [ -z "${COMPOSER_AUTH:-}" ]; then
             echo "COMPOSER_AUTH is missing"
             exit 1
           fi
+
           echo "COMPOSER_AUTH is configured"
 
-      - name: Verify PHP and Composer
-        run: |
-          php --version
-          composer --version
-
       - name: Validate Composer configuration
-        run: composer validate --no-check-publish
-
-      - name: Install Composer dependencies
+        env:
+          ACTIONS_COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
         run: |
+          if [ -z "${COMPOSER_AUTH:-}" ] && [ -n "${ACTIONS_COMPOSER_AUTH:-}" ]; then
+            export COMPOSER_AUTH="${ACTIONS_COMPOSER_AUTH}"
+          fi
+
+          composer validate --no-check-publish
+
+      - name: Install dependencies
+        env:
+          ACTIONS_COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
+        run: |
+          if [ -z "${COMPOSER_AUTH:-}" ] && [ -n "${ACTIONS_COMPOSER_AUTH:-}" ]; then
+            export COMPOSER_AUTH="${ACTIONS_COMPOSER_AUTH}"
+          fi
+
           composer install \
             --no-interaction \
             --prefer-dist \
