@@ -271,6 +271,21 @@ class TodosControllerTest extends TestCase
         $this->assertResponseContains('"code": "CONFLICT"');
     }
 
+    public function testAttachTagRejectsSecondAttachAttempt(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->post('/api/todos/10/tags/101', []);
+        $this->assertResponseCode(201);
+
+        $this->post('/api/todos/10/tags/101', []);
+        $this->assertResponseCode(409);
+        $this->assertResponseContains('"code": "CONFLICT"');
+    }
+
     public function testAttachTagRejectsCrossUserTag(): void
     {
         $this->session(['Auth.user_id' => 1]);

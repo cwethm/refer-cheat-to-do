@@ -56,7 +56,7 @@ jobs:
           coverage: none
 
       - name: Validate composer.json
-        run: composer validate --no-check-publish
+        run: composer validate --strict --no-check-publish
 
       - name: Prepare databases
         run: |
