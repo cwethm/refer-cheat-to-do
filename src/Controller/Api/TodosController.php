@@ -226,7 +226,12 @@ class TodosController extends AppController
             throw new BadRequestException('Invalid search query.');
         }
 
-        return trim($query);
+        $query = trim($query);
+        if ($query === '') {
+            return null;
+        }
+
+        return $query;
     }
 
     /**
