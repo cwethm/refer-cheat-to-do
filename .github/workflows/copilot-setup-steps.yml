@@ -1,0 +1,39 @@
+name: "Copilot Setup Steps"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Verify Composer auth is present
+        run: |
+          if [ -z "${COMPOSER_AUTH:-}" ]; then
+            echo "COMPOSER_AUTH is missing"
+            exit 1
+          fi
+          echo "COMPOSER_AUTH is configured"
+
+      - name: Verify PHP and Composer
+        run: |
+          php --version
+          composer --version
+
+      - name: Validate Composer configuration
+        run: composer validate --no-check-publish
+
+      - name: Install Composer dependencies
+        run: |
+          composer install \
+            --no-interaction \
+            --prefer-dist \
+            --no-progress \
+            --optimize-autoloader
