@@ -236,6 +236,43 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'Capabilities', 'action' => 'delete', '_method' => 'DELETE'],
             ['pass' => ['id'], 'id' => '\d+'],
         );
+        $builder->connect(
+            '/cross-context-requests',
+            ['controller' => 'CrossContextRequests', 'action' => 'add', '_method' => 'POST'],
+        );
+        $builder->connect(
+            '/cross-context-requests/inbox',
+            ['controller' => 'CrossContextRequests', 'action' => 'inbox', '_method' => 'GET'],
+        );
+        $builder->connect(
+            '/cross-context-requests/outbox',
+            ['controller' => 'CrossContextRequests', 'action' => 'outbox', '_method' => 'GET'],
+        );
+        $builder->connect(
+            '/cross-context-requests/{id}',
+            ['controller' => 'CrossContextRequests', 'action' => 'view', '_method' => 'GET'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/cross-context-requests/{id}',
+            ['controller' => 'CrossContextRequests', 'action' => 'edit', '_method' => 'PATCH'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/cross-context-requests/{id}/accept',
+            ['controller' => 'CrossContextRequests', 'action' => 'accept', '_method' => 'POST'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/cross-context-requests/{id}/reject',
+            ['controller' => 'CrossContextRequests', 'action' => 'reject', '_method' => 'POST'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/cross-context-requests/{id}/callback',
+            ['controller' => 'CrossContextRequests', 'action' => 'callback', '_method' => 'POST'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
         $builder->connect('/health', ['controller' => 'Health', 'action' => 'index', '_method' => 'GET']);
     });
 };
