@@ -29,6 +29,18 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'Todos', 'action' => 'edit', '_method' => 'PATCH'],
             ['pass' => ['id'], 'id' => '\d+'],
         );
+        foreach (['activate', 'complete', 'archive', 'trash', 'restore'] as $lifecycleAction) {
+            $builder->connect(
+                '/todos/{id}/' . $lifecycleAction,
+                ['controller' => 'Todos', 'action' => $lifecycleAction, '_method' => 'POST'],
+                ['pass' => ['id'], 'id' => '\d+'],
+            );
+        }
+        $builder->connect(
+            '/todos/{id}/permanent',
+            ['controller' => 'Todos', 'action' => 'permanentDelete', '_method' => 'DELETE'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
         $builder->connect('/tags', ['controller' => 'Tags', 'action' => 'index', '_method' => 'GET']);
         $builder->connect('/tags', ['controller' => 'Tags', 'action' => 'add', '_method' => 'POST']);
         $builder->connect(

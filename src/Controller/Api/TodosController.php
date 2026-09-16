@@ -7,11 +7,13 @@ use App\Http\Exception\ValidationException;
 use App\Model\Entity\Tag;
 use App\Model\Entity\Todo;
 use App\Model\Table\TodosTable;
+use App\Service\TodoLifecycleService;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\ConflictException;
 use Cake\Http\Exception\InternalErrorException;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
+use DomainException;
 use Throwable;
 
 class TodosController extends AppController
@@ -37,6 +39,8 @@ class TodosController extends AppController
         $query = $todosTable->find('withTags')->where(['Todos.user_id' => $userId]);
         if ($status !== null) {
             $query->where(['Todos.status' => $status]);
+        } else {
+            $query->where(['Todos.status NOT IN' => TodoLifecycleService::HIDDEN_BY_DEFAULT]);
         }
         if ($search !== null) {
             $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search) . '%';
@@ -119,8 +123,9 @@ class TodosController extends AppController
             throw new BadRequestException('Malformed request body.');
         }
         if (!array_key_exists('status', $data) || $data['status'] === '') {
-            $data['status'] = 'inbox';
+            $data['status'] = TodoLifecycleService::STATUS_INBOX;
         }
+        $this->assertDirectlyAssignableStatus($data);
 
         /** @var \App\Model\Table\TodosTable $todosTable */
         $todosTable = $this->fetchTable('Todos');
@@ -215,6 +220,8 @@ class TodosController extends AppController
             throw new BadRequestException('Malformed request body.');
         }
 
+        $this->assertDirectlyAssignableStatus($data);
+
         /** @var \App\Model\Table\TodosTable $todosTable */
         $todosTable = $this->fetchTable('Todos');
         $todo = $todosTable->patchEntity($todo, $data, ['fields' => ['title', 'notes', 'status']]);
@@ -245,6 +252,127 @@ class TodosController extends AppController
         }
 
         return $this->respond(['todo' => $this->serializeTodo($todosTable->loadTags($todo))]);
+    }
+
+    /**
+     * Move an owned ToDo to `active`.
+     */
+    public function activate(string $id): Response
+    {
+        return $this->applyTransition($id, TodoLifecycleService::STATUS_ACTIVE);
+    }
+
+    /**
+     * Move an owned ToDo to `done`.
+     */
+    public function complete(string $id): Response
+    {
+        return $this->applyTransition($id, TodoLifecycleService::STATUS_DONE);
+    }
+
+    /**
+     * Move an owned ToDo to `archived`.
+     */
+    public function archive(string $id): Response
+    {
+        return $this->applyTransition($id, TodoLifecycleService::STATUS_ARCHIVED);
+    }
+
+    /**
+     * Move an owned ToDo to `trashed`.
+     */
+    public function trash(string $id): Response
+    {
+        return $this->applyTransition($id, TodoLifecycleService::STATUS_TRASHED);
+    }
+
+    /**
+     * Restore a trashed ToDo to the status it held before being trashed.
+     */
+    public function restore(string $id): Response
+    {
+        $userId = $this->requireUserId();
+        $todo = $this->fetchOwnedTodoOrFail($id, $userId);
+
+        try {
+            $todo = $this->lifecycle()->restore($todo);
+        } catch (DomainException $exception) {
+            throw new ConflictException($exception->getMessage(), null, $exception);
+        }
+
+        /** @var \App\Model\Table\TodosTable $todosTable */
+        $todosTable = $this->fetchTable('Todos');
+
+        return $this->respond(['todo' => $this->serializeTodo($todosTable->loadTags($todo))]);
+    }
+
+    /**
+     * Permanently delete a trashed ToDo.
+     */
+    public function permanentDelete(string $id): Response
+    {
+        $userId = $this->requireUserId();
+        $todo = $this->fetchOwnedTodoOrFail($id, $userId);
+
+        try {
+            $this->lifecycle()->permanentlyDelete($todo);
+        } catch (DomainException $exception) {
+            throw new ConflictException($exception->getMessage(), null, $exception);
+        }
+
+        return $this->respond(['id' => (int)$id, 'message' => 'ToDo permanently deleted.']);
+    }
+
+    /**
+     * Resolve the lifecycle authority for ToDo transitions.
+     */
+    private function lifecycle(): TodoLifecycleService
+    {
+        /** @var \App\Model\Table\TodosTable $todosTable */
+        $todosTable = $this->fetchTable('Todos');
+
+        return new TodoLifecycleService($todosTable);
+    }
+
+    /**
+     * Run one lifecycle transition for an owned ToDo.
+     */
+    private function applyTransition(string $id, string $status): Response
+    {
+        $userId = $this->requireUserId();
+        $todo = $this->fetchOwnedTodoOrFail($id, $userId);
+
+        try {
+            $todo = $this->lifecycle()->transition($todo, $status);
+        } catch (DomainException $exception) {
+            throw new ConflictException($exception->getMessage(), null, $exception);
+        }
+
+        /** @var \App\Model\Table\TodosTable $todosTable */
+        $todosTable = $this->fetchTable('Todos');
+
+        return $this->respond(['todo' => $this->serializeTodo($todosTable->loadTags($todo))]);
+    }
+
+    /**
+     * Reject statuses that may only be reached through explicit lifecycle actions.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function assertDirectlyAssignableStatus(array $data): void
+    {
+        if (!array_key_exists('status', $data)) {
+            return;
+        }
+        $status = $data['status'];
+        if (is_string($status) && in_array($status, TodosTable::DIRECTLY_ASSIGNABLE_STATUSES, true)) {
+            return;
+        }
+        if (is_string($status) && in_array($status, TodosTable::ALLOWED_STATUSES, true)) {
+            throw new ConflictException('Use the explicit lifecycle action for this status.');
+        }
+
+        throw new ValidationException('Invalid ToDo payload.');
     }
 
     /**
@@ -438,6 +566,8 @@ class TodosController extends AppController
             'title' => (string)$todo->title,
             'notes' => $todo->notes === null ? null : (string)$todo->notes,
             'status' => (string)$todo->status,
+            'archived_at' => $todo->archived_at?->format(DATE_ATOM),
+            'trashed_at' => $todo->trashed_at?->format(DATE_ATOM),
             'project_section_id' => $todo->project_section_id === null ? null : (int)$todo->project_section_id,
             'notebook_section_id' => $todo->notebook_section_id === null ? null : (int)$todo->notebook_section_id,
             'tags' => $tags,

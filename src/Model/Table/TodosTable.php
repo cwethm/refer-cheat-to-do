@@ -13,11 +13,20 @@ use Cake\Validation\Validator;
 class TodosTable extends Table
 {
     /**
-     * Allowed ToDo statuses for Slice 2.
+     * Statuses a ToDo may hold. Transitions between them are owned by TodoLifecycleService.
      *
      * @var list<string>
      */
-    public const ALLOWED_STATUSES = ['inbox', 'active'];
+    public const ALLOWED_STATUSES = ['inbox', 'active', 'done', 'archived', 'trashed'];
+
+    /**
+     * Statuses a client may set directly through ToDo create/update payloads.
+     *
+     * Archive and trash are only reachable through explicit lifecycle actions.
+     *
+     * @var list<string>
+     */
+    public const DIRECTLY_ASSIGNABLE_STATUSES = ['inbox', 'active'];
 
     /**
      * Authoritative containment used whenever a ToDo is serialized with its Tags.
@@ -119,6 +128,19 @@ class TodosTable extends Table
             ->requirePresence('status', 'create')
             ->notEmptyString('status')
             ->inList('status', self::ALLOWED_STATUSES);
+
+        $validator
+            ->dateTime('archived_at')
+            ->allowEmptyDateTime('archived_at');
+
+        $validator
+            ->dateTime('trashed_at')
+            ->allowEmptyDateTime('trashed_at');
+
+        $validator
+            ->scalar('previous_status')
+            ->inList('previous_status', self::ALLOWED_STATUSES)
+            ->allowEmptyString('previous_status');
 
         return $validator;
     }

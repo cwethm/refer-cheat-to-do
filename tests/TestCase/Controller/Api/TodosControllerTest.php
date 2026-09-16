@@ -823,6 +823,197 @@ class TodosControllerTest extends TestCase
         $this->assertResponseContains('"total": 0');
     }
 
+    private function authenticatedJsonRequest(int $userId = 1): void
+    {
+        $this->session(['Auth.user_id' => $userId]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json', 'Content-Type' => 'application/json'],
+        ]);
+    }
+
+    private function moveTodoTo(int $todoId, string ...$actions): void
+    {
+        foreach ($actions as $action) {
+            $this->authenticatedJsonRequest();
+            $this->post('/api/todos/' . $todoId . '/' . $action, '{}');
+            $this->assertResponseOk();
+        }
+    }
+
+    public function testArchiveEndpointArchivesOwnedTodo(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos/10/archive', '{}');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"status": "archived"');
+        $this->assertResponseNotContains('"archived_at": null');
+    }
+
+    public function testActivateAndCompleteEndpoints(): void
+    {
+        $this->authenticatedJsonRequest();
+        $this->post('/api/todos/10/activate', '{}');
+        $this->assertResponseOk();
+        $this->assertResponseContains('"status": "active"');
+
+        $this->authenticatedJsonRequest();
+        $this->post('/api/todos/10/complete', '{}');
+        $this->assertResponseOk();
+        $this->assertResponseContains('"status": "done"');
+    }
+
+    public function testTrashRestoreRoundTripPreservesPreviousStatus(): void
+    {
+        $this->moveTodoTo(10, 'activate', 'trash');
+
+        $this->authenticatedJsonRequest();
+        $this->post('/api/todos/10/restore', '{}');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"status": "active"');
+        $this->assertResponseContains('"trashed_at": null');
+    }
+
+    public function testRepeatedTransitionReturnsConflict(): void
+    {
+        $this->moveTodoTo(10, 'archive');
+
+        $this->authenticatedJsonRequest();
+        $this->post('/api/todos/10/archive', '{}');
+
+        $this->assertResponseCode(409);
+        $this->assertResponseContains('"code": "CONFLICT"');
+    }
+
+    public function testInvalidTransitionFromTrashedReturnsConflict(): void
+    {
+        $this->moveTodoTo(10, 'trash');
+
+        $this->authenticatedJsonRequest();
+        $this->post('/api/todos/10/activate', '{}');
+
+        $this->assertResponseCode(409);
+    }
+
+    public function testRestoreOfNonTrashedTodoReturnsConflict(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos/10/restore', '{}');
+
+        $this->assertResponseCode(409);
+    }
+
+    public function testPermanentDeleteRequiresTrashedTodo(): void
+    {
+        $this->authenticatedJsonRequest();
+        $this->delete('/api/todos/10/permanent');
+        $this->assertResponseCode(409);
+
+        $this->moveTodoTo(10, 'trash');
+
+        $this->authenticatedJsonRequest();
+        $this->delete('/api/todos/10/permanent');
+        $this->assertResponseOk();
+
+        $this->authenticatedJsonRequest();
+        $this->get('/api/todos/10');
+        $this->assertResponseCode(404);
+    }
+
+    public function testArchivedAndTrashedTodosAreHiddenFromDefaultList(): void
+    {
+        $this->moveTodoTo(10, 'archive');
+        $this->moveTodoTo(11, 'trash');
+
+        $this->authenticatedJsonRequest();
+        $this->get('/api/todos');
+
+        $this->assertResponseOk();
+        $this->assertResponseNotContains('"Owner inbox todo"');
+        $this->assertResponseNotContains('"Owner active todo"');
+    }
+
+    public function testArchivedTodosAreVisibleWithExplicitStatusFilter(): void
+    {
+        $this->moveTodoTo(10, 'archive');
+
+        $this->authenticatedJsonRequest();
+        $this->get('/api/todos?status=archived');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Owner inbox todo"');
+    }
+
+    public function testStatusCannotBeSetDirectlyToArchivedOnCreate(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos', json_encode(['title' => 'Sneaky', 'status' => 'archived']));
+
+        $this->assertResponseCode(409);
+    }
+
+    public function testStatusCannotBeSetDirectlyToTrashedOnUpdate(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->patch('/api/todos/10', json_encode(['status' => 'trashed']));
+
+        $this->assertResponseCode(409);
+    }
+
+    public function testUnknownStatusOnCreateIsRejected(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos', json_encode(['title' => 'Bad status', 'status' => 'nope']));
+
+        $this->assertResponseCode(422);
+    }
+
+    public function testLifecycleActionOnAnotherUsersTodoReturnsNotFound(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos/12/archive', '{}');
+
+        $this->assertResponseCode(404);
+    }
+
+    public function testAnonymousLifecycleActionIsDenied(): void
+    {
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json', 'Content-Type' => 'application/json'],
+        ]);
+
+        $this->post('/api/todos/10/archive', '{}');
+
+        $this->assertResponseCode(401);
+    }
+
+    public function testLifecycleActionWithMalformedIdReturnsNotFound(): void
+    {
+        $this->authenticatedJsonRequest();
+
+        $this->post('/api/todos/abc/archive', '{}');
+
+        $this->assertResponseCode(404);
+    }
+
+    public function testTagsSurviveTrashAndRestore(): void
+    {
+        $this->moveTodoTo(10, 'trash');
+
+        $this->authenticatedJsonRequest();
+        $this->post('/api/todos/10/restore', '{}');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"Important"');
+    }
+
     public function testAnonymousTodoAccessIsDenied(): void
     {
         $this->configRequest([
