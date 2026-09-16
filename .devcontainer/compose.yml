@@ -3,32 +3,71 @@ services:
     build:
       context: ..
       dockerfile: .devcontainer/Dockerfile
+
     working_dir: /workspace
+
     volumes:
       - ..:/workspace:cached
+
     command: sleep infinity
+
     environment:
       APP_NAME: refer-cheat-to-do
       APP_ENV: development
       DEBUG: 'true'
       SECURITY_SALT: change-me-to-a-long-random-string
       APP_FULL_BASE_URL: http://localhost:8765
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_DATABASE: refer_cheat_to_do
-      DB_USERNAME: refer_cheat_to_do
-      DB_PASSWORD: refer_cheat_to_do
+
+      # --------------------------------
+      # Development database:
+      # Akamai/Linode Managed PostgreSQL
+      # --------------------------------
+
+      DB_HOST: a527437-akamai-prod-2345607-default.g2a.akamaidb.net
+      DB_PORT: '26719'
+      DB_DATABASE: defaultdb
+      DB_USERNAME: akmadmin
+      DB_PASSWORD: ${AKAMAI_DB_PASSWORD}
+
+      # CakePHP PostgreSQL SSL settings
+      DB_SSL: 'true'
+      DB_SSL_MODE: require
+
+      # --------------------------------
+      # Test database:
+      # local Docker PostgreSQL
+      # --------------------------------
+
+      TEST_DB_HOST: db
+      TEST_DB_PORT: '5432'
       TEST_DB_DATABASE: refer_cheat_to_do_test
+      TEST_DB_USERNAME: refer_cheat_to_do
+      TEST_DB_PASSWORD: refer_cheat_to_do
+
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+
   db:
     image: postgres:16-alpine
+
     restart: unless-stopped
+
     environment:
-      POSTGRES_DB: refer_cheat_to_do
+      POSTGRES_DB: refer_cheat_to_do_test
       POSTGRES_USER: refer_cheat_to_do
       POSTGRES_PASSWORD: refer_cheat_to_do
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U refer_cheat_to_do -d refer_cheat_to_do_test
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
     volumes:
       - postgres-data:/var/lib/postgresql/data
+
 volumes:
   postgres-data:
