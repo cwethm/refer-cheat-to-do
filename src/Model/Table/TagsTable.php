@@ -3,12 +3,12 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
+use ArrayObject;
 use Cake\Datasource\EntityInterface;
 use Cake\Event\EventInterface;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
-use ArrayObject;
 
 class TagsTable extends Table
 {
@@ -38,6 +38,10 @@ class TagsTable extends Table
 
     /**
      * Normalize incoming tag payload values.
+     *
+     * @param \Cake\Event\EventInterface<\Cake\ORM\Table> $event beforeMarshal event.
+     * @param \ArrayObject<string, mixed> $data Incoming request data.
+     * @param \ArrayObject<string, mixed> $options Marshal options.
      */
     public function beforeMarshal(EventInterface $event, ArrayObject $data, ArrayObject $options): void
     {
@@ -45,7 +49,7 @@ class TagsTable extends Table
             return;
         }
         $name = preg_replace('/\s+/u', ' ', trim($data['name']));
-        $data['name'] = $name === null ? trim($data['name']) : $name;
+        $data['name'] = $name ?? trim($data['name']);
     }
 
     /**
@@ -104,10 +108,13 @@ class TagsTable extends Table
         return $rules;
     }
 
+    /**
+     * Normalize a tag name for uniqueness comparisons.
+     */
     private static function normalizeName(string $name): string
     {
         $normalized = preg_replace('/\s+/u', ' ', trim($name));
 
-        return mb_strtolower($normalized === null ? trim($name) : $normalized);
+        return mb_strtolower($normalized ?? trim($name));
     }
 }
