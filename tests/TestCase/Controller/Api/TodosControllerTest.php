@@ -210,6 +210,39 @@ class TodosControllerTest extends TestCase
         $this->assertTrue($todosTags->exists(['todo_id' => 10, 'tag_id' => 101]));
     }
 
+    public function testListIncludesAttachedTagsInTodoPayload(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->post('/api/todos/10/tags/101', []);
+        $this->assertResponseCode(201);
+
+        $this->get('/api/todos');
+        $this->assertResponseOk();
+
+        /** @var array<string, mixed>|null $decoded */
+        $decoded = json_decode((string)$this->_response->getBody(), true);
+        $this->assertIsArray($decoded);
+        $this->assertArrayHasKey('data', $decoded);
+        $this->assertIsArray($decoded['data']);
+        $this->assertArrayHasKey('items', $decoded['data']);
+        $this->assertIsArray($decoded['data']['items']);
+
+        $todo = array_values(array_filter(
+            $decoded['data']['items'],
+            static fn (mixed $item): bool => is_array($item) && ($item['id'] ?? null) === 10,
+        ))[0] ?? null;
+        $this->assertIsArray($todo);
+        $this->assertArrayHasKey('tags', $todo);
+        $this->assertContains(
+            ['id' => 101, 'name' => 'Reading'],
+            $todo['tags'],
+        );
+    }
+
     public function testAttachTagRejectsDuplicateRelationship(): void
     {
         $this->session(['Auth.user_id' => 1]);
