@@ -6,9 +6,6 @@ use function Cake\Core\env;
 
 return [
     'debug' => filter_var(env('DEBUG', true), FILTER_VALIDATE_BOOLEAN),
-    'App' => [
-        'fullBaseUrl' => env('APP_FULL_BASE_URL', 'https://cheatsheet.hellocrow.space'),
-    ],
     'Security' => [
         'salt' => env('SECURITY_SALT', 'change-me-to-a-long-random-string'),
     ],
