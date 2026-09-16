@@ -64,7 +64,9 @@ jobs:
           until pg_isready -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" -d template1; do
             sleep 1
           done
-          createdb -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" --owner="$TEST_DB_USERNAME" "$TEST_DB_DATABASE" || true
+          if ! psql -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" -d template1 -v dbname="$TEST_DB_DATABASE" -tAc "SELECT 1 FROM pg_database WHERE datname = :'dbname';" | grep -qx '1'; then
+            createdb -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" --owner="$TEST_DB_USERNAME" "$TEST_DB_DATABASE"
+          fi
 
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
