@@ -64,7 +64,8 @@ jobs:
           until pg_isready -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" -d "$DB_DATABASE"; do
             sleep 1
           done
-          psql -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" -d "$DB_DATABASE" -c "CREATE DATABASE $TEST_DB_DATABASE OWNER $TEST_DB_USERNAME;" || true
+          psql -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" -d template1 -c "CREATE DATABASE $DB_DATABASE OWNER $DB_USERNAME;" || true
+          psql -h "$TEST_DB_HOST" -p "$TEST_DB_PORT" -U "$TEST_DB_USERNAME" -d template1 -c "CREATE DATABASE $TEST_DB_DATABASE OWNER $TEST_DB_USERNAME;" || true
 
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
