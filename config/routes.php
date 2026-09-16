@@ -274,6 +274,10 @@ return function (RouteBuilder $routes): void {
             ['pass' => ['id'], 'id' => '\d+'],
         );
         $builder->connect(
+            '/dashboard',
+            ['controller' => 'Dashboard', 'action' => 'index', '_method' => 'GET'],
+        );
+        $builder->connect(
             '/activity',
             ['controller' => 'Activity', 'action' => 'index', '_method' => 'GET'],
         );
