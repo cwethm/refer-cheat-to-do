@@ -12,6 +12,7 @@ use Cake\Http\Exception\ConflictException;
 use Cake\Http\Exception\InternalErrorException;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
+use Throwable;
 
 class TodosController extends AppController
 {
@@ -124,19 +125,25 @@ class TodosController extends AppController
         $tag = $this->fetchOwnedTagOrFail($tagId, $userId);
 
         $todosTags = $this->fetchTable('TodosTags');
-        $exists = $todosTags->exists([
-            'todo_id' => (int)$todo->id,
-            'tag_id' => (int)$tag->id,
-        ]);
-        if ($exists) {
-            throw new ConflictException('Tag is already attached to this ToDo.');
-        }
-
         $join = $todosTags->newEntity([
             'todo_id' => (int)$todo->id,
             'tag_id' => (int)$tag->id,
         ]);
-        if (!$todosTags->save($join)) {
+        try {
+            $saved = $todosTags->save($join);
+        } catch (Throwable $exception) {
+            if ($this->isUniqueViolationException($exception)) {
+                throw new ConflictException('Tag is already attached to this ToDo.');
+            }
+
+            throw new InternalErrorException('Unable to attach tag.');
+        }
+
+        if (!$saved) {
+            if ($this->hasUniqueRuleError($join->getErrors())) {
+                throw new ConflictException('Tag is already attached to this ToDo.');
+            }
+
             throw new InternalErrorException('Unable to attach tag.');
         }
 
@@ -145,6 +152,53 @@ class TodosController extends AppController
             'tag_id' => (int)$tag->id,
             'message' => 'Tag attached.',
         ], [], 201);
+    }
+
+    /**
+     * Detect unique-constraint DB errors for race-safe conflict handling.
+     */
+    private function isUniqueViolationException(Throwable $exception): bool
+    {
+        $needle = strtolower($exception->getMessage());
+        if (str_contains($needle, 'duplicate key') || str_contains($needle, 'unique constraint')) {
+            return true;
+        }
+
+        $code = (string)$exception->getCode();
+        if ($code === '23505' || str_contains($code, '23505')) {
+            return true;
+        }
+
+        $previous = $exception->getPrevious();
+        if ($previous instanceof Throwable) {
+            return $this->isUniqueViolationException($previous);
+        }
+
+        return false;
+    }
+
+    /**
+     * Detect ORM unique-rule failures from save() returning false.
+     *
+     * @param array<string, mixed> $errors
+     */
+    private function hasUniqueRuleError(array $errors): bool
+    {
+        foreach ($errors as $fieldErrors) {
+            if (!is_array($fieldErrors)) {
+                continue;
+            }
+            foreach ($fieldErrors as $key => $value) {
+                if ((string)$key === '_isUnique') {
+                    return true;
+                }
+                if (is_array($value) && $this->hasUniqueRuleError($value)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
