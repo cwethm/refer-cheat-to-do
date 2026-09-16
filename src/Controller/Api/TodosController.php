@@ -12,7 +12,6 @@ use Cake\Http\Exception\ConflictException;
 use Cake\Http\Exception\InternalErrorException;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
-use Throwable;
 
 class TodosController extends AppController
 {
@@ -128,11 +127,7 @@ class TodosController extends AppController
         $todosTags = $this->fetchTable('TodosTags');
         $todoId = (int)$todo->id;
         $resolvedTagId = (int)$tag->id;
-        try {
-            $attached = $todosTags->attach($todoId, $resolvedTagId);
-        } catch (Throwable $exception) {
-            throw new InternalErrorException('Unable to attach tag.');
-        }
+        $attached = $todosTags->attach($todoId, $resolvedTagId);
         if (!$attached) {
             throw new ConflictException('Tag is already attached to this ToDo.');
         }
