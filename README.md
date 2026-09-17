@@ -17,7 +17,8 @@ This repository currently contains **MVP 1** work in progress:
 - GitHub Actions CI
 
 There is no public self-registration endpoint yet; the first account is created
-directly in the database (see [Step 9](#9-create-the-first-user-account)).
+from the console with `bin/cake set_user_password`
+(see [Step 9](#9-create-the-first-user-account)).
 
 ## Technology stack
 
