@@ -89,7 +89,9 @@ sudo apt install -y git unzip curl nginx postgresql postgresql-client \
   php8.3-cli php8.3-fpm php8.3-intl php8.3-mbstring php8.3-pgsql php8.3-xml php8.3-curl
 ```
 
-Omit the `postgresql` package when you use a managed database. Install
+Omit the `postgresql` package when you use a managed database. Replace `nginx`
+with `apache2 libapache2-mod-fcgid` if you plan to use Apache2 (see
+[Step 8, Option B](#option-b-apache2--php-fpm)). Install
 Composer 2 following the instructions on <https://getcomposer.org/download/>,
 then confirm the toolchain:
 
@@ -214,7 +216,11 @@ code does not. Authentication state is kept in PHP sessions, so PHP's
 
 ### 8. Configure the web server
 
-The document root must be the `webroot/` directory.
+The document root must be the `webroot/` directory. Use either the nginx or the
+Apache2 instructions below — not both on the same host, because they would
+compete for ports 80 and 443.
+
+#### Option A: nginx + PHP-FPM
 
 Create `/etc/nginx/sites-available/refer-cheat-to-do`:
 
@@ -256,8 +262,73 @@ With Apache, point the virtual host at either `webroot/` or the repository root
 `mod_rewrite` with `sudo a2enmod rewrite`, and set `AllowOverride All` for the
 directory.
 
+#### Option B: Apache2 + PHP-FPM
+
+Install Apache2 and the FastCGI proxy module (skip `nginx` in
+[Step 1](#1-install-system-packages) if you choose Apache):
+
+```bash
+sudo apt install -y apache2 libapache2-mod-fcgid
+sudo a2enmod rewrite proxy_fcgi setenvif headers
+sudo a2enconf php8.3-fpm
+```
+
+Create `/etc/apache2/sites-available/refer-cheat-to-do.conf`:
+
+```apache
+<VirtualHost *:80>
+    ServerName todo.example.com
+
+    DocumentRoot /var/www/refer-cheat-to-do/webroot
+
+    <Directory /var/www/refer-cheat-to-do/webroot>
+        Options FollowSymLinks
+        AllowOverride All
+        Require all granted
+        DirectoryIndex index.php
+    </Directory>
+
+    <FilesMatch \.php$>
+        SetHandler "proxy:unix:/run/php/php8.3-fpm.sock|fcgi://localhost"
+    </FilesMatch>
+
+    # Deny dotfiles except ACME challenges.
+    <DirectoryMatch "/\.(?!well-known)">
+        Require all denied
+    </DirectoryMatch>
+
+    ErrorLog ${APACHE_LOG_DIR}/refer-cheat-to-do-error.log
+    CustomLog ${APACHE_LOG_DIR}/refer-cheat-to-do-access.log combined
+</VirtualHost>
+```
+
+`AllowOverride All` is required so the committed `webroot/.htaccess` rewrite
+rules are applied; without it every route except `/` returns 404. Alternatively,
+set `AllowOverride None` and copy the rewrite rules from `webroot/.htaccess`
+into the `<Directory>` block.
+
+You can also point `DocumentRoot` at the repository root
+(`/var/www/refer-cheat-to-do`) instead; the top-level `.htaccess` rewrites
+requests into `webroot/`. Serving `webroot/` directly is preferred because it
+keeps `config/`, `src/`, and `vendor/` outside the document root.
+
+Enable the site and reload the services:
+
+```bash
+sudo a2dissite 000-default
+sudo a2ensite refer-cheat-to-do
+sudo apache2ctl configtest
+sudo systemctl reload apache2
+sudo systemctl restart php8.3-fpm
+```
+
+If you run PHP through `mod_php` rather than PHP-FPM, omit the `<FilesMatch>`
+block and the `proxy_fcgi`/`php8.3-fpm` steps, and install
+`libapache2-mod-php8.3` instead.
+
 Terminate TLS in front of the application (for example
-`sudo certbot --nginx -d todo.example.com`, or at a load balancer) and make sure
+`sudo certbot --nginx -d todo.example.com`, `sudo certbot --apache -d
+todo.example.com`, or at a load balancer) and make sure
 `APP_FULL_BASE_URL` matches the public HTTPS URL.
 
 ### 9. Create the first user account
