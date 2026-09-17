@@ -17,7 +17,8 @@ This repository currently contains **MVP 1** work in progress:
 - GitHub Actions CI
 
 There is no public self-registration endpoint yet; the first account is created
-directly in the database (see [Step 9](#9-create-the-first-user-account)).
+from the console with `bin/cake set_user_password`
+(see [Step 9](#9-create-the-first-user-account)).
 
 ## Technology stack
 
@@ -333,22 +334,21 @@ todo.example.com`, or at a load balancer) and make sure
 
 ### 9. Create the first user account
 
-The API has no registration endpoint yet, so insert the first user directly.
-Generate a hash with the same algorithm the `User` entity uses
-(`password_hash()` with `PASSWORD_DEFAULT`):
+The API has no registration endpoint yet, so create the first account from the
+console. The command validates the password, hashes it the way the `User` entity
+does, and lowercases the email like the login endpoint:
 
 ```bash
-php -r 'echo password_hash("replace-with-a-strong-password", PASSWORD_DEFAULT), PHP_EOL;'
+bin/cake set_user_password owner@example.com --create
 ```
 
-```bash
-psql -h 127.0.0.1 -U refer_cheat_to_do -d refer_cheat_to_do \
-  -c "INSERT INTO users (email, password, created, modified) VALUES ('owner@example.com', 'paste-the-generated-hash-here', NOW(), NOW());"
-```
+The command prompts for the password twice when `--password` is omitted, which
+keeps it out of the shell history. Use `--password 'a-strong-password'` for
+unattended runs, and the same command without `--create` to reset a forgotten
+password later.
 
-Store the email in lowercase: the login endpoint trims and lowercases the
-submitted email before looking the account up. Passwords must be at least eight
-characters.
+Passwords must be at least eight characters. Only the plain password is a valid
+credential: the stored hash is not accepted by `/api/auth/login`.
 
 ### 10. Verify the installation
 
@@ -371,7 +371,8 @@ Expected response:
 }
 ```
 
-Run an end-to-end smoke test of the session-based API:
+Run an end-to-end smoke test of the session-based API. The `password` value is
+the plain password, never the hash stored in the `users` table:
 
 ```bash
 curl -s -c /tmp/cookies.txt -H 'Content-Type: application/json' \
@@ -385,6 +386,10 @@ curl -s -b /tmp/cookies.txt -H 'Content-Type: application/json' \
 
 rm -f /tmp/cookies.txt
 ```
+
+A 500 response from `/api/auth/login` points at the database rather than the
+credentials; see [Diagnosing schema reflection failures](#diagnosing-schema-reflection-failures).
+A 401 means the account or the password does not match.
 
 ### 11. Harden the instance
 
@@ -408,6 +413,17 @@ bin/cake cache clear_all
 sudo systemctl reload php8.3-fpm
 ```
 
+## Maintenance commands
+
+Run these with the same environment variables the application uses:
+
+```bash
+bin/cake database_doctor                     # explain why the ORM cannot read the schema
+bin/cake set_user_password owner@example.com # reset a password; add --create for a new account
+bin/cake cache clear_all                     # drop cached table metadata
+bin/cake migrations status -c default        # list applied migrations
+```
+
 ## Environment variable reference
 
 | Variable | Default | Purpose |
@@ -418,7 +434,7 @@ sudo systemctl reload php8.3-fpm
 | `SECURITY_SALT` | placeholder value | secret used for hashing/signing; set a unique value |
 | `APP_FULL_BASE_URL` | none | public base URL; required when `DEBUG=false` |
 | `APP_ENCODING` / `APP_DEFAULT_LOCALE` / `APP_DEFAULT_TIMEZONE` | `UTF-8` / `en_US` / `UTC` | localization defaults |
-| `DB_HOST` / `DB_PORT` / `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | `localhost` / `5432` / `refer_cheat_to_do` / `refer_cheat_to_do` / `refer_cheat_to_do` | primary PostgreSQL connection |
+| `DB_HOST` / `DB_PORT` / `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | `localhost` / `5432` / `refer_cheat_to_do` / `refer_cheat_to_do` / `refer_cheat_to_do` | primary PostgreSQL connection; `DB_DATABASE` must be the name `current_database()` reports, not a connection pool name |
 | `DATABASE_URL` | none | full DSN that overrides the individual `DB_*` values; query arguments become driver options, so a TLS-only managed database can use `...?ssl_mode=require` |
 | `TEST_DB_HOST` / `TEST_DB_PORT` / `TEST_DB_DATABASE` / `TEST_DB_USERNAME` / `TEST_DB_PASSWORD` | fall back to the `DB_*` values, database defaults to `<DB_DATABASE>_test` | PHPUnit connection |
 | `DATABASE_TEST_URL` | none | full DSN for the test connection |
@@ -434,9 +450,66 @@ sudo systemctl reload php8.3-fpm
 | `Class "josegonzalez\Dotenv\Loader" not found` | a `.env` file exists but dev dependencies are not installed; remove `.env` and use process environment variables, or run `composer install` without `--no-dev` |
 | `could not find driver` | `php8.3-pgsql` is missing, or PHP-FPM was not restarted after installing it |
 | Migrations fail with permission errors | the database role lacks rights on the `public` schema; make it the database owner or grant them |
-| `relation "cake_migrations" already exists`, or a 500 error saying the column `id` was not found in table `users` | the tables exist but the connecting role has no privileges on them, so the privilege-filtered `information_schema` views appear empty while the objects are still there; grant the role rights on the existing objects (see below) and run `bin/cake cache clear_all` |
+| `relation "cake_migrations" already exists`, or a 500 error saying the column `id` was not found in table `users` | CakePHP cannot read the schema even though it exists; run `bin/cake database_doctor` for the exact cause and repair steps, then `bin/cake cache clear_all` |
 | Writes fail with permission errors | `logs/` and `tmp/` are not writable by the PHP-FPM user |
 | Every authenticated request returns 401 | session cookies are not being sent back, or PHP's session save path is not writable |
+| `/api/auth/login` returns 401 for a known account | the request sent the stored hash instead of the plain password, or the email does not match after trimming and lowercasing; reset it with `bin/cake set_user_password` |
+
+### Diagnosing schema reflection failures
+
+CakePHP reads columns from the privilege-filtered `information_schema` views but
+reads primary keys, indexes, and foreign keys from `pg_catalog`, which is not
+privilege-filtered. When the two disagree, the ORM aborts with
+`Columns used in constraints must be added to the Table schema first. The column
+id was not found in table users`, which surfaces as a 500 response on the first
+query an endpoint makes.
+
+Run the diagnosis with the same environment the application uses:
+
+```bash
+bin/cake database_doctor            # or: bin/cake database_doctor -c test
+```
+
+It prints the connection identity, a table with the catalog and reflected column
+counts, and the repair steps for one of three causes:
+
+| Diagnosis | Meaning | Fix |
+| --- | --- | --- |
+| `catalog_mismatch` | the configured database name differs from `current_database()`, so the catalog filter in the column query matches nothing | [fix the connection database name](#fixing-a-database-name-mismatch) |
+| `missing_privileges` | the tables exist but the connecting role cannot see them in `information_schema` | [repair database privileges](#repairing-database-privileges) |
+| `missing_schema` | the database really is empty | run `bin/cake migrations migrate -c default` as the role the application connects with |
+
+The same facts can be gathered by hand with the credentials from `DATABASE_URL`:
+
+```sql
+SELECT current_database(), current_user, current_schema();
+SELECT column_name FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'users';
+SELECT attname FROM pg_attribute
+  WHERE attrelid = 'public.users'::regclass AND attnum > 0 AND NOT attisdropped;
+SELECT tableowner FROM pg_tables WHERE tablename = 'users';
+```
+
+An empty second result with a populated third result is the privilege case.
+`logs/error.log` holds the full stack trace of the failing request.
+
+Always finish with `bin/cake cache clear_all`, otherwise the cached (broken)
+table metadata keeps being served.
+
+### Fixing a database name mismatch
+
+CakePHP filters `information_schema.columns` on the database name from the
+connection configuration (`table_catalog`), while indexes and constraints are
+read from `pg_catalog` without that filter. If the two names differ, every
+column lookup returns nothing while the constraints still resolve — exactly the
+`users.id` error above.
+
+This happens with managed databases that are reached through a connection
+pooler: the pool name is used to connect, but queries run against the pooled
+database, so `current_database()` reports the real name. Set the database in
+`DATABASE_URL` (or `DB_DATABASE`) to the value `current_database()` reports,
+connect to the database port instead of the pooler port, or name the pool
+exactly like the database. Then clear the metadata cache.
 
 ### Repairing database privileges
 
@@ -458,8 +531,9 @@ SELECT relname FROM pg_class c
 ```
 
 If the first list is empty while the second is not, grant the missing rights as
-the owner. `ALTER DEFAULT PRIVILEGES` below affects objects created by that same
-role unless you add `FOR ROLE <owner_role>`:
+the owner. `bin/cake database_doctor` prints these statements with the role and
+schema names of the instance filled in. `ALTER DEFAULT PRIVILEGES` affects
+objects created by the role that runs it unless you add `FOR ROLE <owner_role>`:
 
 ```sql
 GRANT USAGE ON SCHEMA public TO refer_cheat_to_do;
@@ -470,6 +544,10 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO refer_cheat_to_do;
 ```
+
+Transferring ownership works as well, for example
+`REASSIGN OWNED BY <owner_role> TO refer_cheat_to_do` run as a role that is a
+member of both.
 
 Then clear the cached table metadata, which otherwise keeps serving the broken
 reflection:
