@@ -10,6 +10,7 @@ use Cake\Core\Configure\Engine\PhpConfig;
 use Cake\Datasource\ConnectionManager;
 use Cake\Error\ErrorTrap;
 use Cake\Error\ExceptionTrap;
+use Cake\Error\Renderer\ConsoleExceptionRenderer;
 use Cake\Log\Log;
 use Cake\Mailer\Mailer;
 use Cake\Mailer\TransportFactory;
@@ -48,7 +49,14 @@ mb_internal_encoding(Configure::read('App.encoding'));
 ini_set('intl.default_locale', Configure::read('App.defaultLocale'));
 
 (new ErrorTrap(Configure::read('Error')))->register();
-(new ExceptionTrap(Configure::read('Error')))->register();
+
+$exceptionTrapConfig = (array)Configure::read('Error');
+if (PHP_SAPI === 'cli') {
+    // Console commands have no HTTP response or error templates to render into,
+    // so plain text output keeps the original exception visible.
+    $exceptionTrapConfig['exceptionRenderer'] = ConsoleExceptionRenderer::class;
+}
+(new ExceptionTrap($exceptionTrapConfig))->register();
 
 if (PHP_SAPI === 'cli') {
     if (Configure::check('Log.debug')) {
