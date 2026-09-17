@@ -434,14 +434,14 @@ sudo systemctl reload php8.3-fpm
 | `Class "josegonzalez\Dotenv\Loader" not found` | a `.env` file exists but dev dependencies are not installed; remove `.env` and use process environment variables, or run `composer install` without `--no-dev` |
 | `could not find driver` | `php8.3-pgsql` is missing, or PHP-FPM was not restarted after installing it |
 | Migrations fail with permission errors | the database role lacks rights on the `public` schema; make it the database owner or grant them |
-| `relation "cake_migrations" already exists`, or a 500 error saying the column `id` was not found in table `users` | the tables exist but the connecting role has no privileges on them, so the privilege-filtered `information_schema` views appear empty while the objects are still there; grant the role rights on the existing objects (see below) and clear `tmp/cache/models` |
+| `relation "cake_migrations" already exists`, or a 500 error saying the column `id` was not found in table `users` | the tables exist but the connecting role has no privileges on them, so the privilege-filtered `information_schema` views appear empty while the objects are still there; grant the role rights on the existing objects (see below) and run `bin/cake cache clear_all` |
 | Writes fail with permission errors | `logs/` and `tmp/` are not writable by the PHP-FPM user |
 | Every authenticated request returns 401 | session cookies are not being sent back, or PHP's session save path is not writable |
 
 ### Repairing database privileges
 
-Both `relation "cake_migrations" already exists` and `The column \`id\` was not
-found in table \`users\`` have the same cause: the schema was created by one role
+Both `relation "cake_migrations" already exists` and
+`The column "id" was not found in table "users"` have the same cause: the schema was created by one role
 (often the database owner or a restored dump) while the application connects as
 another role that holds no privileges on those objects. PostgreSQL filters
 `information_schema.tables` and `information_schema.columns` by privilege, so
@@ -458,7 +458,8 @@ SELECT relname FROM pg_class c
 ```
 
 If the first list is empty while the second is not, grant the missing rights as
-the owner and make future migrations inherit them:
+the owner. `ALTER DEFAULT PRIVILEGES` below affects objects created by that same
+role unless you add `FOR ROLE <owner_role>`:
 
 ```sql
 GRANT USAGE ON SCHEMA public TO refer_cheat_to_do;
