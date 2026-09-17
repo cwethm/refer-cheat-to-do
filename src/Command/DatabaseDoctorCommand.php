@@ -8,6 +8,7 @@ use Cake\Command\Command;
 use Cake\Console\Arguments;
 use Cake\Console\ConsoleIo;
 use Cake\Console\ConsoleOptionParser;
+use Cake\Database\Exception\MissingConnectionException;
 use Cake\Datasource\Exception\MissingDatasourceConfigException;
 use RuntimeException;
 
@@ -54,6 +55,11 @@ class DatabaseDoctorCommand extends Command
 
         try {
             $report = $diagnostics->diagnose($connectionName);
+        } catch (MissingConnectionException $e) {
+            $io->error($e->getMessage());
+            $io->out('Check the host, port, credentials, and TLS options of the connection.');
+
+            return static::CODE_ERROR;
         } catch (MissingDatasourceConfigException | RuntimeException $e) {
             $io->error($e->getMessage());
 
