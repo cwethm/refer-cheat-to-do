@@ -434,8 +434,51 @@ sudo systemctl reload php8.3-fpm
 | `Class "josegonzalez\Dotenv\Loader" not found` | a `.env` file exists but dev dependencies are not installed; remove `.env` and use process environment variables, or run `composer install` without `--no-dev` |
 | `could not find driver` | `php8.3-pgsql` is missing, or PHP-FPM was not restarted after installing it |
 | Migrations fail with permission errors | the database role lacks rights on the `public` schema; make it the database owner or grant them |
+| `relation "cake_migrations" already exists`, or a 500 error saying the column `id` was not found in table `users` | the tables exist but the connecting role has no privileges on them, so the privilege-filtered `information_schema` views appear empty while the objects are still there; grant the role rights on the existing objects (see below) and clear `tmp/cache/models` |
 | Writes fail with permission errors | `logs/` and `tmp/` are not writable by the PHP-FPM user |
 | Every authenticated request returns 401 | session cookies are not being sent back, or PHP's session save path is not writable |
+
+### Repairing database privileges
+
+Both `relation "cake_migrations" already exists` and `The column \`id\` was not
+found in table \`users\`` have the same cause: the schema was created by one role
+(often the database owner or a restored dump) while the application connects as
+another role that holds no privileges on those objects. PostgreSQL filters
+`information_schema.tables` and `information_schema.columns` by privilege, so
+CakePHP sees an empty schema and tries to create tables that already exist.
+
+Confirm it by connecting with the exact credentials from `DATABASE_URL`:
+
+```sql
+SELECT current_database(), current_user, current_schema();
+SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';
+SELECT relname FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'public' AND c.relkind = 'r';
+```
+
+If the first list is empty while the second is not, grant the missing rights as
+the owner and make future migrations inherit them:
+
+```sql
+GRANT USAGE ON SCHEMA public TO refer_cheat_to_do;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO refer_cheat_to_do;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO refer_cheat_to_do;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO refer_cheat_to_do;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO refer_cheat_to_do;
+```
+
+Then clear the cached table metadata, which otherwise keeps serving the broken
+reflection:
+
+```bash
+bin/cake cache clear_all
+```
+
+Running `bin/cake migrations migrate` as the same role the application connects
+with avoids the problem entirely.
 
 ## Local development
 
