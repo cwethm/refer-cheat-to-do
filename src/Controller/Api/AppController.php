@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use App\Controller\AppController as BaseController;
+use App\Service\ActivityRecorder;
+use App\Service\CapabilityService;
 use Cake\Http\Exception\UnauthorizedException;
 use Cake\Http\Response;
 use Cake\View\JsonView;
@@ -56,5 +58,21 @@ class AppController extends BaseController
         }
 
         throw new UnauthorizedException('Authentication is required.');
+    }
+
+    /**
+     * Resolve the single authoritative capability evaluator.
+     */
+    protected function capabilities(): CapabilityService
+    {
+        return new CapabilityService($this->getTableLocator());
+    }
+
+    /**
+     * Resolve the single authoritative activity recorder.
+     */
+    protected function activity(): ActivityRecorder
+    {
+        return new ActivityRecorder($this->getTableLocator());
     }
 }

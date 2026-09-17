@@ -18,4 +18,5 @@
 
 ## Current status
 
-Step 1 is in progress in this repository foundation slice.
+MVP 1 is **READY**. Every roadmap step (1-13) is delivered and its slice is APPROVED in
+`docs/slices/`. The MVP release verification suite passes; see `docs/mvp-1-completion-report.md`.

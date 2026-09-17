@@ -13,6 +13,13 @@ use Cake\Validation\Validator;
 class TagsTable extends Table
 {
     /**
+     * SQL normalization expression matching the `tags_user_name_normalized_unique` index.
+     *
+     * It must stay equivalent to {@see self::normalizeName()}.
+     */
+    public const NORMALIZED_NAME_SQL = "lower(regexp_replace(trim(name), '\\s+', ' ', 'g'))";
+
+    /**
      * Initialize tags table configuration.
      */
     public function initialize(array $config): void
@@ -48,8 +55,7 @@ class TagsTable extends Table
         if (!isset($data['name']) || !is_string($data['name'])) {
             return;
         }
-        $name = preg_replace('/\s+/u', ' ', trim($data['name']));
-        $data['name'] = $name ?? trim($data['name']);
+        $data['name'] = self::normalizeWhitespace($data['name']);
     }
 
     /**
@@ -93,7 +99,7 @@ class TagsTable extends Table
             }
             $query->where(function ($exp, $query) use ($normalizedName) {
                 return $exp->eq(
-                    $query->expr("lower(regexp_replace(trim(name), '\\s+', ' ', 'g'))"),
+                    $query->expr(self::NORMALIZED_NAME_SQL),
                     $normalizedName,
                     'string',
                 );
@@ -109,12 +115,23 @@ class TagsTable extends Table
     }
 
     /**
-     * Normalize a tag name for uniqueness comparisons.
+     * Collapse surrounding and internal whitespace in a tag name.
+     *
+     * This is the single authoritative whitespace rule for persisted tag names.
      */
-    private static function normalizeName(string $name): string
+    public static function normalizeWhitespace(string $name): string
     {
-        $normalized = preg_replace('/\s+/u', ' ', trim($name));
+        return preg_replace('/\s+/u', ' ', trim($name)) ?? trim($name);
+    }
 
-        return mb_strtolower($normalized ?? trim($name));
+    /**
+     * Normalize a tag name for uniqueness comparisons.
+     *
+     * This is the single authoritative application-side normalization rule and it must
+     * remain equivalent to {@see self::NORMALIZED_NAME_SQL} used by the database index.
+     */
+    public static function normalizeName(string $name): string
+    {
+        return mb_strtolower(self::normalizeWhitespace($name));
     }
 }

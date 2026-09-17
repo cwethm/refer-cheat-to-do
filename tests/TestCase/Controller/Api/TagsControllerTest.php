@@ -16,6 +16,7 @@ class TagsControllerTest extends TestCase
      */
     protected array $fixtures = [
         'app.Users',
+        'app.ActivityRecords',
         'app.Todos',
         'app.Tags',
         'app.TodosTags',
@@ -110,5 +111,77 @@ class TagsControllerTest extends TestCase
 
         $this->assertResponseCode(401);
         $this->assertResponseContains('"code": "UNAUTHORIZED"');
+    }
+
+    public function testEditCannotReassignTagOwnership(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->patch('/api/tags/100', [
+            'name' => 'Still mine',
+            'user_id' => 2,
+        ]);
+
+        $this->assertResponseOk();
+
+        $tags = TableRegistry::getTableLocator()->get('Tags');
+        $tag = $tags->get(100);
+        $this->assertSame(1, (int)$tag->user_id);
+        $this->assertSame('Still mine', $tag->name);
+    }
+
+    public function testCreateRejectsBlankName(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->post('/api/tags', ['name' => '   ']);
+
+        $this->assertResponseCode(422);
+        $this->assertResponseContains('"code": "VALIDATION_ERROR"');
+    }
+
+    public function testCreateRejectsWhitespaceVariantOfExistingName(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->post('/api/tags', ['name' => 'Import   ant']);
+        $this->assertResponseCode(201);
+
+        $this->post('/api/tags', ['name' => ' Import ant ']);
+        $this->assertResponseCode(422);
+    }
+
+    public function testListRejectsInvalidPagination(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->get('/api/tags?limit=-3');
+
+        $this->assertResponseCode(400);
+        $this->assertResponseContains('"code": "BAD_REQUEST"');
+    }
+
+    public function testDeleteRejectsCrossUserTag(): void
+    {
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+
+        $this->delete('/api/tags/102');
+
+        $this->assertResponseCode(404);
     }
 }

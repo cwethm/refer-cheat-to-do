@@ -15,6 +15,7 @@ class AuthControllerTest extends TestCase
      */
     protected array $fixtures = [
         'app.Users',
+        'app.ActivityRecords',
     ];
 
     public function testLoginSucceedsWithValidCredentials(): void
