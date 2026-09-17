@@ -66,6 +66,23 @@ class ApplicationTest extends TestCase
     }
 
     /**
+     * The test run must not inherit a deployment base URL.
+     *
+     * `config/app_local.php` carries the deployed host, and `HostHeaderMiddleware` rejects any
+     * request whose host does not match it, so an inherited value fails every integration test
+     * with a 400 instead of the expected response.
+     *
+     * @return void
+     */
+    public function testTestRunUsesLocalhostBaseUrl()
+    {
+        $this->assertSame(
+            'localhost',
+            parse_url((string)Configure::read('App.fullBaseUrl'), PHP_URL_HOST),
+        );
+    }
+
+    /**
      * testMiddleware
      *
      * @return void
