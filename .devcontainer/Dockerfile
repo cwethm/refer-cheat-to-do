@@ -1,7 +1,7 @@
 FROM mcr.microsoft.com/devcontainers/php:1-8.3-bookworm
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libicu-dev libpq-dev postgresql-client \
+    && apt-get install -y --no-install-recommends libicu-dev libpq-dev nodejs postgresql-client \
     && docker-php-ext-install intl pdo_pgsql \
     && rm -rf /var/lib/apt/lists/*
 

@@ -4,11 +4,12 @@ API-first foundation for a web-first information continuity, ToDo, research, and
 
 ## Current MVP scope
 
-This repository currently contains **MVP 1** work in progress:
+This repository contains the completed **MVP 1** API and a first daily-use web client:
 
 - CakePHP 5 application skeleton with PostgreSQL-first configuration
 - JSON API conventions and a health-check endpoint
 - session-based authentication (`/api/auth/*`)
+- responsive web client at `/app` for signing in, daily overview, capture, search, tags, and review
 - ToDo capture and inbox endpoints (`/api/todos`)
 - tags and todo/tag association endpoints (`/api/tags`, `/api/todos/{id}/tags/{tagId}`)
 - database migrations for `users`, `todos`, `tags`, and `todos_tags`
@@ -387,6 +388,9 @@ curl -s -b /tmp/cookies.txt -H 'Content-Type: application/json' \
 rm -f /tmp/cookies.txt
 ```
 
+After creating an account, open `https://todo.example.com/app` to use the daily
+client for capture, ToDo search, tags, review, and the dashboard.
+
 A 500 response from `/api/auth/login` points at the database rather than the
 credentials; see [Diagnosing schema reflection failures](#diagnosing-schema-reflection-failures).
 A 401 means the account or the password does not match.
@@ -594,11 +598,14 @@ already configured, or install the same prerequisites natively. Then:
 
 ## Test, lint, and static analysis commands
 
+The client tests require Node.js 18 or newer and use its built-in test runner; no npm packages are required.
+
 ```bash
 composer lint
 composer cs-check
 composer stan
 composer test
+composer ui-test
 composer check
 ```
 
@@ -611,7 +618,7 @@ composer check
 
 ## Current project status
 
-Authentication, ToDo capture, and tagging slices are implemented on top of the
-application foundation, shared API conventions, and developer tooling. Account
-self-registration, richer research and knowledge-refinement workflows, and the
-remaining roadmap capabilities are still pending.
+MVP 1 is ready; see [the completion report](docs/mvp-1-completion-report.md).
+Slice 14 adds the daily-use client. There is no public self-registration endpoint:
+accounts are created by an operator with `bin/cake set_user_password`.
+Research collections, AI, orchestration, and document generation remain deferred.

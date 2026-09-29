@@ -2,7 +2,7 @@
 
 ## Scope
 
-This repository initializes the backend foundation for MVP 1 of an information continuity and ToDo system.
+This repository provides the API and first daily-use client for an information continuity and ToDo system.
 
 ## Architectural direction
 
@@ -11,6 +11,7 @@ This repository initializes the backend foundation for MVP 1 of an information c
 - thin controllers with business rules delegated to services/entities/tables
 - backend-enforced authorization and validation
 - JSON response and error conventions for API endpoints
+- same-origin browser client using the session-based API
 
 ## Deferred capabilities
 

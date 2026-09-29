@@ -20,3 +20,7 @@
 
 MVP 1 is **READY**. Every roadmap step (1-13) is delivered and its slice is APPROVED in
 `docs/slices/`. The MVP release verification suite passes; see `docs/mvp-1-completion-report.md`.
+
+The first post-MVP slice, **14 — Client-facing daily workflow**, is **APPROVED**. It adds a responsive
+same-origin client at `/app` for the completed API without adding domain features or changing API
+authorization; see `docs/slices/14-client-facing-daily-workflow.md`.

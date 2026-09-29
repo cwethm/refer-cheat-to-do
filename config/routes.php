@@ -8,6 +8,7 @@ return function (RouteBuilder $routes): void {
     $routes->setRouteClass(DashedRoute::class);
 
     $routes->scope('/', function (RouteBuilder $builder): void {
+        $builder->connect('/app', ['controller' => 'Pages', 'action' => 'display', 'app'], ['_method' => 'GET']);
         $builder->connect('/', ['prefix' => 'Api', 'controller' => 'Health', 'action' => 'index']);
     });
 

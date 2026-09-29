@@ -33,6 +33,9 @@ return [
         'fullBaseUrl' => env('APP_FULL_BASE_URL', null),
         'name' => $appName,
         'env' => $appEnv,
+        'paths' => [
+            'templates' => [ROOT . DS . 'templates' . DS],
+        ],
     ],
     'Security' => [
         'salt' => env('SECURITY_SALT', 'change-me-to-a-long-random-string'),
