@@ -449,6 +449,7 @@ bin/cake migrations status -c default        # list applied migrations
 | 400 `Invalid Host header` | the request `Host` does not match the host in `APP_FULL_BASE_URL`; fix the value or the proxy configuration |
 | `Class "josegonzalez\Dotenv\Loader" not found` | a `.env` file exists but dev dependencies are not installed; remove `.env` and use process environment variables, or run `composer install` without `--no-dev` |
 | `could not find driver` | `php8.3-pgsql` is missing, or PHP-FPM was not restarted after installing it |
+| `FATAL: password authentication failed for user "refer_cheat_to_do"` | the role does not exist on that server or its password differs from `DB_PASSWORD`; PostgreSQL uses the same message for both. Run `bin/cake database_doctor` to see the host, port, and user the app resolved, then create or reset the role (`ALTER ROLE refer_cheat_to_do WITH LOGIN PASSWORD '...'`). If `.env` looks right but is not applied, `APP_NAME` is already exported in the shell, which disables `.env` loading |
 | Migrations fail with permission errors | the database role lacks rights on the `public` schema; make it the database owner or grant them |
 | `relation "cake_migrations" already exists`, or a 500 error saying the column `id` was not found in table `users` | CakePHP cannot read the schema even though it exists; run `bin/cake database_doctor` for the exact cause and repair steps, then `bin/cake cache clear_all` |
 | Writes fail with permission errors | `logs/` and `tmp/` are not writable by the PHP-FPM user |
@@ -573,11 +574,17 @@ already configured, or install the same prerequisites natively. Then:
    ```bash
    composer install
    ```
-3. Create the application and test databases if they do not exist:
+3. Create the database role and the application and test databases. Outside
+   the devcontainer no `refer_cheat_to_do` role exists yet, and PostgreSQL
+   reports a missing role as `password authentication failed`, so create it
+   with the password from `.env` (the template uses `refer_cheat_to_do`):
    ```bash
-   createdb refer_cheat_to_do
-   createdb refer_cheat_to_do_test
+   sudo -u postgres psql -c "CREATE ROLE refer_cheat_to_do LOGIN PASSWORD 'refer_cheat_to_do';"
+   sudo -u postgres createdb --owner=refer_cheat_to_do refer_cheat_to_do
+   sudo -u postgres createdb --owner=refer_cheat_to_do refer_cheat_to_do_test
    ```
+   Set `DB_HOST`/`TEST_DB_HOST` in `.env` to `127.0.0.1` for a native
+   PostgreSQL (`db` is the devcontainer service name).
 4. Apply migrations to both connections:
    ```bash
    bin/cake migrations migrate -c default
