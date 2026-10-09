@@ -1,15 +1,15 @@
+ls
 # refer-cheat-to-do
 
 API-first foundation for a web-first information continuity, ToDo, research, and knowledge-refinement application.
 
 ## Current MVP scope
 
-This repository contains the completed **MVP 1** API and a first daily-use web client:
+This repository currently contains **MVP 1** work in progress:
 
 - CakePHP 5 application skeleton with PostgreSQL-first configuration
 - JSON API conventions and a health-check endpoint
 - session-based authentication (`/api/auth/*`)
-- responsive web client at `/app` for signing in, daily overview, capture, search, tags, and review
 - ToDo capture and inbox endpoints (`/api/todos`)
 - tags and todo/tag association endpoints (`/api/tags`, `/api/todos/{id}/tags/{tagId}`)
 - database migrations for `users`, `todos`, `tags`, and `todos_tags`
@@ -205,6 +205,38 @@ bin/cake migrations status -c default
 
 This creates the `users`, `todos`, `tags`, and `todos_tags` tables.
 
+If this step reports `password authentication failed`, PostgreSQL was reached,
+but rejected the database login; no migrations can run until that login works.
+Test the same host, port, database, and role configured for the application,
+entering the configured database password at the prompt:
+
+```bash
+psql -h 127.0.0.1 -p 5432 -U refer_cheat_to_do -d refer_cheat_to_do -W \
+  -c 'SELECT current_user, current_database();'
+```
+
+Substitute your configured connection details if they differ. If this also
+fails, check the role and password with your database administrator. For a
+local instance, an administrator can reset an existing role's password
+interactively without putting it in shell history:
+
+```bash
+sudo -u postgres psql -d postgres
+```
+
+At the PostgreSQL prompt, run `\password refer_cheat_to_do`, then `\q`. Update
+the application's database password to match, including the PHP-FPM environment
+if used.
+
+If `psql` succeeds but CakePHP fails, check the environment of the shell running
+`bin/cake`, any `DATABASE_URL` override, and `config/app_local.php`. An exported
+`APP_NAME` skips `.env` loading, so export all required database variables in
+that case. PHP-FPM pool variables do not automatically reach console commands.
+When sourcing a shell environment file, single-quote password values containing
+`$` or other shell metacharacters, for example `DB_PASSWORD='your-password'`;
+do not source the application's `.env` as a shell script. Retry migration status
+to verify authentication before running migrations.
+
 ### 7. Set ownership and permissions
 
 ```bash
@@ -387,9 +419,6 @@ curl -s -b /tmp/cookies.txt -H 'Content-Type: application/json' \
 
 rm -f /tmp/cookies.txt
 ```
-
-After creating an account, open `https://todo.example.com/app` to use the daily
-client for capture, ToDo search, tags, review, and the dashboard.
 
 A 500 response from `/api/auth/login` points at the database rather than the
 credentials; see [Diagnosing schema reflection failures](#diagnosing-schema-reflection-failures).
@@ -598,14 +627,11 @@ already configured, or install the same prerequisites natively. Then:
 
 ## Test, lint, and static analysis commands
 
-The client tests require Node.js 18 or newer and use its built-in test runner; no npm packages are required.
-
 ```bash
 composer lint
 composer cs-check
 composer stan
 composer test
-composer ui-test
 composer check
 ```
 
@@ -618,7 +644,7 @@ composer check
 
 ## Current project status
 
-MVP 1 is ready; see [the completion report](docs/mvp-1-completion-report.md).
-Slice 14 adds the daily-use client. There is no public self-registration endpoint:
-accounts are created by an operator with `bin/cake set_user_password`.
-Research collections, AI, orchestration, and document generation remain deferred.
+Authentication, ToDo capture, and tagging slices are implemented on top of the
+application foundation, shared API conventions, and developer tooling. Account
+self-registration, richer research and knowledge-refinement workflows, and the
+remaining roadmap capabilities are still pending.
