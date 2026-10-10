@@ -3,7 +3,7 @@
 ## Slice Contract
 
 ### Status
-PROPOSED
+IN PROGRESS
 
 ### Goal
 Bring the collaboration model delivered in Slices 10 and 11 into the client: granting and revoking
