@@ -40,6 +40,11 @@ export const soloAccount = {
     password: process.env.E2E_SOLO_USER_PASSWORD ?? 'e2e-solo-password',
 };
 
+export const collaboratorAccount = {
+    email: process.env.E2E_COLLABORATOR_USER_EMAIL ?? 'e2e-collaborator@example.test',
+    password: process.env.E2E_COLLABORATOR_USER_PASSWORD ?? 'e2e-collaborator-password',
+};
+
 /**
  * Number of seeded ToDos. The client pages at 50, so this must exceed one page for
  * the pagination step of the smoke test to be meaningful.
