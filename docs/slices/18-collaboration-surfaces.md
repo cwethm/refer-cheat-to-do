@@ -3,7 +3,7 @@
 ## Slice Contract
 
 ### Status
-IN PROGRESS
+DELIVERED
 
 ### Goal
 Bring the collaboration model delivered in Slices 10 and 11 into the client: granting and revoking
@@ -53,3 +53,36 @@ that is enforced in the service layer and in the database.
   read path needs an explicit denied-path test, not only a happy-path test.
 - An activity-visibility change is a privacy change. It must not be made implicitly as a side effect
   of building a view.
+
+## Delivered behaviour
+
+The **Collaboration** view manages capabilities on a Project, Notebook or Library by resource type
+and ID. It lists active grants and offers grant and revoke actions. The signed-in user ID is taken
+from the authenticated session response so self-granting is not offered; the server remains the
+authority for every decision. Denials and missing resources are explained without suggesting which
+case occurred.
+
+The view also sends cross-context requests and displays the caller's inbox and outbox. Recipients can
+accept, decline or send one callback after acceptance. Requests show typed context IDs rather than
+depending on dereferencing their resources, and explain that a context may have been deleted.
+Collaboration state is cleared when returning to sign-in.
+
+ADR 0003 keeps activity history actor-only. No resource-sharing action widens the activity read path.
+
+## Tests and verification
+
+- `tests/e2e/collaboration.spec.mjs` covers granting, revoking, self-grant prevention, denied request
+  messaging, sending, accepting, declining, callback, and a request whose target has been deleted.
+- `tests/e2e/accessibility.spec.mjs` audits Collaboration with axe and includes it in responsive
+  overflow checks at 320, 375, 768 and 1280 CSS pixels.
+- Client unit/security suite: 33 tests pass.
+- Full browser suite: 47 tests pass.
+- PHP lint, PHPCS, and `PagesControllerTest`: pass.
+
+## Slice Completion Report
+
+The client now exposes the existing server-owned capability and cross-context request APIs without
+duplicating authorization rules or widening activity visibility. The accessibility, responsive,
+browser and standing client security checks pass.
+
+Slice Decision: **APPROVED**

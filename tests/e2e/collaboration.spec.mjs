@@ -109,7 +109,7 @@ test('a resource owner can grant and revoke without offering self-granting', asy
     await expect(page.locator('#notice')).toHaveText('You cannot grant a capability to yourself.');
 });
 
-test('a request can be sent, accepted, declined, and called back', async ({ page }) => {
+test('a request can be sent, accepted, declined, and called back', async ({ page, browser }) => {
     const ownerApi = await apiClient(account);
     const collaboratorApi = await apiClient(collaboratorAccount);
     let ownerId;
@@ -139,7 +139,8 @@ test('a request can be sent, accepted, declined, and called back', async ({ page
     await page.getByRole('button', { name: 'Send request' }).click();
     await expect(page.locator('#request-outbox-list')).toContainText('Please review the draft');
 
-    const recipientPage = await page.context().newPage();
+    const recipientContext = await browser.newContext();
+    const recipientPage = await recipientContext.newPage();
     await signIn(recipientPage, collaboratorAccount);
     await openCollaboration(recipientPage);
     const pendingRequest = recipientPage.locator('#request-inbox-list li', { hasText: 'Please review the draft' });
@@ -162,7 +163,7 @@ test('a request can be sent, accepted, declined, and called back', async ({ page
     await expect(declinedRequest).toBeVisible();
     await declinedRequest.getByRole('button', { name: 'Decline request: Please check the schedule' }).click();
     await expect(declinedRequest).toHaveCount(0);
-    await recipientPage.close();
+    await recipientContext.close();
 });
 
 test('the outbox explains that a referenced target context may have been deleted', async ({ page }) => {

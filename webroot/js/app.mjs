@@ -1645,6 +1645,7 @@ function bindEvents() {
 
     byId('cross-context-request-form').addEventListener('submit', async (event) => {
         event.preventDefault();
+        const formElement = event.currentTarget;
         const sourceId = byId('request-source-id').value;
         const targetId = byId('request-target-id').value;
         if (!isValidId(sourceId) || !isValidId(targetId)) {
@@ -1664,7 +1665,7 @@ function bindEvents() {
                     body: byId('request-body').value || null,
                 }),
             });
-            event.currentTarget.reset();
+            formElement.reset();
             await loadCollaboration();
             setNotice('Cross-context request sent.');
         } catch (error) {
