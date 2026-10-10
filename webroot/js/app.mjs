@@ -363,7 +363,7 @@ const state = {
     sectionOptions: [],
     // Monotonic tokens so a slow response cannot repaint a list that a newer
     // request has already replaced, which would silently discard a person's selection.
-    requests: { todos: 0, review: 0, projects: 0, notebooks: 0, libraries: 0, activity: 0 },
+    requests: { todos: 0, review: 0, projects: 0, notebooks: 0, libraries: 0, activity: 0, capabilities: 0 },
 };
 
 function setNotice(message, isError = false) {
@@ -1357,9 +1357,13 @@ async function loadCapabilities() {
         return;
     }
 
+    const token = ++state.requests.capabilities;
     const data = await requestApi(
         `/api/capabilities?resource_type=${encodeURIComponent(type)}&resource_id=${Number(id)}`,
     );
+    if (token !== state.requests.capabilities) {
+        return;
+    }
     const grants = validItems(data?.items);
     state.collaboration.resource = { type, id: Number(id) };
     byId('capability-list').replaceChildren(...grants.map((grant) => renderCapabilityGrant(grant)));
