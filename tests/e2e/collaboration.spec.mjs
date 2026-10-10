@@ -109,6 +109,45 @@ test('a resource owner can grant and revoke without offering self-granting', asy
     await expect(page.locator('#notice')).toHaveText('You cannot grant a capability to yourself.');
 });
 
+test('stale capability lookups do not replace the current resource grants', async ({ page }) => {
+    let releaseFirstLookup;
+    let firstLookupStarted;
+    const firstLookupRequested = new Promise((resolve) => {
+        firstLookupStarted = resolve;
+    });
+    const firstLookupHeld = new Promise((resolve) => {
+        releaseFirstLookup = resolve;
+    });
+    await page.route('**/api/capabilities?*', async (route) => {
+        const id = new URL(route.request().url()).searchParams.get('resource_id');
+        if (id === '101') {
+            firstLookupStarted();
+            await firstLookupHeld;
+        }
+        await route.fulfill({
+            json: { data: { items: [{ id: Number(id), subject_user_id: Number(id), capability: 'read' }] } },
+        });
+    });
+
+    await signIn(page, account);
+    await openCollaboration(page);
+    await page.locator('#collaboration-resource-type').selectOption('project');
+    await page.locator('#collaboration-resource-id').fill('101');
+    const staleResponse = page.waitForResponse((response) => (
+        new URL(response.url()).searchParams.get('resource_id') === '101'
+    ));
+    await page.getByRole('button', { name: 'Show capabilities' }).click();
+    await firstLookupRequested;
+
+    await page.locator('#collaboration-resource-id').fill('202');
+    await page.getByRole('button', { name: 'Show capabilities' }).click();
+    await expect(page.locator('#capability-list')).toContainText('User #202 · read');
+
+    releaseFirstLookup();
+    await staleResponse;
+    await expect(page.locator('#capability-list')).toHaveText('User #202 · read');
+});
+
 test('a request can be sent, accepted, declined, and called back', async ({ page, browser }) => {
     const ownerApi = await apiClient(account);
     const collaboratorApi = await apiClient(collaboratorAccount);
