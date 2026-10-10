@@ -22,6 +22,7 @@ $this->disableAutoLayout();
         <a class="brand" href="/app" aria-label="Cheat to do home">cheat<span>to</span>do</a>
         <div id="account-actions" class="account-actions" hidden>
             <span id="account-email" class="account-email"></span>
+            <a id="export-link" class="button button-quiet" href="/api/export" download>Export my data</a>
             <button id="logout-button" class="button button-quiet" type="button">Sign out</button>
         </div>
     </header>
