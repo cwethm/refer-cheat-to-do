@@ -115,3 +115,80 @@ test('client has no unsafe HTML sinks or persistent credential storage', async (
     assert.doesNotMatch(source, /localStorage|sessionStorage/);
     assert.match(source, /credentials:\s*'same-origin'/);
 });
+
+test('pagination requests never fall below the first page', () => {
+    for (const page of [0, -3, Number.NaN]) {
+        const url = new URL(buildTodoUrl({ page }), 'https://example.test');
+
+        assert.equal(url.searchParams.get('page'), '1');
+    }
+});
+
+test('an unreadable error body still produces a readable message', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+        ok: false,
+        status: 500,
+        json: async () => {
+            throw new SyntaxError('Unexpected token < in JSON');
+        },
+    });
+    try {
+        await assert.rejects(
+            requestApi('/api/todos'),
+            (error) => error.status === 500
+                && error.message === 'The request could not be completed (500).',
+        );
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
+test('an unreachable server is reported as a connection problem, not a crash', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+        throw new TypeError('Failed to fetch');
+    };
+    try {
+        await assert.rejects(
+            requestApi('/api/todos'),
+            (error) => error.status === undefined
+                && error.message === 'The server could not be reached. Check your connection and try again.',
+        );
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
+test('a 401 response is distinguishable so the client can return to sign-in', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+        ok: false,
+        status: 401,
+        json: async () => ({ error: { code: 'unauthenticated', message: 'Authentication is required.' } }),
+    });
+    try {
+        await requestApi('/api/dashboard');
+        assert.fail('expected a rejection');
+    } catch (error) {
+        assert.equal(error.status, 401);
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
+test('empty collections are returned as data, not as a missing response', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+        ok: true,
+        json: async () => ({ data: { items: [] }, meta: { pagination: { total: 0, page: 1 } } }),
+    });
+    try {
+        const data = await requestApi('/api/todos');
+
+        assert.deepEqual(data.items, []);
+        assert.equal(data.meta.pagination.total, 0);
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});

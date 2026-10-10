@@ -104,7 +104,7 @@ jobs:
         run: composer ui-test
 
   browser:
-    name: browser smoke
+    name: browser, accessibility and responsive
     needs: quality
     runs-on: ubuntu-24.04
     services:
@@ -167,7 +167,7 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Browser smoke test
+      - name: Browser, accessibility and responsive tests
         run: npm run test:e2e
 
       - name: Upload Playwright report

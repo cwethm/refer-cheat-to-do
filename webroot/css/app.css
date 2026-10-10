@@ -60,6 +60,7 @@ button { cursor: pointer; }
 }
 
 .brand {
+    flex: none;
     color: var(--ink);
     font-size: 1.35rem;
     font-weight: 780;
@@ -69,8 +70,8 @@ button { cursor: pointer; }
 
 .brand span { color: var(--accent); }
 
-.account-actions { display: flex; align-items: center; gap: 1rem; }
-.account-email { color: var(--muted); font-size: 0.9rem; }
+.account-actions { display: flex; align-items: center; gap: 1rem; min-width: 0; }
+.account-email { min-width: 0; overflow: hidden; color: var(--muted); font-size: 0.9rem; text-overflow: ellipsis; white-space: nowrap; }
 
 .page-shell { width: min(1120px, 90vw); margin: 3rem auto 5rem; }
 .welcome-row { display: flex; align-items: end; justify-content: space-between; gap: 2rem; margin-bottom: 2rem; }
@@ -148,7 +149,7 @@ input::placeholder, textarea::placeholder { color: #8b958e; }
 
 @media (max-width: 760px) {
     .page-shell { width: min(100% - 2rem, 620px); margin-top: 2rem; }
-    .site-header { padding: 0 1rem; }
+    .site-header { gap: 0.75rem; padding: 0 1rem; }
     .welcome-row { align-items: start; flex-direction: column; }
     .count-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .content-grid { grid-template-columns: 1fr; }
@@ -158,7 +159,8 @@ input::placeholder, textarea::placeholder { color: #8b958e; }
 }
 
 @media (max-width: 420px) {
-    .account-email { max-width: 11rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .account-email { max-width: 11rem; }
+    .account-actions { gap: 0.5rem; }
     .view-nav { width: 100%; }
     .view-button { flex: 1; padding-inline: 0.55rem; }
     .filter-bar { grid-template-columns: 1fr; }

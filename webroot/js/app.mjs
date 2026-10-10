@@ -1,7 +1,9 @@
 export const TODO_PAGE_SIZE = 50;
 
 export function buildTodoUrl({ query = '', status = '', tagId = '', page = 1 } = {}) {
-    const params = new URLSearchParams({ page: String(page), limit: String(TODO_PAGE_SIZE) });
+    const requestedPage = Number(page);
+    const safePage = Number.isFinite(requestedPage) ? Math.max(1, Math.trunc(requestedPage)) : 1;
+    const params = new URLSearchParams({ page: String(safePage), limit: String(TODO_PAGE_SIZE) });
     const cleanQuery = query.trim();
 
     if (cleanQuery) {

@@ -640,12 +640,17 @@ composer ui-test
 composer check
 ```
 
-### Browser smoke test
 
-One Playwright test drives the real `/app` page in Chromium against a live PHP
-server and PostgreSQL: sign in, quick capture, create and attach a tag, filter,
-page, review queue, sign out. It covers the integration seam that the PHP API
-tests and the `tests/js` unit tests cannot reach.
+### Browser, accessibility and responsive tests
+
+Playwright drives the real `/app` page in Chromium against a live PHP server and
+PostgreSQL. `tests/e2e/smoke.spec.mjs` is one end-to-end journey over the
+integration seam that the PHP API tests and the `tests/js` unit tests cannot
+reach: sign in, quick capture, create and attach a tag, filter, page, review
+queue, sign out. `tests/e2e/app.spec.mjs` adds the narrower client regressions
+(empty states, pagination boundaries, API error surfacing, expired sessions), and
+`tests/e2e/accessibility.spec.mjs` runs an axe WCAG 2.1 A/AA audit of every view
+plus horizontal-overflow assertions at 320, 375, 768 and 1280 CSS pixels.
 
 The run owns a **dedicated database and its own account**. Never point it at the
 `default` or PHPUnit `test` connection: it drops and recreates its database on
@@ -673,9 +678,14 @@ npm run test:e2e:ui
 npx playwright show-trace test-results/<failed-test>/trace.zip
 ```
 
-Because the built-in PHP server is not Apache, this test does not exercise the
+Because the built-in PHP server is not Apache, these tests do not exercise the
 `.htaccess` rewrites described in *Configure the web server*; that layer still
 has to be verified by hand after a deployment.
+
+`docs/front-end-testing-policy.md` records which layer each kind of client change
+belongs in, the supported browser baseline, the offline and slow-network
+expectations, and the standing client security checklist.
+
 
 ## Development workflow
 
