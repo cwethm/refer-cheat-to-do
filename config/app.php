@@ -38,7 +38,7 @@ return [
         ],
     ],
     'Security' => [
-        'salt' => env('SECURITY_SALT', '7ce9b09428bc8777b1c9d569590a21286ead05627bb438737d577b98c97dc360'),
+        'salt' => env('SECURITY_SALT', 'change-me-to-a-long-random-string'),
     ],
     'Asset' => [
         'cacheTime' => '+1 year',
