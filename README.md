@@ -49,8 +49,12 @@ from the console with `bin/cake set_user_password`
 ├── src/
 ├── templates/
 ├── tests/
+│   ├── e2e/
+│   └── js/
 ├── webroot/
 ├── composer.json
+├── package.json
+├── playwright.config.mjs
 ├── phpcs.xml
 ├── phpstan.neon
 ├── phpunit.xml.dist
@@ -632,8 +636,46 @@ composer lint
 composer cs-check
 composer stan
 composer test
+composer ui-test
 composer check
 ```
+
+### Browser smoke test
+
+One Playwright test drives the real `/app` page in Chromium against a live PHP
+server and PostgreSQL: sign in, quick capture, create and attach a tag, filter,
+page, review queue, sign out. It covers the integration seam that the PHP API
+tests and the `tests/js` unit tests cannot reach.
+
+The run owns a **dedicated database and its own account**. Never point it at the
+`default` or PHPUnit `test` connection: it drops and recreates its database on
+every run, which would destroy data and race PHPUnit fixtures.
+
+```bash
+npm ci
+npx playwright install --with-deps chromium
+npm run test:e2e
+```
+
+Playwright starts `php -S 127.0.0.1:8765 -t webroot webroot/index.php` itself,
+waits for `/api/health`, recreates `refer_cheat_to_do_e2e`, migrates it, creates
+the account with `bin/cake set_user_password`, and seeds more ToDos than fit on
+one client page. The PostgreSQL role only needs permission to create databases.
+
+Override any default through the environment, for example `E2E_PORT`,
+`E2E_DB_DATABASE`, `E2E_USER_EMAIL`, or `E2E_USER_PASSWORD`; see
+`tests/e2e/environment.mjs`.
+
+To debug a failure locally:
+
+```bash
+npm run test:e2e:ui
+npx playwright show-trace test-results/<failed-test>/trace.zip
+```
+
+Because the built-in PHP server is not Apache, this test does not exercise the
+`.htaccess` rewrites described in *Configure the web server*; that layer still
+has to be verified by hand after a deployment.
 
 ## Development workflow
 
