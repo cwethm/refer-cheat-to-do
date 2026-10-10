@@ -37,3 +37,74 @@ Error responses use:
   }
 }
 ```
+
+## Operational maturity (Slice 20)
+
+### Dashboard query budget
+
+The original dashboard loaded every eligible ToDo and its tags before evaluating review and
+orphan predicates in PHP. A single SQL aggregate now returns the two counts without hydrating
+those ToDos or tags. Recent lists retain their existing capped limits and serialization.
+The regression suite compares datasets of 1, 100 and 1000 ToDos, checking both query count and
+rows returned to the application, as well as exact review/staleness boundaries and response bytes.
+
+“Bounded rows” refers to rows transferred and processed in PHP, not constant physical database
+work: exact uncached counts necessarily examine matching records in PostgreSQL. The aggregate
+does not introduce a cache or precomputed counters. Tag existence checks must not multiply
+ToDo counts when more than one tag is attached.
+
+### Application logs and exception reporting
+
+Application logs are local structured JSON records, correlated by a server-generated request
+identifier. Request input is not a source of trusted logging metadata. Unhandled exceptions and
+PHP errors are reported through CakePHP's configured error logger, without changing exception
+rendering or API response bodies. Exception messages and trace arguments are intentionally omitted:
+database exceptions can contain SQL values, and application exceptions can contain personal content.
+
+Every record has `timestamp`, `level`, and `requestId`; HTTP scopes also have an allowlisted `method`.
+`request.completed` records include `status` and `durationMs`. Error records contain only an event
+type, exception class or PHP error level, a validated relative code location, and line number.
+Other application log calls discard their free-text message and arbitrary context. CLI reports use
+`logs/cli-error.log` and `logs/cli-debug.log`; web reports use `logs/error.log` and `logs/debug.log`.
+The local safe logger configuration is deliberate: `LOG_DEBUG_URL` and `LOG_ERROR_URL` overrides
+are not supported because substituting a generic engine could bypass redaction.
+
+Never log passwords, authorization tokens, cookies, session identifiers, request bodies, query
+strings, ToDo titles/notes, email addresses, or arbitrary logging context. Keep database query logging
+disabled in deployed environments. Web-server, proxy, and PostgreSQL logs are separate operational
+surfaces: disable body/header capture and redact query strings there too. Do not enable verbose
+request dumps to investigate a production failure.
+
+Keep `logs/` outside the served document root, writable only by the application and operators;
+rotate local logs with the host's existing rotation facility and apply a short, access-controlled
+retention policy. No third-party telemetry, queue, or background worker is required.
+Logging is best-effort: sink failures must not change responses and do not trigger an unsafe
+fallback. Operators must check log-directory permissions and available disk space independently.
+
+### Asset caching and deployment
+
+The current `/app` template adds modification-time query strings to the CSS and entry module.
+That is a development convenience, **not** a sufficient production invalidation strategy:
+deployment tools may preserve timestamps, and imported ES modules have their own URLs.
+CakePHP's `Asset.cacheTime` also does not configure the web server's handling of files served
+directly from `webroot`.
+
+For the current unversioned asset URLs, configure the serving web server to send
+`Cache-Control: no-cache` with content-derived ETags (or equivalent conditional validation).
+This permits storage but requires revalidation before reuse; do not send `immutable` or a
+year-long freshness lifetime for `/js/*.mjs` or `/css/*.css`. Apply the policy to every imported
+module, not just the entry script. Authenticated HTML and API responses must not enter shared
+caches; serve them with `Cache-Control: private, no-store`.
+
+For a production release pipeline, prefer content-hashed asset filenames and a release manifest.
+Hash the complete module graph, rewrite import URLs to the corresponding hashed files, and have
+the template select CSS and the entry module from the same manifest. Serve these immutable URLs
+with `Cache-Control: public, max-age=31536000, immutable`. Publish assets first, atomically switch
+the application/manifest together, and retain prior release assets so open tabs and rollbacks
+continue to resolve their imports. This is a deployment strategy, not a new build tool or runtime
+caching layer introduced by Slice 20.
+
+Deployment verification must change asset bytes while preserving timestamps, then confirm the
+new bytes reach a browser with a warm cache, including imported modules. For hashed releases,
+verify that changed bytes yield new URLs, unchanged assets remain reusable, and rollback restores
+a matching manifest and asset graph.

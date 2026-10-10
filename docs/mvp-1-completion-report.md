@@ -129,7 +129,8 @@ intentional.
 ## Known limitations
 
 - Activity is visible only to the actor who produced it.
-- Dashboard orphan reasoning iterates the user's non-hidden ToDos in PHP.
+- The Slice 13 dashboard limitation (orphan reasoning iterating ToDos in PHP) is addressed by
+  [Slice 20's bounded aggregate and regression coverage](application-design.md#dashboard-query-budget).
 - At the time of Slice 13, accessibility verification was deferred because the repository was API-only.
   Slice 14 adds baseline semantic, keyboard-focus and responsive checks; assistive-technology testing
   remains future work.

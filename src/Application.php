@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App;
 
 use App\Middleware\HostHeaderMiddleware;
+use App\Middleware\RequestLoggingMiddleware;
 use Cake\Core\Configure;
 use Cake\Core\ContainerInterface;
 use Cake\Datasource\FactoryLocator;
@@ -40,6 +41,7 @@ class Application extends BaseApplication
     public function middleware(MiddlewareQueue $middlewareQueue): MiddlewareQueue
     {
         $middlewareQueue
+            ->add(new RequestLoggingMiddleware())
             ->add(new ErrorHandlerMiddleware(Configure::read('Error'), $this))
             ->add(new HostHeaderMiddleware())
             ->add(new AssetMiddleware([

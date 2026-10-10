@@ -529,7 +529,9 @@ SELECT tableowner FROM pg_tables WHERE tablename = 'users';
 ```
 
 An empty second result with a populated third result is the privilege case.
-`logs/error.log` holds the full stack trace of the failing request.
+`logs/error.log` holds structured, redacted error reports, correlated by request identifier;
+exception messages and trace arguments are deliberately excluded. See
+[operational logging and asset caching](docs/application-design.md#operational-maturity-slice-20).
 
 Always finish with `bin/cake cache clear_all`, otherwise the cached (broken)
 table metadata keeps being served.
