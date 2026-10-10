@@ -49,7 +49,7 @@ test.describe('accessibility', () => {
         expect(describeViolations(results), describeViolations(results)).toBe('');
     });
 
-    for (const view of ['Today', 'ToDos', 'Review']) {
+    for (const view of ['Today', 'ToDos', 'Projects', 'Review']) {
         test(`the ${view} view has no WCAG A/AA violations`, async ({ page }) => {
             await signIn(page);
             await openView(page, view);
@@ -82,7 +82,7 @@ test.describe('responsive layout', () => {
             await page.setViewportSize({ width, height: 900 });
             await signIn(page);
 
-            for (const view of ['Today', 'ToDos', 'Review']) {
+            for (const view of ['Today', 'ToDos', 'Projects', 'Review']) {
                 await openView(page, view);
                 const overflow = await page.evaluate(() => ({
                     scrollWidth: document.documentElement.scrollWidth,
