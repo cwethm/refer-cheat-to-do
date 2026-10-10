@@ -53,6 +53,7 @@ $this->disableAutoLayout();
                     <button class="view-button" type="button" data-view="libraries" aria-pressed="false">Libraries</button>
                     <button class="view-button" type="button" data-view="review" aria-pressed="false">Review</button>
                     <button class="view-button" type="button" data-view="activity" aria-pressed="false">Activity</button>
+                    <button class="view-button" type="button" data-view="collaboration" aria-pressed="false">Collaboration</button>
                 </nav>
             </div>
             <section id="dashboard-view" class="view-panel" aria-labelledby="dashboard-title">
@@ -279,6 +280,74 @@ $this->disableAutoLayout();
                     <span id="activity-page-label" aria-live="polite"></span>
                     <button id="next-activity-page" class="button button-quiet" type="button" disabled>Next activity</button>
                 </div>
+            </section>
+            <section id="collaboration-view" class="view-panel" aria-labelledby="collaboration-title" hidden>
+                <div class="section-heading">
+                    <div><div class="eyebrow">Work across contexts</div><h2 id="collaboration-title">Collaboration</h2></div>
+                </div>
+                <p class="intro">The server checks every capability. A missing resource and an action you cannot access may receive the same response.</p>
+                <section class="surface collaboration-surface" aria-labelledby="capability-title">
+                    <h3 id="capability-title" class="panel-title">Capabilities on a resource</h3>
+                    <form id="collaboration-resource-form" class="tag-form">
+                        <label for="collaboration-resource-type">Resource type</label>
+                        <select id="collaboration-resource-type">
+                            <option value="project">Project</option><option value="notebook">Notebook</option><option value="library">Library</option>
+                        </select>
+                        <label for="collaboration-resource-id">Resource ID</label>
+                        <input id="collaboration-resource-id" type="number" min="1" step="1" required>
+                        <button class="button button-secondary" type="submit">Show capabilities</button>
+                    </form>
+                    <section id="capability-panel" aria-labelledby="capability-list-title" hidden>
+                        <h4 id="capability-list-title" class="panel-title">Active grants</h4>
+                        <ul id="capability-list" class="record-list"></ul>
+                        <p id="capability-empty" class="empty-copy" hidden>No active grants on this resource.</p>
+                        <form id="capability-grant-form" class="form-stack">
+                            <label for="capability-subject-id">Grant to user ID</label>
+                            <input id="capability-subject-id" type="number" min="1" step="1" required>
+                            <label for="capability-name">Capability</label>
+                            <select id="capability-name">
+                                <option value="discover">discover</option><option value="read">read</option>
+                                <option value="reference">reference</option><option value="query">query</option>
+                                <option value="suggest">suggest</option><option value="send_task">send_task</option>
+                                <option value="callback">callback</option><option value="contribute">contribute</option>
+                                <option value="edit">edit</option><option value="archive">archive</option>
+                                <option value="delete">delete</option><option value="manage_permissions">manage_permissions</option>
+                            </select>
+                            <button class="button button-primary" type="submit">Grant capability</button>
+                        </form>
+                    </section>
+                </section>
+                <section class="surface collaboration-surface" aria-labelledby="request-send-title">
+                    <h3 id="request-send-title" class="panel-title">Send a cross-context request</h3>
+                    <p class="result-summary">Enter the source and target context IDs. You need read access to the source and send_task on the target.</p>
+                    <form id="cross-context-request-form" class="form-stack">
+                        <label for="request-source-type">Source type</label>
+                        <select id="request-source-type"><option value="project">Project</option><option value="notebook">Notebook</option></select>
+                        <label for="request-source-id">Source ID</label>
+                        <input id="request-source-id" type="number" min="1" step="1" required>
+                        <label for="request-target-type">Target type</label>
+                        <select id="request-target-type"><option value="project">Project</option><option value="notebook">Notebook</option></select>
+                        <label for="request-target-id">Target ID</label>
+                        <input id="request-target-id" type="number" min="1" step="1" required>
+                        <label for="request-type">Request type</label>
+                        <select id="request-type"><option value="task">Task</option><option value="question">Question</option><option value="suggestion">Suggestion</option></select>
+                        <label for="request-title">Title</label>
+                        <input id="request-title" maxlength="255" required>
+                        <label for="request-body">Details <span class="optional">(optional)</span></label>
+                        <textarea id="request-body" rows="3"></textarea>
+                        <button class="button button-primary" type="submit">Send request</button>
+                    </form>
+                </section>
+                <section class="surface collaboration-surface" aria-labelledby="request-inbox-title">
+                    <h3 id="request-inbox-title" class="panel-title">Request inbox</h3>
+                    <ul id="request-inbox-list" class="record-list"></ul>
+                    <p id="request-inbox-empty" class="empty-copy" hidden>No pending requests you can resolve.</p>
+                </section>
+                <section class="surface collaboration-surface" aria-labelledby="request-outbox-title">
+                    <h3 id="request-outbox-title" class="panel-title">Request outbox</h3>
+                    <ul id="request-outbox-list" class="record-list"></ul>
+                    <p id="request-outbox-empty" class="empty-copy" hidden>You have not sent any requests.</p>
+                </section>
             </section>
         </section>
     </main>

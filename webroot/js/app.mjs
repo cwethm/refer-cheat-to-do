@@ -343,6 +343,7 @@ const make = (tag, className = '', text = null) => {
 };
 
 const state = {
+    userId: null,
     page: 1,
     total: 0,
     tags: [],
@@ -358,6 +359,7 @@ const state = {
         notebook: { items: [], page: 1, total: 0, openId: null },
     },
     libraries: { items: [], page: 1, total: 0, openId: null },
+    collaboration: { resource: null, inbox: [], outbox: [] },
     sectionOptions: [],
     // Monotonic tokens so a slow response cannot repaint a list that a newer
     // request has already replaced, which would silently discard a person's selection.
@@ -373,6 +375,12 @@ function setNotice(message, isError = false) {
 }
 
 function showLogin(message = '') {
+    state.userId = null;
+    state.collaboration = { resource: null, inbox: [], outbox: [] };
+    byId('capability-panel').hidden = true;
+    byId('capability-list').replaceChildren();
+    byId('request-inbox-list').replaceChildren();
+    byId('request-outbox-list').replaceChildren();
     byId('workspace').hidden = true;
     byId('account-actions').hidden = true;
     byId('login-panel').hidden = false;
@@ -1221,6 +1229,139 @@ async function loadLibraries() {
     await loadLibraryDetail();
 }
 
+function resourceLabel(type, id) {
+    const noun = { project: 'Project', notebook: 'Notebook', library: 'Library' }[type] ?? 'resource';
+
+    return `${noun} #${Number(id)}`;
+}
+
+function renderCapabilityGrant(grant) {
+    const item = make('li', 'record-item');
+    item.append(make('p', 'record-description', `User #${grant.subject_user_id} · ${grant.capability}`));
+    if (isValidId(grant.id)) {
+        const revoke = make('button', 'button button-quiet', 'Revoke');
+        revoke.type = 'button';
+        revoke.dataset.revokeGrant = String(Number(grant.id));
+        revoke.setAttribute('aria-label', `Revoke ${grant.capability} from user ${grant.subject_user_id}`);
+        item.append(revoke);
+    }
+
+    return item;
+}
+
+function renderCrossContextRequest(request, listKind) {
+    const item = make('li', 'record-item');
+    const title = typeof request?.title === 'string' ? request.title : 'Untitled request';
+    item.append(make('h4', 'panel-title', title));
+    item.append(make(
+        'p',
+        'record-description',
+        `Request #${request.id} · ${request.request_type} · ${request.status}`,
+    ));
+    item.append(make(
+        'p',
+        'record-description',
+        `From ${resourceLabel(request.source_type, request.source_id)} to ${resourceLabel(request.target_type, request.target_id)}.`,
+    ));
+    if (typeof request?.body === 'string' && request.body !== '') {
+        item.append(make('p', 'record-description', request.body));
+    }
+    if (request.status === 'pending') {
+        item.append(make(
+            'p',
+            'result-summary',
+            'A referenced context may have been deleted or access may have changed; the server checks every action.',
+        ));
+    }
+    if (typeof request?.resolution_note === 'string' && request.resolution_note !== '') {
+        item.append(make('p', 'record-description', `Response: ${request.resolution_note}`));
+    }
+    if (typeof request?.callback_summary === 'string' && request.callback_summary !== '') {
+        item.append(make('p', 'record-description', `Callback: ${request.callback_summary}`));
+    }
+
+    if (listKind === 'inbox' && request.status === 'pending' && isValidId(request.id)) {
+        const actions = make('div', 'record-actions');
+        for (const [label, action, className] of [
+            ['Accept', 'accept', 'button button-secondary'],
+            ['Decline', 'reject', 'button button-quiet'],
+        ]) {
+            const button = make('button', className, label);
+            button.type = 'button';
+            button.dataset.requestAction = action;
+            button.dataset.requestId = String(Number(request.id));
+            button.setAttribute('aria-label', `${label} request: ${title}`);
+            actions.append(button);
+        }
+        item.append(actions);
+    } else if (
+        listKind === 'inbox'
+        && request.status === 'accepted'
+        && request.callback_at === null
+        && isValidId(request.id)
+    ) {
+        const form = make('form', 'form-stack');
+        form.dataset.callbackRequest = String(Number(request.id));
+        const label = make('label', '', `Callback for ${title}`);
+        const textarea = make('textarea');
+        textarea.rows = 2;
+        textarea.required = true;
+        textarea.maxLength = 1000;
+        textarea.setAttribute('aria-label', `Callback summary for ${title}`);
+        label.append(textarea);
+        const submit = make('button', 'button button-secondary', 'Send callback');
+        submit.type = 'submit';
+        form.append(label, submit);
+        item.append(form);
+    }
+
+    return item;
+}
+
+async function loadCollaboration() {
+    const [inbox, outbox] = await Promise.all([
+        requestApi('/api/cross-context-requests/inbox'),
+        requestApi('/api/cross-context-requests/outbox'),
+    ]);
+    state.collaboration.inbox = validItems(inbox?.items);
+    state.collaboration.outbox = validItems(outbox?.items);
+    byId('request-inbox-list').replaceChildren(
+        ...state.collaboration.inbox.map((request) => renderCrossContextRequest(request, 'inbox')),
+    );
+    byId('request-outbox-list').replaceChildren(
+        ...state.collaboration.outbox.map((request) => renderCrossContextRequest(request, 'outbox')),
+    );
+    byId('request-inbox-empty').hidden = state.collaboration.inbox.length > 0;
+    byId('request-outbox-empty').hidden = state.collaboration.outbox.length > 0;
+}
+
+async function loadCapabilities() {
+    const type = byId('collaboration-resource-type').value;
+    const id = byId('collaboration-resource-id').value;
+    if (!['project', 'notebook', 'library'].includes(type) || !isValidId(id)) {
+        setNotice('Enter a valid resource type and ID.', true);
+        return;
+    }
+
+    const data = await requestApi(
+        `/api/capabilities?resource_type=${encodeURIComponent(type)}&resource_id=${Number(id)}`,
+    );
+    const grants = validItems(data?.items);
+    state.collaboration.resource = { type, id: Number(id) };
+    byId('capability-list').replaceChildren(...grants.map((grant) => renderCapabilityGrant(grant)));
+    byId('capability-empty').hidden = grants.length > 0;
+    byId('capability-panel').hidden = false;
+    setNotice(`Showing active grants for ${resourceLabel(type, id)}.`);
+}
+
+function showCollaborationError(error) {
+    if (error.status === 403 || error.status === 404) {
+        setNotice('The action was denied or the resource is unavailable. Check its ID and your granted capability.', true);
+        return;
+    }
+    displayError(error);
+}
+
 const VIEW_LOADERS = {
     dashboard: loadDashboard,
     inbox: loadTodos,
@@ -1229,6 +1370,7 @@ const VIEW_LOADERS = {
     notebooks: () => loadRecords('notebook'),
     libraries: loadLibraries,
     activity: loadActivity,
+    collaboration: loadCollaboration,
 };
 
 async function refreshWorkspace() {
@@ -1256,7 +1398,8 @@ async function selectView(view) {
     }
 }
 
-async function initializeWorkspace(email) {
+async function initializeWorkspace(email, userId) {
+    state.userId = isValidId(userId) ? Number(userId) : null;
     showWorkspace(email);
     try {
         await Promise.all([loadDashboard(), loadTags(), loadSectionOptions()]);
@@ -1278,7 +1421,7 @@ function bindEvents() {
                     password: form.get('password'),
                 }),
             });
-            await initializeWorkspace(data?.user?.email ?? '');
+            await initializeWorkspace(data?.user?.email ?? '', data?.user?.id);
             formElement.reset();
         } catch (error) {
             setNotice(error.message, true);
@@ -1451,6 +1594,99 @@ function bindEvents() {
         }
     });
 
+    byId('collaboration-resource-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        await loadCapabilities().catch(showCollaborationError);
+    });
+
+    byId('capability-grant-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const resource = state.collaboration.resource;
+        const subjectId = byId('capability-subject-id').value;
+        if (!resource || !isValidId(subjectId)) {
+            setNotice('Choose a resource and enter a valid user ID.', true);
+            return;
+        }
+        if (Number(subjectId) === state.userId) {
+            setNotice('You cannot grant a capability to yourself.', true);
+            return;
+        }
+        try {
+            await requestApi('/api/capabilities', {
+                method: 'POST',
+                body: JSON.stringify({
+                    resource_type: resource.type,
+                    resource_id: resource.id,
+                    subject_user_id: Number(subjectId),
+                    capability: byId('capability-name').value,
+                }),
+            });
+            byId('capability-subject-id').value = '';
+            await loadCapabilities();
+            setNotice('Capability granted.');
+        } catch (error) {
+            showCollaborationError(error);
+        }
+    });
+
+    byId('cross-context-request-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const sourceId = byId('request-source-id').value;
+        const targetId = byId('request-target-id').value;
+        if (!isValidId(sourceId) || !isValidId(targetId)) {
+            setNotice('Enter valid source and target context IDs.', true);
+            return;
+        }
+        try {
+            await requestApi('/api/cross-context-requests', {
+                method: 'POST',
+                body: JSON.stringify({
+                    source_type: byId('request-source-type').value,
+                    source_id: Number(sourceId),
+                    target_type: byId('request-target-type').value,
+                    target_id: Number(targetId),
+                    request_type: byId('request-type').value,
+                    title: byId('request-title').value,
+                    body: byId('request-body').value || null,
+                }),
+            });
+            event.currentTarget.reset();
+            await loadCollaboration();
+            setNotice('Cross-context request sent.');
+        } catch (error) {
+            showCollaborationError(error);
+        }
+    });
+
+    byId('request-inbox-list').addEventListener('submit', async (event) => {
+        const form = event.target.closest('form[data-callback-request]');
+        if (!form) {
+            return;
+        }
+        event.preventDefault();
+        const requestId = form.dataset.callbackRequest;
+        const summary = form.querySelector('textarea')?.value.trim() ?? '';
+        if (!isValidId(requestId) || summary === '') {
+            setNotice('Enter a callback summary before sending.', true);
+            return;
+        }
+        try {
+            const data = await requestApi(`/api/cross-context-requests/${Number(requestId)}/callback`, {
+                method: 'POST',
+                body: JSON.stringify({ summary }),
+            });
+            state.collaboration.inbox = state.collaboration.inbox.map((request) =>
+                Number(request.id) === Number(requestId) ? data.request : request,
+            );
+            byId('request-inbox-list').replaceChildren(
+                ...state.collaboration.inbox.map((request) => renderCrossContextRequest(request, 'inbox')),
+            );
+            setNotice('Callback sent.');
+        } catch (error) {
+            showCollaborationError(error);
+        }
+    });
+
     byId('todo-parent-form').addEventListener('submit', async (event) => {
         event.preventDefault();
         const openId = state.todoDetail.id;
@@ -1544,6 +1780,45 @@ function bindEvents() {
                 setNotice('Tag deleted.');
             } catch (error) {
                 displayError(error);
+            }
+            return;
+        }
+
+        if (isValidId(button.dataset.revokeGrant) && state.collaboration.resource) {
+            try {
+                await requestApi(`/api/capabilities/${Number(button.dataset.revokeGrant)}`, { method: 'DELETE' });
+                await loadCapabilities();
+                setNotice('Capability revoked.');
+            } catch (error) {
+                showCollaborationError(error);
+            }
+            return;
+        }
+
+        const requestAction = button.dataset.requestAction;
+        if (['accept', 'reject'].includes(requestAction) && isValidId(button.dataset.requestId)) {
+            const requestId = Number(button.dataset.requestId);
+            try {
+                const data = await requestApi(
+                    `/api/cross-context-requests/${requestId}/${requestAction}`,
+                    { method: 'POST', body: '{}' },
+                );
+                if (requestAction === 'accept') {
+                    state.collaboration.inbox = state.collaboration.inbox.map((request) =>
+                        Number(request.id) === requestId ? data.request : request,
+                    );
+                } else {
+                    state.collaboration.inbox = state.collaboration.inbox.filter(
+                        (request) => Number(request.id) !== requestId,
+                    );
+                }
+                byId('request-inbox-list').replaceChildren(
+                    ...state.collaboration.inbox.map((request) => renderCrossContextRequest(request, 'inbox')),
+                );
+                byId('request-inbox-empty').hidden = state.collaboration.inbox.length > 0;
+                setNotice(requestAction === 'accept' ? 'Request accepted.' : 'Request declined.');
+            } catch (error) {
+                showCollaborationError(error);
             }
             return;
         }
@@ -1723,7 +1998,7 @@ async function start() {
     bindEvents();
     try {
         const data = await requestApi('/api/auth/me');
-        await initializeWorkspace(data?.user?.email ?? '');
+        await initializeWorkspace(data?.user?.email ?? '', data?.user?.id);
     } catch (error) {
         if (error.status === 401) {
             showLogin();

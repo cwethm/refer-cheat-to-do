@@ -12,6 +12,7 @@ import {
     applicationEnv,
     baseURL,
     database,
+    collaboratorAccount,
     freshAccount,
     repositoryRoot,
     seededTodoCount,
@@ -138,6 +139,13 @@ export default async function globalSetup() {
         '--create',
         '--password',
         soloAccount.password,
+    ]);
+    await cake([
+        'set_user_password',
+        collaboratorAccount.email,
+        '--create',
+        '--password',
+        collaboratorAccount.password,
     ]);
     await waitForServer();
     await seedTodos();
