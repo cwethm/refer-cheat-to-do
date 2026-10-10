@@ -51,3 +51,9 @@ nbproject/*
 # yarn
 yarn-debug.log
 yarn-error.log
+
+# Front-end test tooling #
+##########################
+/node_modules/
+/playwright-report/
+/test-results/

@@ -1,0 +1,14 @@
+{
+    "name": "refer-cheat-to-do-client",
+    "private": true,
+    "type": "module",
+    "description": "Front-end test tooling for the same-origin web client served at /app.",
+    "scripts": {
+        "test": "node --test tests/js/*.test.mjs",
+        "test:e2e": "playwright test"
+    },
+    "devDependencies": {
+        "@playwright/test": "1.64.0",
+        "axe-core": "4.12.1"
+    }
+}
