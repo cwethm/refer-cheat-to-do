@@ -73,7 +73,11 @@ export function parseSectionOptionValue(value) {
     if (typeof value !== 'string') {
         return null;
     }
-    const [kind, id] = value.split(':');
+    const parts = value.split(':');
+    if (parts.length !== 2) {
+        return null;
+    }
+    const [kind, id] = parts;
     if ((kind !== 'project' && kind !== 'notebook') || !isValidId(id)) {
         return null;
     }
