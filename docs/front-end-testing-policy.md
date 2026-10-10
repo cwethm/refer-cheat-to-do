@@ -12,6 +12,7 @@ client slices inherit a known testing shape instead of re-deciding it each time.
 | Client security | `tests/js/client-security.test.mjs` | `composer ui-test` / `npm run test:js` | The standing security checklist below, across every file in `webroot/js/`. |
 | Browser smoke | `tests/e2e/smoke.spec.mjs` | `npm run test:e2e` | One end-to-end journey over the integration seam: sign in, capture, tag, filter, page, review, sign out, with no console errors and no unexpected failing requests. |
 | Browser boundaries | `tests/e2e/app.spec.mjs` | `npm run test:e2e` | What the smoke journey does not cover: empty search results, paging limits, API errors surfaced to the person, expired sessions, rejected credentials. |
+| Browser Projects | `tests/e2e/projects.spec.mjs` | `npm run test:e2e` | Projects and ProjectSections in the client: the empty state, creating, renaming and deleting a Project and a section, assigning and clearing a ToDo's section, the single-section conflict, Projects paging, and a `401` during assignment. |
 | Accessibility and responsive | `tests/e2e/accessibility.spec.mjs` | `npm run test:e2e` | An axe WCAG 2.1 A/AA audit of each view, keyboard reachability of the sign-in path, and horizontal-overflow assertions at 320, 375, 768 and 1280 CSS pixels. |
 
 ### Which layer to use
@@ -23,7 +24,8 @@ client slices inherit a known testing shape instead of re-deciding it each time.
   `app.spec.mjs`, not into the smoke journey.
 - Browser specs must leave the seeded dataset intact. Global setup seeds more ToDos than fit on one
   client page, and the smoke journey depends on that; a spec that deletes seeded rows makes the
-  suite order-dependent.
+  suite order-dependent. A spec that creates its own Projects, Notebooks or ToDos must remove them
+  again, so later specs see the same dataset global setup wrote.
 - Every new view, panel, or dialog gets an **accessibility** audit and is added to the
   responsive overflow loop.
 - Every new client file is automatically covered by the **client security** suite; it reads the

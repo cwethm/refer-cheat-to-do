@@ -46,7 +46,8 @@ The manual Chromium verification recorded in Slice 14 is now an automated, CI-ru
 
 ### Phase B — Client feature parity with the API
 
-15. Projects and ProjectSections in the client, including section assignment
+15. Projects and ProjectSections in the client, including section assignment — **APPROVED**; see
+    `docs/slices/15-client-projects-and-sections.md`
 16. Notebooks, NotebookSections and Libraries in the client
 17. Relationships, objectives, lifecycle and activity history in the client
 
