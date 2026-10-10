@@ -1,3 +1,4 @@
+ls
 # refer-cheat-to-do
 
 API-first foundation for a web-first information continuity, ToDo, research, and knowledge-refinement application.
@@ -48,8 +49,12 @@ from the console with `bin/cake set_user_password`
 ├── src/
 ├── templates/
 ├── tests/
+│   ├── e2e/
+│   └── js/
 ├── webroot/
 ├── composer.json
+├── package.json
+├── playwright.config.mjs
 ├── phpcs.xml
 ├── phpstan.neon
 ├── phpunit.xml.dist
@@ -203,6 +208,38 @@ bin/cake migrations status -c default
 ```
 
 This creates the `users`, `todos`, `tags`, and `todos_tags` tables.
+
+If this step reports `password authentication failed`, PostgreSQL was reached,
+but rejected the database login; no migrations can run until that login works.
+Test the same host, port, database, and role configured for the application,
+entering the configured database password at the prompt:
+
+```bash
+psql -h 127.0.0.1 -p 5432 -U refer_cheat_to_do -d refer_cheat_to_do -W \
+  -c 'SELECT current_user, current_database();'
+```
+
+Substitute your configured connection details if they differ. If this also
+fails, check the role and password with your database administrator. For a
+local instance, an administrator can reset an existing role's password
+interactively without putting it in shell history:
+
+```bash
+sudo -u postgres psql -d postgres
+```
+
+At the PostgreSQL prompt, run `\password refer_cheat_to_do`, then `\q`. Update
+the application's database password to match, including the PHP-FPM environment
+if used.
+
+If `psql` succeeds but CakePHP fails, check the environment of the shell running
+`bin/cake`, any `DATABASE_URL` override, and `config/app_local.php`. An exported
+`APP_NAME` skips `.env` loading, so export all required database variables in
+that case. PHP-FPM pool variables do not automatically reach console commands.
+When sourcing a shell environment file, single-quote password values containing
+`$` or other shell metacharacters, for example `DB_PASSWORD='your-password'`;
+do not source the application's `.env` as a shell script. Retry migration status
+to verify authentication before running migrations.
 
 ### 7. Set ownership and permissions
 
@@ -606,8 +643,56 @@ composer lint
 composer cs-check
 composer stan
 composer test
+composer ui-test
 composer check
 ```
+
+
+### Browser, accessibility and responsive tests
+
+Playwright drives the real `/app` page in Chromium against a live PHP server and
+PostgreSQL. `tests/e2e/smoke.spec.mjs` is one end-to-end journey over the
+integration seam that the PHP API tests and the `tests/js` unit tests cannot
+reach: sign in, quick capture, create and attach a tag, filter, page, review
+queue, sign out. `tests/e2e/app.spec.mjs` adds the narrower client regressions
+(empty states, pagination boundaries, API error surfacing, expired sessions), and
+`tests/e2e/accessibility.spec.mjs` runs an axe WCAG 2.1 A/AA audit of every view
+plus horizontal-overflow assertions at 320, 375, 768 and 1280 CSS pixels.
+
+The run owns a **dedicated database and its own account**. Never point it at the
+`default` or PHPUnit `test` connection: it drops and recreates its database on
+every run, which would destroy data and race PHPUnit fixtures.
+
+```bash
+npm ci
+npx playwright install --with-deps chromium
+npm run test:e2e
+```
+
+Playwright starts `php -S 127.0.0.1:8765 -t webroot webroot/index.php` itself,
+waits for `/api/health`, recreates `refer_cheat_to_do_e2e`, migrates it, creates
+the account with `bin/cake set_user_password`, and seeds more ToDos than fit on
+one client page. The PostgreSQL role only needs permission to create databases.
+
+Override any default through the environment, for example `E2E_PORT`,
+`E2E_DB_DATABASE`, `E2E_USER_EMAIL`, or `E2E_USER_PASSWORD`; see
+`tests/e2e/environment.mjs`.
+
+To debug a failure locally:
+
+```bash
+npm run test:e2e:ui
+npx playwright show-trace test-results/<failed-test>/trace.zip
+```
+
+Because the built-in PHP server is not Apache, these tests do not exercise the
+`.htaccess` rewrites described in *Configure the web server*; that layer still
+has to be verified by hand after a deployment.
+
+`docs/front-end-testing-policy.md` records which layer each kind of client change
+belongs in, the supported browser baseline, the offline and slow-network
+expectations, and the standing client security checklist.
+
 
 ## Development workflow
 

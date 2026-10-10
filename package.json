@@ -1,0 +1,21 @@
+{
+  "name": "refer-cheat-to-do",
+  "version": "0.0.0",
+  "description": "Browser and JavaScript test tooling for the /app client.",
+  "scripts": {
+    "test:js": "node --test tests/js",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cwethm/refer-cheat-to-do.git"
+  },
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "1.56.0",
+    "axe-core": "4.12.1"
+  }
+}

@@ -130,7 +130,9 @@ intentional.
 
 - Activity is visible only to the actor who produced it.
 - Dashboard orphan reasoning iterates the user's non-hidden ToDos in PHP.
-- Accessibility verification is deferred until a UI surface exists; the repository is API-only.
+- At the time of Slice 13, accessibility verification was deferred because the repository was API-only.
+  Slice 14 adds baseline semantic, keyboard-focus and responsive checks; assistive-technology testing
+  remains future work.
 
 ## Decision
 
@@ -139,3 +141,6 @@ MVP 1: **READY**
 Every required slice is APPROVED and the complete release verification passes. No blocking security,
 data-integrity, architecture, scope or regression issue remains. Post-MVP work (ResearchCollection,
 AI agents, Huginn orchestration, document generation) is explicitly **not** started.
+
+The first post-MVP client follow-up is Slice 14; its scope and verification are recorded in
+`docs/slices/14-client-facing-daily-workflow.md`.

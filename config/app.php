@@ -12,7 +12,7 @@ use function Cake\Core\env;
 $debug = filter_var(env('DEBUG', false), FILTER_VALIDATE_BOOLEAN);
 $appName = env('APP_NAME', 'refer-cheat-to-do');
 $appEnv = env('APP_ENV', 'production');
-$dbHost = env('DB_HOST', 'localhost');
+$dbHost = env('DB_HOST', '127.0.0.1');
 $dbPort = (int)env('DB_PORT', '5432');
 $dbName = env('DB_DATABASE', 'refer_cheat_to_do');
 $dbUser = env('DB_USERNAME', 'refer_cheat_to_do');
@@ -33,6 +33,9 @@ return [
         'fullBaseUrl' => env('APP_FULL_BASE_URL', null),
         'name' => $appName,
         'env' => $appEnv,
+        'paths' => [
+            'templates' => [ROOT . DS . 'templates' . DS],
+        ],
     ],
     'Security' => [
         'salt' => env('SECURITY_SALT', 'change-me-to-a-long-random-string'),
