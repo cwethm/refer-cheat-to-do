@@ -49,7 +49,6 @@
             "@test",
             "@ui-test"
         ],
-        "e2e-test": "npx playwright test",
         "lint": "find config src tests -name '*.php' -print0 | xargs -0 -n1 php -l",
         "cs-check": "phpcs --colors -p",
         "cs-fix": "phpcbf --colors -p",

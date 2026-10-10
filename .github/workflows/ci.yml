@@ -104,7 +104,8 @@ jobs:
         run: composer ui-test
 
   browser:
-    name: Browser end-to-end
+    name: browser, accessibility and responsive
+    needs: quality
     runs-on: ubuntu-24.04
     services:
       postgres:
@@ -121,15 +122,13 @@ jobs:
           --health-timeout 5s
           --health-retries 20
     env:
-      APP_NAME: refer-cheat-to-do
-      APP_ENV: e2e
-      DEBUG: 'false'
-      SECURITY_SALT: ci-security-salt-for-browser-tests-only
-      DB_HOST: 127.0.0.1
-      DB_PORT: 5432
-      DB_USERNAME: refer_cheat_to_do
-      DB_PASSWORD: refer_cheat_to_do
+      # The browser run owns a database of its own so it can drop and reseed without
+      # ever racing the PHPUnit `test` connection.
+      E2E_DB_HOST: 127.0.0.1
+      E2E_DB_PORT: 5432
       E2E_DB_DATABASE: refer_cheat_to_do_e2e
+      E2E_DB_USERNAME: refer_cheat_to_do
+      E2E_DB_PASSWORD: refer_cheat_to_do
 
     steps:
       - name: Checkout
@@ -151,22 +150,32 @@ jobs:
       - name: Install PHP dependencies
         run: composer install --no-interaction --prefer-dist
 
-      - name: Install client test dependencies
+      - name: Install Node dependencies
         run: npm ci
+
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Client unit tests
-        run: npm test
+      - name: Browser, accessibility and responsive tests
+        run: npm run test:e2e
 
-      - name: Browser end-to-end, accessibility and responsive tests
-        run: npx playwright test
-
-      - name: Upload failure report
+      - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: playwright-report/
+          path: |
+            playwright-report/
+            test-results/
           retention-days: 7

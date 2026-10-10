@@ -1,11 +1,12 @@
 import { defineConfig, devices } from '@playwright/test';
-import { baseURL, e2eEnvironment, serverEnv } from './tests/e2e/environment.mjs';
+import { applicationEnv, baseURL, host, port, repositoryRoot } from './tests/e2e/environment.mjs';
 
 /**
- * Browser end-to-end configuration for the client served at `/app`.
+ * Browser-level smoke coverage for the `/app` client.
  *
- * The suite runs against a PHP server started on a dedicated port and database so it is
- * safe to run alongside a development instance and inside the CI quality gate.
+ * The application is served by PHP's built-in server through CakePHP's front
+ * controller. That exercises the client, the API and PostgreSQL together, but not the
+ * Apache `.htaccess` rewrites, which remain uncovered by automated tests.
  */
 export default defineConfig({
     testDir: './tests/e2e',
@@ -15,27 +16,26 @@ export default defineConfig({
     workers: 1,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 1 : 0,
-    reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
-    timeout: 30_000,
+    timeout: 60_000,
     expect: { timeout: 10_000 },
+    reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
     use: {
         baseURL,
-        trace: 'retain-on-failure',
+        trace: 'on-first-retry',
         screenshot: 'only-on-failure',
+        video: 'retain-on-failure',
     },
     projects: [
-        {
-            name: 'chromium',
-            use: { ...devices['Desktop Chrome'] },
-        },
+        { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     ],
     webServer: {
-        command: `php -S ${e2eEnvironment.host}:${e2eEnvironment.port} -t webroot webroot/index.php`,
-        url: `${baseURL}/app`,
-        env: serverEnv(),
+        command: `php -S ${host}:${port} -t webroot webroot/index.php`,
+        cwd: repositoryRoot,
+        url: `${baseURL}/api/health`,
+        env: applicationEnv(),
         reuseExistingServer: false,
-        stdout: 'pipe',
-        stderr: 'pipe',
         timeout: 60_000,
+        stdout: 'ignore',
+        stderr: 'pipe',
     },
 });

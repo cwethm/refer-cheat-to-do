@@ -49,8 +49,12 @@ from the console with `bin/cake set_user_password`
 ├── src/
 ├── templates/
 ├── tests/
+│   ├── e2e/
+│   └── js/
 ├── webroot/
 ├── composer.json
+├── package.json
+├── playwright.config.mjs
 ├── phpcs.xml
 ├── phpstan.neon
 ├── phpunit.xml.dist
@@ -636,24 +640,52 @@ composer ui-test
 composer check
 ```
 
-### Browser end-to-end, accessibility and responsive tests
 
-The web client at `/app` also has an automated browser suite. It needs Node.js 22 and a
-PostgreSQL role that may create databases:
+### Browser, accessibility and responsive tests
+
+Playwright drives the real `/app` page in Chromium against a live PHP server and
+PostgreSQL. `tests/e2e/smoke.spec.mjs` is one end-to-end journey over the
+integration seam that the PHP API tests and the `tests/js` unit tests cannot
+reach: sign in, quick capture, create and attach a tag, filter, page, review
+queue, sign out. `tests/e2e/app.spec.mjs` adds the narrower client regressions
+(empty states, pagination boundaries, API error surfacing, expired sessions), and
+`tests/e2e/accessibility.spec.mjs` runs an axe WCAG 2.1 A/AA audit of every view
+plus horizontal-overflow assertions at 320, 375, 768 and 1280 CSS pixels.
+
+The run owns a **dedicated database and its own account**. Never point it at the
+`default` or PHPUnit `test` connection: it drops and recreates its database on
+every run, which would destroy data and race PHPUnit fixtures.
 
 ```bash
 npm ci
 npx playwright install --with-deps chromium
-npx playwright test
+npm run test:e2e
 ```
 
-The suite drops and recreates a dedicated `refer_cheat_to_do_e2e` database and seeds its own
-account on every run, so it never touches the `default` or PHPUnit `test` connection. Override the
-host, port, database and credentials with the `E2E_*` environment variables.
+Playwright starts `php -S 127.0.0.1:8765 -t webroot webroot/index.php` itself,
+waits for `/api/health`, recreates `refer_cheat_to_do_e2e`, migrates it, creates
+the account with `bin/cake set_user_password`, and seeds more ToDos than fit on
+one client page. The PostgreSQL role only needs permission to create databases.
 
-`docs/front-end-testing-policy.md` records which layer each kind of client change belongs in, the
-supported browser baseline, the offline and slow-network expectations, and the standing client
-security checklist.
+Override any default through the environment, for example `E2E_PORT`,
+`E2E_DB_DATABASE`, `E2E_USER_EMAIL`, or `E2E_USER_PASSWORD`; see
+`tests/e2e/environment.mjs`.
+
+To debug a failure locally:
+
+```bash
+npm run test:e2e:ui
+npx playwright show-trace test-results/<failed-test>/trace.zip
+```
+
+Because the built-in PHP server is not Apache, these tests do not exercise the
+`.htaccess` rewrites described in *Configure the web server*; that layer still
+has to be verified by hand after a deployment.
+
+`docs/front-end-testing-policy.md` records which layer each kind of client change
+belongs in, the supported browser baseline, the offline and slow-network
+expectations, and the standing client security checklist.
+
 
 ## Development workflow
 

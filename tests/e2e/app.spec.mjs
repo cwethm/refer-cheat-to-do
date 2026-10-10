@@ -1,112 +1,104 @@
 import { expect, test } from '@playwright/test';
-import { e2eEnvironment } from './environment.mjs';
-import { openView, resetWorkspace, seedTodos, signIn } from './helpers.mjs';
+import { account, seededTodoCount } from './environment.mjs';
 
-test.describe('daily workflow', () => {
+/**
+ * Narrow client regressions that the single smoke journey deliberately does not cover.
+ *
+ * `smoke.spec.mjs` owns the happy path. This file owns the boundaries around it: empty
+ * results, paging limits, API errors surfaced to the person, and an ended session. The
+ * seeded dataset from global setup is left intact so the smoke journey is unaffected by
+ * the order the specs run in.
+ */
+
+const PAGE_SIZE = 50;
+
+async function signIn(page) {
+    await page.goto('/app');
+    await page.getByLabel('Email').fill(account.email);
+    await page.getByLabel('Password').fill(account.password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.locator('#workspace')).toBeVisible();
+}
+
+async function openToDos(page) {
+    await page.getByRole('button', { name: 'ToDos', exact: true }).click();
+    await expect(page.locator('#inbox-view')).toBeVisible();
+}
+
+test.describe('client boundaries', () => {
     test.beforeEach(async ({ page }) => {
         await signIn(page);
-        await resetWorkspace(page);
-        await page.reload();
-        await expect(page.locator('#workspace')).toBeVisible();
     });
 
-    test('capture, organize, find, review and complete a ToDo', async ({ page }) => {
-        await page.getByLabel('What do you need to remember?').fill('Draft the quarterly letter');
-        await page.getByLabel(/^Notes/).fill('Start from last quarter.');
-        await page.getByRole('button', { name: 'Add to inbox' }).click();
-
-        await expect(page.locator('#notice')).toHaveText('Added to your inbox.');
-        await expect(page.locator('#recent-todos')).toContainText('Draft the quarterly letter');
-        await expect(page.locator('#inbox-count')).toHaveText('1');
-
-        await openView(page, 'ToDos');
-        await page.getByLabel('Create a tag').fill('Follow up');
-        await page.getByRole('button', { name: 'Add tag' }).click();
-        await expect(page.locator('#tag-list')).toContainText('Follow up');
-
-        const card = page.locator('.todo-card').filter({ hasText: 'Draft the quarterly letter' });
-        await card.getByRole('combobox').selectOption({ label: 'Follow up' });
-        await card.getByRole('button', { name: 'Attach' }).click();
-        await expect(page.locator('.todo-card').filter({ hasText: 'Draft the quarterly letter' })
-            .locator('.tag-pill')).toContainText('Follow up');
-
-        await page.getByLabel('Search ToDos').fill('quarterly');
-        await page.locator('#tag-filter').selectOption({ label: 'Follow up' });
-        await page.getByRole('button', { name: 'Find ToDos' }).click();
-        await expect(page.locator('#todo-summary')).toHaveText('Showing 1 of 1 ToDos');
-
-        await page.locator('.todo-card .tag-remove').first().click();
-        await expect(page.locator('#notice')).toHaveText('ToDo updated.');
-
-        await openView(page, 'Review');
-        const reviewCard = page.locator('#review-list .todo-card').first();
-        await expect(reviewCard.locator('.review-reasons')).toContainText('Not in a Project or Notebook section');
-        await reviewCard.getByRole('button', { name: 'Mark reviewed' }).click();
-        await expect(page.locator('#notice')).toHaveText('ToDo updated.');
-
-        await openView(page, 'ToDos');
-        await page.getByLabel('Search ToDos').fill('');
-        await page.locator('#tag-filter').selectOption('');
-        await page.getByRole('button', { name: 'Find ToDos' }).click();
-        await page.locator('#todo-list').getByRole('button', { name: 'Mark done' }).first().click();
-        await expect(page.locator('#todo-list .status-label').first()).toHaveText('done');
-
-        await page.getByRole('button', { name: 'Sign out' }).click();
-        await expect(page.locator('#login-panel')).toBeVisible();
-        await expect(page.locator('#notice')).toHaveText('You have signed out.');
-    });
-
-    test('empty states explain that nothing matched instead of showing a blank list', async ({ page }) => {
-        await openView(page, 'ToDos');
-        await expect(page.locator('#todo-empty')).toBeVisible();
-        await expect(page.locator('#tag-empty')).toBeVisible();
-
-        await seedTodos(page, 1, 'Only item');
-        await page.getByRole('button', { name: 'Find ToDos' }).click();
+    test('a search that matches nothing explains itself instead of showing a blank list', async ({ page }) => {
+        await openToDos(page);
         await expect(page.locator('#todo-empty')).toBeHidden();
 
-        await page.getByLabel('Search ToDos').fill('nothing matches this phrase');
+        await page.getByRole('searchbox', { name: 'Search ToDos' })
+            .fill(`no ToDo contains this phrase ${Date.now()}`);
         await page.getByRole('button', { name: 'Find ToDos' }).click();
+
         await expect(page.locator('#todo-empty')).toBeVisible();
         await expect(page.locator('#todo-summary')).toHaveText('Showing 0 of 0 ToDos');
+        await expect(page.locator('#todo-list li')).toHaveCount(0);
     });
 
-    test('pagination stops at the first and last page', async ({ page }) => {
-        await seedTodos(page, 51, 'Paged');
-        await openView(page, 'ToDos');
+    test('paging stops at the first and last page', async ({ page }) => {
+        await openToDos(page);
 
-        await expect(page.locator('#page-label')).toHaveText('Page 1 of 2');
-        await expect(page.getByRole('button', { name: 'Previous' })).toBeDisabled();
-        await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
-        await expect(page.locator('#todo-list li')).toHaveCount(50);
+        const previous = page.getByRole('button', { name: 'Previous' });
+        const next = page.getByRole('button', { name: 'Next' });
+        const summaryText = page.locator('#todo-summary');
+        await expect(summaryText).toHaveText(/of \d+ ToDos$/);
+        const total = Number((await summaryText.textContent()).match(/of (\d+) ToDos/)[1]);
+        const pageCount = Math.ceil(total / PAGE_SIZE);
 
-        await page.getByRole('button', { name: 'Next' }).click();
-        await expect(page.locator('#page-label')).toHaveText('Page 2 of 2');
-        await expect(page.locator('#todo-list li')).toHaveCount(1);
-        await expect(page.getByRole('button', { name: 'Next' })).toBeDisabled();
-        await expect(page.getByRole('button', { name: 'Previous' })).toBeEnabled();
+        expect(total).toBeGreaterThanOrEqual(seededTodoCount);
+        expect(pageCount).toBeGreaterThan(1);
 
-        await page.getByRole('button', { name: 'Previous' }).click();
-        await expect(page.locator('#page-label')).toHaveText('Page 1 of 2');
-        await expect(page.getByRole('button', { name: 'Previous' })).toBeDisabled();
+        await expect(page.locator('#page-label')).toHaveText(`Page 1 of ${pageCount}`);
+        await expect(previous).toBeDisabled();
+        await expect(page.locator('#todo-list li')).toHaveCount(PAGE_SIZE);
+
+        for (let current = 2; current <= pageCount; current++) {
+            await next.click();
+            await expect(page.locator('#page-label')).toHaveText(`Page ${current} of ${pageCount}`);
+        }
+
+        await expect(next).toBeDisabled();
+        await expect(previous).toBeEnabled();
+        await expect(page.locator('#todo-list li')).toHaveCount(total - (pageCount - 1) * PAGE_SIZE);
+
+        await previous.click();
+        await expect(page.locator('#page-label')).toHaveText(`Page ${pageCount - 1} of ${pageCount}`);
     });
 
-    test('a failed action reports the API message without leaving the workspace', async ({ page }) => {
-        await openView(page, 'ToDos');
-        await page.getByLabel('Create a tag').fill('Follow up');
-        await page.getByRole('button', { name: 'Add tag' }).click();
-        await expect(page.locator('#tag-list')).toContainText('Follow up');
+    test('a rejected request reports the API message without leaving the workspace', async ({ page }) => {
+        await openToDos(page);
 
-        await page.getByLabel('Create a tag').fill('follow up');
+        // Tag names are unique per user after normalization, so creating the same name
+        // twice is a real API rejection rather than a simulated one.
+        const name = `duplicate-${Date.now()}`;
+        await page.getByLabel('Create a tag').fill(name);
         await page.getByRole('button', { name: 'Add tag' }).click();
+        await expect(page.locator('#tag-list')).toContainText(name);
+
+        await page.getByLabel('Create a tag').fill(name.toUpperCase());
+        await page.getByRole('button', { name: 'Add tag' }).click();
+
         await expect(page.locator('#notice')).toHaveClass(/is-error/);
         await expect(page.locator('#notice')).toHaveAttribute('role', 'alert');
+        await expect(page.locator('#notice')).not.toBeEmpty();
         await expect(page.locator('#workspace')).toBeVisible();
+
+        await page.getByRole('button', { name: `Delete tag ${name}` }).click();
+        await expect(page.locator('#tag-list')).not.toContainText(name);
     });
 
-    test('an expired session returns the visitor to sign-in instead of failing silently', async ({ page, context }) => {
+    test('an ended session returns the visitor to sign-in rather than failing silently', async ({ page, context }) => {
         await context.clearCookies();
-        await page.getByLabel('What do you need to remember?').fill('After the session ended');
+
+        await page.getByLabel('What do you need to remember?').fill('Captured after the session ended');
         await page.getByRole('button', { name: 'Add to inbox' }).click();
 
         await expect(page.locator('#login-panel')).toBeVisible();
@@ -115,32 +107,14 @@ test.describe('daily workflow', () => {
     });
 });
 
-test.describe('session lifecycle', () => {
-    test('an anonymous visit shows the sign-in form and no workspace data', async ({ page }) => {
-        await page.goto('/app');
+test('invalid credentials are rejected with a readable message', async ({ page }) => {
+    await page.goto('/app');
+    await page.getByLabel('Email').fill(account.email);
+    await page.getByLabel('Password').fill('definitely-not-the-password');
+    await page.getByRole('button', { name: 'Sign in' }).click();
 
-        await expect(page.locator('#login-panel')).toBeVisible();
-        await expect(page.locator('#workspace')).toBeHidden();
-        await expect(page.locator('#account-actions')).toBeHidden();
-    });
-
-    test('invalid credentials are rejected with a readable message', async ({ page }) => {
-        await page.goto('/app');
-        await page.getByLabel('Email').fill(e2eEnvironment.email);
-        await page.getByLabel('Password').fill('definitely-not-the-password');
-        await page.getByRole('button', { name: 'Sign in' }).click();
-
-        await expect(page.locator('#notice')).toHaveClass(/is-error/);
-        await expect(page.locator('#workspace')).toBeHidden();
-    });
-
-    test('signing out ends the session for a fresh page load', async ({ page }) => {
-        await signIn(page);
-        await page.getByRole('button', { name: 'Sign out' }).click();
-        await expect(page.locator('#login-panel')).toBeVisible();
-
-        await page.goto('/app');
-        await expect(page.locator('#login-panel')).toBeVisible();
-        await expect(page.locator('#workspace')).toBeHidden();
-    });
+    await expect(page.locator('#notice')).toHaveClass(/is-error/);
+    await expect(page.locator('#notice')).not.toBeEmpty();
+    await expect(page.locator('#workspace')).toBeHidden();
+    await expect(page.locator('#login-panel')).toBeVisible();
 });

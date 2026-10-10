@@ -1,9 +1,22 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { expect, test } from '@playwright/test';
-import { openView, signIn } from './helpers.mjs';
+import { account } from './environment.mjs';
 
 const require = createRequire(import.meta.url);
-const axeSource = require('fs').readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
+const axeSource = readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
+
+async function signIn(page) {
+    await page.goto('/app');
+    await page.getByLabel('Email').fill(account.email);
+    await page.getByLabel('Password').fill(account.password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.locator('#workspace')).toBeVisible();
+}
+
+async function openView(page, name) {
+    await page.getByRole('button', { name, exact: true }).first().click();
+}
 
 const VIEWPORTS = [320, 375, 768, 1280];
 

@@ -1,50 +1,56 @@
 /**
- * Shared configuration for the browser end-to-end suite.
+ * Shared environment for the browser-level smoke test.
  *
- * The browser suite owns a dedicated database and account so it can never read or
- * destroy data belonging to the `default` connection or the PHPUnit `test` connection.
+ * The end-to-end run owns its own PostgreSQL database and its own account so it can
+ * drop and reseed freely. It must never point at the `default` or PHPUnit `test`
+ * connection, because fixture teardown there would race with a running browser.
  */
+import { fileURLToPath } from 'node:url';
 
-const env = (name, fallback) => {
-    const value = process.env[name];
+export const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url));
 
-    return value === undefined || value === '' ? fallback : value;
+export const host = process.env.E2E_HOST ?? '127.0.0.1';
+export const port = Number(process.env.E2E_PORT ?? 8765);
+export const baseURL = `http://${host}:${port}`;
+
+export const account = {
+    email: process.env.E2E_USER_EMAIL ?? 'e2e@example.test',
+    password: process.env.E2E_USER_PASSWORD ?? 'e2e-smoke-password',
 };
-
-export const e2eEnvironment = {
-    host: env('E2E_HOST', '127.0.0.1'),
-    port: Number(env('E2E_PORT', '8766')),
-    database: env('E2E_DB_DATABASE', 'refer_cheat_to_do_e2e'),
-    dbHost: env('E2E_DB_HOST', env('DB_HOST', '127.0.0.1')),
-    dbPort: env('E2E_DB_PORT', env('DB_PORT', '5432')),
-    dbUsername: env('E2E_DB_USERNAME', env('DB_USERNAME', 'refer_cheat_to_do')),
-    dbPassword: env('E2E_DB_PASSWORD', env('DB_PASSWORD', 'refer_cheat_to_do')),
-    securitySalt: env('SECURITY_SALT', 'e2e-security-salt-for-browser-tests-only'),
-    email: env('E2E_USER_EMAIL', 'e2e@example.test'),
-    password: env('E2E_USER_PASSWORD', 'e2e-browser-password'),
-};
-
-export const baseURL = `http://${e2eEnvironment.host}:${e2eEnvironment.port}`;
 
 /**
- * Environment for the PHP server and for `bin/cake` commands.
- *
- * `DEBUG` is false so the suite exercises the production middleware stack, which means
- * `APP_FULL_BASE_URL` must match the served base URL or `HostHeaderMiddleware` rejects
- * every request with a 400 response.
+ * Number of seeded ToDos. The client pages at 50, so this must exceed one page for
+ * the pagination step of the smoke test to be meaningful.
  */
-export function serverEnv() {
+export const seededTodoCount = Number(process.env.E2E_SEED_TODOS ?? 55);
+
+export const database = {
+    host: process.env.E2E_DB_HOST ?? process.env.DB_HOST ?? '127.0.0.1',
+    port: process.env.E2E_DB_PORT ?? process.env.DB_PORT ?? '5432',
+    name: process.env.E2E_DB_DATABASE ?? 'refer_cheat_to_do_e2e',
+    username: process.env.E2E_DB_USERNAME ?? process.env.DB_USERNAME ?? 'refer_cheat_to_do',
+    password: process.env.E2E_DB_PASSWORD ?? process.env.DB_PASSWORD ?? 'refer_cheat_to_do',
+};
+
+/**
+ * Environment for the application under test and for the `bin/cake` seeding commands.
+ *
+ * `DEBUG` stays false so the run exercises production error rendering, which means
+ * `APP_FULL_BASE_URL` has to match the served host or HostHeaderMiddleware rejects
+ * every request with a 400.
+ */
+export function applicationEnv() {
     return {
         ...process.env,
         APP_NAME: 'refer-cheat-to-do',
         APP_ENV: 'e2e',
         DEBUG: 'false',
         APP_FULL_BASE_URL: baseURL,
-        SECURITY_SALT: e2eEnvironment.securitySalt,
-        DB_HOST: e2eEnvironment.dbHost,
-        DB_PORT: String(e2eEnvironment.dbPort),
-        DB_DATABASE: e2eEnvironment.database,
-        DB_USERNAME: e2eEnvironment.dbUsername,
-        DB_PASSWORD: e2eEnvironment.dbPassword,
+        SECURITY_SALT: process.env.E2E_SECURITY_SALT ?? 'e2e-security-salt-for-browser-tests-only',
+        DB_HOST: database.host,
+        DB_PORT: database.port,
+        DB_DATABASE: database.name,
+        DB_USERNAME: database.username,
+        DB_PASSWORD: database.password,
     };
 }
