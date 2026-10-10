@@ -9,8 +9,8 @@ use Cake\ORM\Locator\LocatorInterface;
 /**
  * Assembles the daily-use dashboard summary from existing domain authorities.
  *
- * No business rule is redefined here: lifecycle exclusions come from TodoLifecycleService,
- * review due-ness from ReviewSchedulingService and orphan reasons from OrphanDetectionService.
+ * Aggregate predicates mirror ReviewSchedulingService and OrphanDetectionService;
+ * lifecycle exclusions and the stale interval come from their domain constants.
  */
 class DashboardService
 {
@@ -32,10 +32,12 @@ class DashboardService
      */
     public function __construct(
         private LocatorInterface $tables,
-        private OrphanDetectionService $orphans,
+        OrphanDetectionService $orphans,
         private ActivityRecorder $activity,
-        private ReviewSchedulingService $reviews,
+        ReviewSchedulingService $reviews,
     ) {
+        // Retain the existing constructor contract; aggregation no longer hydrates domain entities.
+        unset($orphans, $reviews);
     }
 
     /**
@@ -47,26 +49,10 @@ class DashboardService
     {
         $recentLimit = max(1, min($recentLimit, self::MAX_RECENT_LIMIT));
         $now = DateTime::now();
-        $visible = $this->visibleTodos($userId);
-
-        $reviewDue = 0;
-        $orphans = 0;
-        foreach ($visible as $todo) {
-            if ($this->reviews->isDue($todo, $now)) {
-                $reviewDue++;
-            }
-            if ($this->orphans->reasonsFor($todo, $now) !== []) {
-                $orphans++;
-            }
-        }
+        $counts = $this->aggregateCounts($userId, $now);
 
         return [
-            'counts' => [
-                'inbox' => $this->countTodosWithStatus($userId, TodoLifecycleService::STATUS_INBOX),
-                'active' => $this->countTodosWithStatus($userId, TodoLifecycleService::STATUS_ACTIVE),
-                'review_due' => $reviewDue,
-                'orphans' => $orphans,
-            ],
+            'counts' => $counts,
             'recent' => [
                 'todos' => $this->recentTodos($userId, $recentLimit),
                 'projects' => $this->recentOwned('Projects', $userId, $recentLimit),
@@ -78,36 +64,71 @@ class DashboardService
     }
 
     /**
-     * Load the user's ToDos that participate in review and orphan reasoning.
+     * Return one row, regardless of how many ToDos participate in reasoning.
      *
-     * @return list<\App\Model\Entity\Todo>
+     * @return array{inbox: int, active: int, review_due: int, orphans: int}
      */
-    private function visibleTodos(int $userId): array
+    private function aggregateCounts(int $userId, DateTime $now): array
     {
-        $todos = [];
-        $query = $this->tables->get('Todos')
-            ->find('withTags')
-            ->where([
-                'Todos.user_id' => $userId,
-                'Todos.status NOT IN' => OrphanDetectionService::EXCLUDED_STATUSES,
-            ]);
-        foreach ($query as $todo) {
-            /** @var \App\Model\Entity\Todo $todo */
-            $todos[] = $todo;
+        $todos = $this->tables->get('Todos');
+        $connection = $todos->getConnection();
+        $driver = $connection->getDriver();
+        $todoTable = $driver->quoteIdentifier($todos->getTable());
+        $tagTable = $driver->quoteIdentifier($this->tables->get('Tags')->getTable());
+        $linkTable = $driver->quoteIdentifier($this->tables->get('TodosTags')->getTable());
+        $parameters = [
+            'user_id' => $userId,
+            'inbox' => TodoLifecycleService::STATUS_INBOX,
+            'active' => TodoLifecycleService::STATUS_ACTIVE,
+            'due_at' => $now,
+            'orphan_due_at' => $now,
+            'stale_at' => $now->subDays(OrphanDetectionService::STALE_AFTER_DAYS),
+        ];
+        $excluded = [];
+        foreach (OrphanDetectionService::EXCLUDED_STATUSES as $index => $status) {
+            $name = 'excluded_' . $index;
+            $excluded[] = ':' . $name;
+            $parameters[$name] = $status;
         }
+        $eligible = 't.status NOT IN (' . implode(', ', $excluded) . ')';
+        // EXISTS preserves withTags semantics without multiplying ToDos with multiple Tags.
+        $sql = <<<SQL
+            SELECT
+                COUNT(CASE WHEN t.status = :inbox THEN 1 END) AS inbox,
+                COUNT(CASE WHEN t.status = :active THEN 1 END) AS active,
+                COUNT(CASE WHEN $eligible AND t.next_review_at <= :due_at THEN 1 END) AS review_due,
+                COUNT(CASE WHEN $eligible AND (
+                    t.next_review_at <= :orphan_due_at
+                    OR t.last_reviewed_at IS NULL
+                    OR COALESCE(t.last_reviewed_at, t.created) <= :stale_at
+                    OR (t.project_section_id IS NULL AND t.notebook_section_id IS NULL)
+                    OR NOT EXISTS (
+                        SELECT 1 FROM $linkTable tt
+                        INNER JOIN $tagTable tags ON tags.id = tt.tag_id
+                        WHERE tt.todo_id = t.id
+                    )
+                ) THEN 1 END) AS orphans
+            FROM $todoTable t
+            WHERE t.user_id = :user_id
+            SQL;
+        $statement = $connection->execute($sql, $parameters, [
+            'user_id' => 'integer',
+            'due_at' => 'datetime',
+            'orphan_due_at' => 'datetime',
+            'stale_at' => 'datetime',
+        ]);
+        try {
+            $row = $statement->fetch('assoc');
 
-        return $todos;
-    }
-
-    /**
-     * Count the user's ToDos in one lifecycle status.
-     */
-    private function countTodosWithStatus(int $userId, string $status): int
-    {
-        return $this->tables->get('Todos')
-            ->find()
-            ->where(['Todos.user_id' => $userId, 'Todos.status' => $status])
-            ->count();
+            return [
+                'inbox' => (int)$row['inbox'],
+                'active' => (int)$row['active'],
+                'review_due' => (int)$row['review_due'],
+                'orphans' => (int)$row['orphans'],
+            ];
+        } finally {
+            $statement->closeCursor();
+        }
     }
 
     /**

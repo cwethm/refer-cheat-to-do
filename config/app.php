@@ -2,10 +2,11 @@
 declare(strict_types=1);
 
 use App\Error\ApiExceptionRenderer;
+use App\Error\SafeErrorLogger;
+use App\Log\Engine\SafeFileLog;
 use Cake\Cache\Engine\FileEngine;
 use Cake\Database\Connection;
 use Cake\Database\Driver\Postgres;
-use Cake\Log\Engine\FileLog;
 use Cake\Mailer\Transport\MailTransport;
 use function Cake\Core\env;
 
@@ -47,7 +48,8 @@ return [
         'errorLevel' => E_ALL,
         'skipLog' => [],
         'log' => true,
-        'trace' => $debug,
+        'logger' => SafeErrorLogger::class,
+        'trace' => false,
         'traceFormat' => null,
         'exceptionRenderer' => ApiExceptionRenderer::class,
     ],
@@ -136,17 +138,15 @@ return [
     ],
     'Log' => [
         'debug' => [
-            'className' => FileLog::class,
+            'className' => SafeFileLog::class,
             'path' => LOGS,
             'file' => 'debug',
-            'url' => env('LOG_DEBUG_URL', null),
             'levels' => ['notice', 'info', 'debug'],
         ],
         'error' => [
-            'className' => FileLog::class,
+            'className' => SafeFileLog::class,
             'path' => LOGS,
             'file' => 'error',
-            'url' => env('LOG_ERROR_URL', null),
             'levels' => ['warning', 'error', 'critical', 'alert', 'emergency'],
         ],
     ],
