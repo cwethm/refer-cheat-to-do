@@ -14,6 +14,7 @@ use Cake\Error\ErrorTrap;
 use Cake\Error\ExceptionTrap;
 use Cake\Error\Middleware\ErrorHandlerMiddleware;
 use Cake\Error\PhpError;
+use Cake\Error\Renderer\HtmlErrorRenderer;
 use Cake\Http\MiddlewareQueue;
 use Cake\Http\Response;
 use Cake\Http\Runner;
@@ -25,6 +26,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use ReflectionFunction;
 use RuntimeException;
 use Stringable;
 
@@ -320,6 +322,51 @@ class RequestLoggingMiddlewareTest extends TestCase
             }
         } finally {
             restore_error_handler();
+        }
+    }
+
+    /**
+     * File warnings must never reach Cake's real debug HTML renderer.
+     */
+    public function testSinkWarningsCannotContaminateDebugResponse(): void
+    {
+        Configure::write('debug', true);
+        mkdir($this->directory, 0777, true);
+        mkdir($this->directory . 'debug.log');
+        mkdir($this->directory . 'error.log');
+        $config = require CONFIG . 'app.php';
+        $config['Error']['errorRenderer'] = HtmlErrorRenderer::class;
+        $request = $this->sensitiveRequest();
+        $exception = new RuntimeException('body-secret');
+        $baseline = (new ErrorHandlerMiddleware([
+            'exceptionRenderer' => ApiExceptionRenderer::class,
+            'log' => false,
+        ]))->process($request, $this->throwingHandler($exception));
+        $previousLevel = error_reporting();
+        $trap = new ErrorTrap($config['Error']);
+        $trap->register();
+        ob_start();
+        try {
+            $queue = (new MiddlewareQueue())
+                ->add(new RequestLoggingMiddleware())
+                ->add(static fn(): Response => new Response(['body' => '{"unchanged":true}']));
+            $success = (new Runner())->run($queue, $request);
+            $this->assertSame('{"unchanged":true}', (string)$success->getBody());
+            $queue = (new MiddlewareQueue())
+                ->add(new RequestLoggingMiddleware())
+                ->add(new ErrorHandlerMiddleware($config['Error']));
+            $result = (new Runner())->run($queue, $request, $this->throwingHandler($exception));
+            $this->assertSame((string)$baseline->getBody(), (string)$result->getBody());
+            $this->assertSame($baseline->getHeaders(), $result->getHeaders());
+            $this->assertSame('', ob_get_contents());
+            $this->assertNull(RequestLogContext::current());
+            $handler = set_error_handler(static fn(): bool => true);
+            restore_error_handler();
+            $this->assertSame($trap, (new ReflectionFunction($handler))->getClosureThis());
+        } finally {
+            ob_end_clean();
+            restore_error_handler();
+            error_reporting($previousLevel);
         }
     }
 

@@ -18,7 +18,12 @@ final class SafeFileLog extends FileLog
     public function __construct(array $config = [])
     {
         $config['formatter'] = SafeJsonFormatter::class;
-        parent::__construct($config);
+        set_error_handler(static fn(): bool => true);
+        try {
+            parent::__construct($config);
+        } finally {
+            restore_error_handler();
+        }
     }
 
     /**
@@ -34,11 +39,13 @@ final class SafeFileLog extends FileLog
             return;
         }
         $this->writing = true;
+        set_error_handler(static fn(): bool => true);
         try {
             parent::log($level, $message, $context);
         } catch (Throwable) {
             // A failed sink must not change application responses or expose a fallback message.
         } finally {
+            restore_error_handler();
             $this->writing = false;
         }
     }

@@ -78,6 +78,8 @@ request dumps to investigate a production failure.
 Keep `logs/` outside the served document root, writable only by the application and operators;
 rotate local logs with the host's existing rotation facility and apply a short, access-controlled
 retention policy. No third-party telemetry, queue, or background worker is required.
+Logging is best-effort: sink failures must not change responses and do not trigger an unsafe
+fallback. Operators must check log-directory permissions and available disk space independently.
 
 ### Asset caching and deployment
 

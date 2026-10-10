@@ -9,9 +9,11 @@ use App\Service\DashboardService;
 use App\Service\OrphanDetectionService;
 use App\Service\ReviewSchedulingService;
 use App\Service\TodoLifecycleService;
+use Cake\Chronos\Chronos;
 use Cake\Database\Log\LoggedQuery;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
+use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\AbstractLogger;
@@ -20,6 +22,8 @@ use Stringable;
 
 class DashboardServiceTest extends TestCase
 {
+    use IntegrationTestTrait;
+
     /**
      * @var list<string>
      */
@@ -40,9 +44,12 @@ class DashboardServiceTest extends TestCase
 
     private DashboardService $dashboard;
 
+    private ?Chronos $originalTestNow;
+
     protected function setUp(): void
     {
         parent::setUp();
+        $this->originalTestNow = DateTime::getTestNow();
         DateTime::setTestNow(new DateTime('2026-03-31 12:00:00'));
         $tables = TableRegistry::getTableLocator();
         $this->todos = $tables->get('Todos');
@@ -56,7 +63,7 @@ class DashboardServiceTest extends TestCase
 
     protected function tearDown(): void
     {
-        DateTime::setTestNow(null);
+        DateTime::setTestNow($this->originalTestNow);
         unset($this->todos, $this->dashboard);
         parent::tearDown();
     }
@@ -175,6 +182,24 @@ class DashboardServiceTest extends TestCase
                 );
             }
         }
+    }
+
+    public function testResponseBodyBytesMatchLegacySummary(): void
+    {
+        foreach (array_values(self::boundaryProvider()) as $index => [$overrides, $tagged]) {
+            $this->insertTodo(1000 + $index, $overrides, $tagged);
+        }
+        $this->session(['Auth.user_id' => 1]);
+        $this->configRequest(['headers' => ['Accept' => 'application/json']]);
+        $expected = json_encode(
+            ['data' => $this->legacySummary(1, 5)],
+            JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR,
+        );
+
+        $this->get('/api/dashboard');
+
+        $this->assertResponseOk();
+        $this->assertSame($expected, (string)$this->_response?->getBody());
     }
 
     /**
