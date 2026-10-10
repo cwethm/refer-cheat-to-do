@@ -52,6 +52,7 @@ $this->disableAutoLayout();
                     <button class="view-button" type="button" data-view="notebooks" aria-pressed="false">Notebooks</button>
                     <button class="view-button" type="button" data-view="libraries" aria-pressed="false">Libraries</button>
                     <button class="view-button" type="button" data-view="review" aria-pressed="false">Review</button>
+                    <button class="view-button" type="button" data-view="activity" aria-pressed="false">Activity</button>
                 </nav>
             </div>
             <section id="dashboard-view" class="view-panel" aria-labelledby="dashboard-title">
@@ -100,6 +101,7 @@ $this->disableAutoLayout();
                         <select id="status-filter" name="status">
                             <option value="">All visible</option><option value="inbox">Inbox</option>
                             <option value="active">In progress</option><option value="done">Done</option>
+                            <option value="archived">Archived</option><option value="trashed">In the trash</option>
                         </select>
                     </label>
                     <label for="tag-filter">Tag
@@ -115,6 +117,43 @@ $this->disableAutoLayout();
                     <span id="page-label" aria-live="polite"></span>
                     <button id="next-page" class="button button-quiet" type="button" disabled>Next</button>
                 </div>
+                <section id="todo-detail" class="surface todo-detail" aria-labelledby="todo-detail-title" hidden>
+                    <div class="section-heading">
+                        <div><div class="eyebrow">This ToDo in context</div><h3 id="todo-detail-title" class="panel-title"></h3></div>
+                    </div>
+                    <p id="todo-detail-status" class="result-summary"></p>
+                    <h4 class="panel-title">Hierarchy</h4>
+                    <form id="todo-parent-form" class="tag-form">
+                        <label for="todo-parent-select">Parent ToDo</label>
+                        <select id="todo-parent-select"><option value="">No parent</option></select>
+                        <button class="button button-secondary" type="submit">Save parent</button>
+                    </form>
+                    <ul id="todo-children-list" class="record-list"></ul>
+                    <p id="todo-children-empty" class="empty-copy" hidden>No other ToDo reports to this one.</p>
+                    <h4 class="panel-title">Related ToDos</h4>
+                    <form id="todo-relate-form" class="tag-form">
+                        <label for="todo-related-select">Link a related ToDo</label>
+                        <select id="todo-related-select"><option value="">Choose a ToDo</option></select>
+                        <button class="button button-secondary" type="submit">Link ToDo</button>
+                    </form>
+                    <ul id="todo-related-list" class="record-list"></ul>
+                    <p id="todo-related-empty" class="empty-copy" hidden>Nothing is linked to this ToDo yet.</p>
+                    <h4 class="panel-title">Objective and result</h4>
+                    <form id="todo-objective-form" class="form-stack">
+                        <label for="todo-objective">Objective <span class="optional">(what finishing this means)</span></label>
+                        <textarea id="todo-objective" rows="2" placeholder="e.g. The quotes are signed"></textarea>
+                        <button class="button button-quiet" type="submit">Save objective</button>
+                    </form>
+                    <p id="todo-result-summary" class="result-summary" hidden></p>
+                    <form id="todo-result-form" class="form-stack">
+                        <label for="todo-result">Report a result to the parent ToDo</label>
+                        <textarea id="todo-result" rows="2" placeholder="What came of this?"></textarea>
+                        <button class="button button-quiet" type="submit">Report result</button>
+                    </form>
+                    <h4 class="panel-title">Lifecycle</h4>
+                    <div id="todo-lifecycle-actions" class="record-actions"></div>
+                    <ul id="todo-lifecycle-explanations" class="record-todos"></ul>
+                </section>
                 <section class="surface tag-manager" aria-labelledby="tag-title">
                     <div><div class="eyebrow">Add a little structure</div><h2 id="tag-title">Your tags</h2></div>
                     <form id="tag-form" class="tag-form">
@@ -225,9 +264,21 @@ $this->disableAutoLayout();
             </section>
             <section id="review-view" class="view-panel" aria-labelledby="review-title" hidden>
                 <div class="section-heading"><div><div class="eyebrow">A gentle reset</div><h2 id="review-title">Ready for review</h2></div></div>
-                <p class="intro">See why an item surfaced, then mark it reviewed when you’re ready.</p>
+                <p class="intro">See why an item surfaced, then mark it reviewed or snooze it for later.</p>
                 <ul id="review-list" class="todo-list"></ul>
                 <p id="review-empty" class="empty-copy" hidden>You’re all caught up. Enjoy the breathing room.</p>
+            </section>
+            <section id="activity-view" class="view-panel" aria-labelledby="activity-title" hidden>
+                <div class="section-heading"><div><div class="eyebrow">What you have done</div><h2 id="activity-title">Your activity</h2></div></div>
+                <p class="intro">This history is yours alone: it records only the actions you took, and nothing here can be changed.</p>
+                <p id="activity-summary" class="result-summary"></p>
+                <ul id="activity-list" class="simple-list"></ul>
+                <p id="activity-empty" class="empty-copy" hidden>No activity recorded yet.</p>
+                <div class="pagination">
+                    <button id="previous-activity-page" class="button button-quiet" type="button" disabled>Previous activity</button>
+                    <span id="activity-page-label" aria-live="polite"></span>
+                    <button id="next-activity-page" class="button button-quiet" type="button" disabled>Next activity</button>
+                </div>
             </section>
         </section>
     </main>

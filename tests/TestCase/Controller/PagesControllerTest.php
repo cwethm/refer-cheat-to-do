@@ -30,6 +30,14 @@ class PagesControllerTest extends TestCase
         $this->assertResponseContains('id="notebook-list"');
         $this->assertResponseContains('id="library-list"');
         $this->assertResponseContains('id="review-list"');
+        $this->assertResponseContains('id="todo-detail"');
+        $this->assertResponseContains('id="todo-parent-form"');
+        $this->assertResponseContains('id="todo-relate-form"');
+        $this->assertResponseContains('id="todo-objective-form"');
+        $this->assertResponseContains('id="todo-result-form"');
+        $this->assertResponseContains('id="todo-lifecycle-actions"');
+        $this->assertResponseContains('id="activity-list"');
+        $this->assertResponseContains('data-view="activity"');
         $this->assertResponseContains('src="/js/app.mjs?');
         $this->assertResponseContains('href="/css/app.css?');
     }
