@@ -9,14 +9,14 @@ use Cake\Log\Engine\FileLog;
 use Cake\Mailer\Transport\MailTransport;
 use function Cake\Core\env;
 
-$debug = filter_var(env('DEBUG', false), FILTER_VALIDATE_BOOLEAN);
+$debug = filter_var(env('DEBUG', true), FILTER_VALIDATE_BOOLEAN);
 $appName = env('APP_NAME', 'refer-cheat-to-do');
 $appEnv = env('APP_ENV', 'production');
-$dbHost = env('DB_HOST', 'localhost');
+$dbHost = env('DB_HOST', '127.0.0.1');
 $dbPort = (int)env('DB_PORT', '5432');
 $dbName = env('DB_DATABASE', 'refer_cheat_to_do');
 $dbUser = env('DB_USERNAME', 'refer_cheat_to_do');
-$dbPassword = env('DB_PASSWORD', 'refer_cheat_to_do');
+$dbPassword = env('DB_PASSWORD', 'C4wc4wc4w_$ong');
 $testDbHost = env('TEST_DB_HOST', $dbHost);
 $testDbPort = (int)env('TEST_DB_PORT', (string)$dbPort);
 $testDbUser = env('TEST_DB_USERNAME', $dbUser);
@@ -33,9 +33,12 @@ return [
         'fullBaseUrl' => env('APP_FULL_BASE_URL', null),
         'name' => $appName,
         'env' => $appEnv,
+        'paths' => [
+            'templates' => [ROOT . DS . 'templates' . DS],
+        ],
     ],
     'Security' => [
-        'salt' => env('SECURITY_SALT', 'change-me-to-a-long-random-string'),
+        'salt' => env('SECURITY_SALT', '7ce9b09428bc8777b1c9d569590a21286ead05627bb438737d577b98c97dc360'),
     ],
     'Asset' => [
         'cacheTime' => '+1 year',

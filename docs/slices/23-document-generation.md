@@ -1,0 +1,43 @@
+# Slice 23 — Document generation
+
+## Slice Contract
+
+### Status
+PROPOSED — second slice of the post-MVP domain program
+
+### Goal
+Produce documents deterministically from data the user already owns — ToDos, Projects, Notebooks and
+ResearchCollections — with no model inference involved.
+
+### In scope
+- A document definition: template, bound data sources, and output format.
+- Deterministic rendering with a recorded input snapshot, so the same inputs always produce the same
+  output.
+- Storage of generated documents with ownership, capability checks and activity history entries.
+- Bounded generation: explicit limits on input size, output size and execution time.
+
+### Out of scope
+- Any AI or model-generated content (Slice 24).
+- External orchestration or scheduling (Slice 25).
+- Arbitrary user-authored template code.
+
+### Dependencies
+Slice 22 (ResearchCollection), Slices 10 and 12.
+
+### Required threat and authorization review
+Templates that interpolate user-supplied content are an injection surface. Before implementation the
+slice must state: which template engine is used and whether it escapes by default; how untrusted
+ResearchCollection content is escaped per output format; whether templates may be user-authored
+(the default answer is no); and how generation is prevented from reading data the requester may not
+read.
+
+### Test plan
+- PHPUnit: determinism — identical inputs produce identical output; escaping of hostile content for
+  every supported output format; denied paths when a bound data source is not readable by the
+  requester; size and time limits enforced; migration apply/rollback/reapply.
+- A regression test asserting that no template path can execute arbitrary code.
+
+### Risks
+- Template injection and server-side template execution are the primary hazards. If a template
+  engine capable of executing code is chosen, this slice becomes a remote-code-execution surface.
+- Document generation can quietly become a second, weaker read path across the whole domain.
