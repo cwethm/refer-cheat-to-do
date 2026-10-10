@@ -18,6 +18,7 @@ client slices inherit a known testing shape instead of re-deciding it each time.
 | Browser ToDo lifecycle | `tests/e2e/todo-lifecycle.spec.mjs` | `npm run test:e2e` | The ToDo detail panel: setting and clearing a parent, linking and unlinking a related ToDo, saving an objective, reporting a result to the parent, the archive → trash → restore → permanent-delete path, the two-step confirmation that makes a single click harmless, and snoozing from the review queue. |
 | Browser Activity | `tests/e2e/activity.spec.mjs` | `npm run test:e2e` | The read-only activity history: the empty state for an actor who has done nothing, paging boundaries, and a newly captured ToDo appearing at the top with a UTC timestamp. |
 | Browser Collaboration | `tests/e2e/collaboration.spec.mjs` | `npm run test:e2e` | Capability grants and revocations, the self-grant guard, cross-context request sending, acceptance, decline, callback, denied-action messaging and deleted-target tolerance. |
+| Browser Export | `tests/e2e/export.spec.mjs` | `npm run test:e2e` | The signed-in account download action, versioned JSONL result, and absence of credential fields. |
 | Accessibility and responsive | `tests/e2e/accessibility.spec.mjs` | `npm run test:e2e` | An axe WCAG 2.1 A/AA audit of each view, keyboard reachability of the sign-in path, and horizontal-overflow assertions at 320, 375, 768 and 1280 CSS pixels. |
 
 ### Which layer to use

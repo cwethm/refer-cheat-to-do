@@ -70,7 +70,7 @@ button { cursor: pointer; }
 
 .brand span { color: var(--accent); }
 
-.account-actions { display: flex; align-items: center; gap: 1rem; min-width: 0; }
+.account-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 1rem; min-width: 0; }
 .account-email { min-width: 0; overflow: hidden; color: var(--muted); font-size: 0.9rem; text-overflow: ellipsis; white-space: nowrap; }
 
 .page-shell { width: min(1120px, 90vw); margin: 3rem auto 5rem; }
