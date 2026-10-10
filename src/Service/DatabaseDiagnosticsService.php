@@ -251,6 +251,104 @@ class DatabaseDiagnosticsService
     }
 
     /**
+     * Summarize where a connection points without exposing its password.
+     *
+     * @param array<string, mixed> $config Datasource configuration as returned by `Connection::config()`.
+     * @return array<string, string>
+     */
+    public function describeConnectionTarget(array $config): array
+    {
+        $password = (string)($config['password'] ?? '');
+        $flags = [];
+        foreach ($config['flags'] ?? [] as $flag => $value) {
+            $flags[] = sprintf('%s=%s', (string)$flag, is_scalar($value) ? (string)$value : gettype($value));
+        }
+
+        return [
+            'host' => (string)($config['host'] ?? ''),
+            'port' => (string)($config['port'] ?? ''),
+            'database' => (string)($config['database'] ?? ''),
+            'username' => (string)($config['username'] ?? ''),
+            'schema' => (string)($config['schema'] ?? 'public'),
+            'password' => $password === '' ? 'empty' : 'set',
+            'url' => empty($config['url']) ? 'not set' : 'set (overrides the individual values)',
+            'driver options' => $flags === [] ? 'none' : implode(', ', $flags),
+        ];
+    }
+
+    /**
+     * Turn a PDO connection failure into the checks an operator should run next.
+     *
+     * @param string $reason The exception message reported by the driver.
+     * @param array<string, mixed> $config Datasource configuration as returned by `Connection::config()`.
+     * @return list<string>
+     */
+    public function explainConnectionFailure(string $reason, array $config): array
+    {
+        $host = (string)($config['host'] ?? 'localhost');
+        $port = (string)($config['port'] ?? '5432');
+        $database = (string)($config['database'] ?? '');
+        $username = (string)($config['username'] ?? '');
+        $psql = sprintf(
+            "PGPASSWORD='<the configured password>' psql -h %s -p %s -U %s -d %s -c 'select 1'",
+            $host,
+            $port,
+            $username,
+            $database,
+        );
+
+        $hints = [];
+        if (str_contains($reason, 'password authentication failed')) {
+            $hints[] = sprintf(
+                'PostgreSQL reports "password authentication failed" both when the password is wrong and when '
+                    . 'the role `%s` does not exist on this server. Check it as a superuser: '
+                    . 'sudo -u postgres psql -c "\du %1$s"',
+                $username,
+            );
+            $hints[] = sprintf(
+                'Create or reset the role so it matches the configured password: '
+                    . "CREATE ROLE %1\$s LOGIN PASSWORD '<the configured password>'; or "
+                    . "ALTER ROLE %1\$s WITH LOGIN PASSWORD '<the configured password>';",
+                $this->quoteIdentifier($username),
+            );
+            $hints[] = 'Confirm the credentials outside PHP: ' . $psql;
+        } elseif (str_contains($reason, 'Connection refused') || str_contains($reason, 'No such file or directory')) {
+            $hints[] = sprintf(
+                'Nothing is listening on %s:%s. Start PostgreSQL or point `DB_HOST`/`DB_PORT` at the right server.',
+                $host,
+                $port,
+            );
+        } elseif (str_contains($reason, 'does not exist') && str_contains($reason, 'database')) {
+            $hints[] = sprintf(
+                'The database `%s` does not exist on %s:%s. Create it with `createdb --owner=%s %1$s` '
+                    . 'or correct `DB_DATABASE`.',
+                $database,
+                $host,
+                $port,
+                $username,
+            );
+        } elseif (str_contains($reason, 'pg_hba.conf')) {
+            $hints[] = sprintf(
+                'pg_hba.conf has no rule allowing `%s` to reach `%s` from this address; add a `host` rule '
+                    . 'for it and reload PostgreSQL.',
+                $username,
+                $database,
+            );
+        } elseif (stripos($reason, 'ssl') !== false || stripos($reason, 'tls') !== false) {
+            $hints[] = 'The server requires TLS. Use `DATABASE_URL=postgres://...?ssl_mode=require` '
+                . 'or set the matching driver flags.';
+        } else {
+            $hints[] = 'Confirm the credentials outside PHP: ' . $psql;
+        }
+
+        $hints[] = 'Values come from `DATABASE_URL` or `DB_*` in the process environment first, then `.env` '
+            . '(loaded only when `APP_NAME` is not already exported in the shell), then the defaults in '
+            . '`config/app.php` and `config/app_local.php`.';
+
+        return $hints;
+    }
+
+    /**
      * Render a readable, truncated table list.
      *
      * @param list<string> $tables

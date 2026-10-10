@@ -9,6 +9,7 @@ use Cake\Console\Arguments;
 use Cake\Console\ConsoleIo;
 use Cake\Console\ConsoleOptionParser;
 use Cake\Database\Exception\MissingConnectionException;
+use Cake\Datasource\ConnectionManager;
 use Cake\Datasource\Exception\MissingDatasourceConfigException;
 use RuntimeException;
 
@@ -57,7 +58,7 @@ class DatabaseDoctorCommand extends Command
             $report = $diagnostics->diagnose($connectionName);
         } catch (MissingConnectionException $e) {
             $io->error($e->getMessage());
-            $io->out('Check the host, port, credentials, and TLS options of the connection.');
+            $this->printConnectionFailure($io, $diagnostics, $connectionName, $e->getMessage());
 
             return static::CODE_ERROR;
         } catch (MissingDatasourceConfigException | RuntimeException $e) {
@@ -104,6 +105,36 @@ class DatabaseDoctorCommand extends Command
         }
 
         return static::CODE_ERROR;
+    }
+
+    /**
+     * Print where the failed connection pointed and what to check next.
+     */
+    private function printConnectionFailure(
+        ConsoleIo $io,
+        DatabaseDiagnosticsService $diagnostics,
+        string $connectionName,
+        string $reason,
+    ): void {
+        $config = ConnectionManager::get($connectionName)->config();
+
+        $io->out('');
+        $io->info(sprintf('Connection `%s` was configured as', $connectionName));
+        foreach ($diagnostics->describeConnectionTarget($config) as $key => $value) {
+            $io->out(sprintf('  %-15s: %s', $key, $value));
+        }
+        $io->out(sprintf('  %-15s: %s', '.env file', file_exists(ROOT . DS . '.env') ? 'present' : 'absent'));
+        $io->out(sprintf(
+            '  %-15s: %s',
+            'app_local.php',
+            file_exists(CONFIG . 'app_local.php') ? 'present' : 'absent',
+        ));
+
+        $io->out('');
+        $io->info('What to check');
+        foreach ($diagnostics->explainConnectionFailure($reason, $config) as $hint) {
+            $io->out('- ' . $hint);
+        }
     }
 
     /**

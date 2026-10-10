@@ -6,6 +6,7 @@ namespace App\Test\TestCase\Service;
 use App\Service\DatabaseDiagnosticsService;
 use Cake\Datasource\ConnectionManager;
 use Cake\TestSuite\TestCase;
+use PDO;
 use RuntimeException;
 
 class DatabaseDiagnosticsServiceTest extends TestCase
@@ -206,5 +207,54 @@ class DatabaseDiagnosticsServiceTest extends TestCase
         } finally {
             ConnectionManager::drop('diagnostics_sqlite');
         }
+    }
+
+    public function testDescribesTheConnectionTargetWithoutThePassword(): void
+    {
+        $target = $this->diagnostics->describeConnectionTarget([
+            'host' => '127.0.0.1',
+            'port' => 5432,
+            'database' => 'refer_cheat_to_do',
+            'username' => 'refer_cheat_to_do',
+            'password' => 'top-secret',
+            'flags' => [PDO::PGSQL_ATTR_DISABLE_PREPARES => true],
+        ]);
+
+        $this->assertSame('127.0.0.1', $target['host']);
+        $this->assertSame('5432', $target['port']);
+        $this->assertSame('set', $target['password']);
+        $this->assertSame('not set', $target['url']);
+        $this->assertStringNotContainsString('top-secret', implode(' ', $target));
+
+        $empty = $this->diagnostics->describeConnectionTarget(['password' => '', 'url' => 'postgres://x']);
+        $this->assertSame('empty', $empty['password']);
+        $this->assertStringStartsWith('set', $empty['url']);
+    }
+
+    public function testExplainsAPasswordAuthenticationFailure(): void
+    {
+        $hints = $this->diagnostics->explainConnectionFailure(
+            'SQLSTATE[08006] [7] connection to server at "127.0.0.1", port 5432 failed: '
+                . 'FATAL:  password authentication failed for user "refer_cheat_to_do"',
+            ['host' => '127.0.0.1', 'port' => 5432, 'database' => 'refer_cheat_to_do',
+                'username' => 'refer_cheat_to_do', 'password' => 'top-secret'],
+        );
+        $joined = implode("\n", $hints);
+
+        $this->assertStringContainsString('role `refer_cheat_to_do` does not exist', $joined);
+        $this->assertStringContainsString('ALTER ROLE "refer_cheat_to_do" WITH LOGIN PASSWORD', $joined);
+        $this->assertStringContainsString('psql -h 127.0.0.1 -p 5432 -U refer_cheat_to_do -d refer_cheat_to_do', $joined);
+        $this->assertStringContainsString('APP_NAME', $joined);
+        $this->assertStringNotContainsString('top-secret', $joined);
+    }
+
+    public function testExplainsARefusedConnection(): void
+    {
+        $hints = $this->diagnostics->explainConnectionFailure(
+            'connection to server at "127.0.0.1", port 5433 failed: Connection refused',
+            ['host' => '127.0.0.1', 'port' => 5433],
+        );
+
+        $this->assertStringContainsString('Nothing is listening on 127.0.0.1:5433', $hints[0]);
     }
 }

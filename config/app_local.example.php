@@ -1,32 +1,41 @@
 <?php
-
 declare(strict_types=1);
+
+/*
+ * Local configuration template.
+ *
+ * `composer install` copies this file to `config/app_local.php`, which is ignored by Git.
+ * Every value is read from the environment (`.env` or the process environment) and falls back to
+ * the local-development defaults from `.env.example`, so the file needs no manual editing.
+ * Never commit real hosts or credentials here: the copy ends up on every machine that installs
+ * the application and would silently connect it to that database.
+ */
 
 use function Cake\Core\env;
 
 return [
     'debug' => filter_var(env('DEBUG', true), FILTER_VALIDATE_BOOLEAN),
     'App' => [
-        'fullBaseUrl' => env('APP_FULL_BASE_URL', 'https://cheatsheet.hellocrow.space'),
+        'fullBaseUrl' => env('APP_FULL_BASE_URL', 'http://localhost:8765'),
     ],
     'Security' => [
-        'salt' => env('SECURITY_SALT', '02c6da731c5edbac677347d1b1b27c4ad9bbc6ed6d1f414c637a337b3a0d7eb0'),
+        'salt' => env('SECURITY_SALT', 'change-me-to-a-long-random-string'),
     ],
     'Datasources' => [
         'default' => [
-            'host' => env('DB_HOST', 'a527437-akamai-prod-2345607-default.g2a.akamaidb.net'),
-            'port' => (int)env('DB_PORT', '26719'),
-            'username' => env('DB_USERNAME', 'akmadmin'),
-            'password' => env('DB_PASSWORD', 'AVNS_9LWQMSo2JS7WjnfEkKh'),
+            'host' => env('DB_HOST', 'localhost'),
+            'port' => (int)env('DB_PORT', '5432'),
+            'username' => env('DB_USERNAME', 'refer_cheat_to_do'),
+            'password' => env('DB_PASSWORD', 'refer_cheat_to_do'),
             'database' => env('DB_DATABASE', 'refer_cheat_to_do'),
             'schema' => 'public',
             'url' => env('DATABASE_URL', null),
         ],
         'test' => [
-            'host' => env('TEST_DB_HOST', env('DB_HOST', 'a527437-akamai-prod-2345607-default.g2a.akamaidb.net')),
-            'port' => (int)env('TEST_DB_PORT', (string)env('DB_PORT', '26719')),
+            'host' => env('TEST_DB_HOST', env('DB_HOST', 'localhost')),
+            'port' => (int)env('TEST_DB_PORT', (string)env('DB_PORT', '5432')),
             'username' => env('TEST_DB_USERNAME', env('DB_USERNAME', 'refer_cheat_to_do')),
-            'password' => env('TEST_DB_PASSWORD', env('DB_PASSWORD', 'AVNS_9LWQMSo2JS7WjnfEkKh')),
+            'password' => env('TEST_DB_PASSWORD', env('DB_PASSWORD', 'refer_cheat_to_do')),
             'database' => env('TEST_DB_DATABASE', 'refer_cheat_to_do_test'),
             'schema' => 'public',
             'url' => env('DATABASE_TEST_URL', null),
