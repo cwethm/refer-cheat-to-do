@@ -9,6 +9,9 @@ use Cake\Validation\Validator;
 
 class ResearchCollectionItemsTable extends Table
 {
+    /**
+     * Configure the parent collection association.
+     */
     public function initialize(array $config): void
     {
         parent::initialize($config);
@@ -23,6 +26,9 @@ class ResearchCollectionItemsTable extends Table
         ]);
     }
 
+    /**
+     * Validate bounded source material and optional resource links.
+     */
     public function validationDefault(Validator $validator): Validator
     {
         $validator
@@ -60,6 +66,9 @@ class ResearchCollectionItemsTable extends Table
         return $validator;
     }
 
+    /**
+     * Require an existing parent collection.
+     */
     public function buildRules(RulesChecker $rules): RulesChecker
     {
         $rules->add(

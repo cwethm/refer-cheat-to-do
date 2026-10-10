@@ -46,6 +46,10 @@ class CreateResearchCollections extends BaseMigration
             . "CHECK ((related_resource_type IS NULL AND related_resource_id IS NULL) OR "
             . "(related_resource_type IN ('todo', 'project', 'notebook') AND related_resource_id > 0))",
         );
+        $this->execute(
+            'ALTER TABLE research_collection_items ADD CONSTRAINT research_collection_items_content_size_chk '
+            . 'CHECK (content IS NULL OR octet_length(content) <= 65536)',
+        );
 
         $this->execute('ALTER TABLE capability_grants DROP CONSTRAINT capability_grants_resource_type_chk');
         $this->execute(

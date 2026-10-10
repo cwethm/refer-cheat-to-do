@@ -9,6 +9,9 @@ use Cake\Validation\Validator;
 
 class ResearchCollectionsTable extends Table
 {
+    /**
+     * Configure collection ownership and item associations.
+     */
     public function initialize(array $config): void
     {
         parent::initialize($config);
@@ -36,6 +39,9 @@ class ResearchCollectionsTable extends Table
         ]);
     }
 
+    /**
+     * Validate collection fields.
+     */
     public function validationDefault(Validator $validator): Validator
     {
         $validator
@@ -64,6 +70,9 @@ class ResearchCollectionsTable extends Table
         return $validator;
     }
 
+    /**
+     * Enforce valid owner and creator users.
+     */
     public function buildRules(RulesChecker $rules): RulesChecker
     {
         $rules->add($rules->existsIn(['user_id'], 'Owners'), ['errorField' => 'user_id']);

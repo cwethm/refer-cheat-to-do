@@ -52,6 +52,31 @@ class ResearchCollectionsControllerTest extends TestCase
         $this->assertResponseCode(401);
     }
 
+    public function testAnonymousAccessIsDeniedAcrossAllEndpoints(): void
+    {
+        $this->configRequest(['headers' => ['Accept' => 'application/json']]);
+        $this->get('/api/research-collections');
+        $this->assertResponseCode(401);
+        $this->post('/api/research-collections', ['name' => 'Anonymous']);
+        $this->assertResponseCode(401);
+        $this->get('/api/research-collections/900');
+        $this->assertResponseCode(401);
+        $this->patch('/api/research-collections/900', ['name' => 'Anonymous']);
+        $this->assertResponseCode(401);
+        $this->delete('/api/research-collections/900');
+        $this->assertResponseCode(401);
+        $this->get('/api/research-collections/900/items');
+        $this->assertResponseCode(401);
+        $this->post('/api/research-collections/900/items', ['title' => 'Anonymous']);
+        $this->assertResponseCode(401);
+        $this->get('/api/research-collections/900/items/990');
+        $this->assertResponseCode(401);
+        $this->patch('/api/research-collections/900/items/990', ['title' => 'Anonymous']);
+        $this->assertResponseCode(401);
+        $this->delete('/api/research-collections/900/items/990');
+        $this->assertResponseCode(401);
+    }
+
     public function testListOmitsOtherUsersCollectionsUntilGrantedRead(): void
     {
         $this->authenticate(2);
@@ -122,6 +147,22 @@ class ResearchCollectionsControllerTest extends TestCase
         $this->assertResponseCode(404);
     }
 
+    public function testCapabilityApiSharesCollectionWithNamedUser(): void
+    {
+        $this->authenticate();
+        $this->post('/api/capabilities', [
+            'subject_user_id' => 2,
+            'resource_type' => CapabilityService::RESOURCE_RESEARCH_COLLECTION,
+            'resource_id' => 900,
+            'capability' => CapabilityService::CAP_READ,
+        ]);
+        $this->assertResponseCode(201);
+
+        $this->authenticate(2);
+        $this->get('/api/research-collections/900');
+        $this->assertResponseOk();
+    }
+
     public function testItemsRequireCollectionReadAndItemMutationsRequireEdit(): void
     {
         $this->authenticate(2);
@@ -135,6 +176,38 @@ class ResearchCollectionsControllerTest extends TestCase
         $this->assertResponseOk();
         $this->patch('/api/research-collections/900/items/990', ['title' => 'No edit grant']);
         $this->assertResponseCode(404);
+    }
+
+    public function testItemMutationRequiresEditAndDeleteCapabilitiesIndependently(): void
+    {
+        $this->grant(2, CapabilityService::CAP_READ);
+        $this->authenticate(2);
+        $this->post('/api/research-collections/900/items', ['title' => 'Denied']);
+        $this->assertResponseCode(404);
+
+        $this->grant(2, CapabilityService::CAP_EDIT);
+        $this->post('/api/research-collections/900/items', ['title' => 'Allowed']);
+        $this->assertResponseCode(201);
+        $this->delete('/api/research-collections/900/items/990');
+        $this->assertResponseCode(404);
+
+        $this->grant(2, CapabilityService::CAP_DELETE);
+        $this->delete('/api/research-collections/900/items/990');
+        $this->assertResponseOk();
+        $this->delete('/api/research-collections/900');
+        $this->assertResponseOk();
+    }
+
+    public function testReaderDoesNotSeeReferenceToResourceTheyCannotAccess(): void
+    {
+        $this->grant(2, CapabilityService::CAP_READ);
+        $this->authenticate(2);
+
+        $this->get('/api/research-collections/900/items/990');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('"related_resource_type": null');
+        $this->assertResponseContains('"related_resource_id": null');
     }
 
     public function testItemCreateValidatesContentLimitAndRecordsActivity(): void
@@ -187,6 +260,14 @@ class ResearchCollectionsControllerTest extends TestCase
         ]));
     }
 
+    public function testOwnerAccountDeletionIsRestrictedWhileCollectionExists(): void
+    {
+        $this->expectException(\Cake\Database\Exception\QueryException::class);
+        TableRegistry::getTableLocator()->get('Users')->deleteOrFail(
+            TableRegistry::getTableLocator()->get('Users')->get(3),
+        );
+    }
+
     public function testCollectionAndItemListsValidatePagination(): void
     {
         $this->authenticate();
@@ -206,5 +287,43 @@ class ResearchCollectionsControllerTest extends TestCase
         $this->assertSame('Source item', $item->title);
         $this->assertNull($item->related_resource_type);
         $this->assertNull($item->related_resource_id);
+    }
+
+    public function testDeletingReferencedNotebookOrphansButPreservesCollectionItem(): void
+    {
+        $items = TableRegistry::getTableLocator()->get('ResearchCollectionItems');
+        $item = $items->newEntity([
+            'title' => 'Notebook source',
+            'related_resource_type' => 'notebook',
+            'related_resource_id' => 400,
+        ]);
+        $item->set('research_collection_id', 900);
+        $items->saveOrFail($item);
+        $notebook = TableRegistry::getTableLocator()->get('Notebooks')->get(400);
+        TableRegistry::getTableLocator()->get('Notebooks')->deleteOrFail($notebook);
+
+        $orphan = $items->get((int)$item->id);
+        $this->assertSame('Notebook source', $orphan->title);
+        $this->assertNull($orphan->related_resource_type);
+        $this->assertNull($orphan->related_resource_id);
+    }
+
+    public function testDeletingReferencedProjectOrphansButPreservesCollectionItem(): void
+    {
+        $items = TableRegistry::getTableLocator()->get('ResearchCollectionItems');
+        $item = $items->newEntity([
+            'title' => 'Project source',
+            'related_resource_type' => 'project',
+            'related_resource_id' => 200,
+        ]);
+        $item->set('research_collection_id', 900);
+        $items->saveOrFail($item);
+        $project = TableRegistry::getTableLocator()->get('Projects')->get(200);
+        TableRegistry::getTableLocator()->get('Projects')->deleteOrFail($project);
+
+        $orphan = $items->get((int)$item->id);
+        $this->assertSame('Project source', $orphan->title);
+        $this->assertNull($orphan->related_resource_type);
+        $this->assertNull($orphan->related_resource_id);
     }
 }

@@ -16,6 +16,9 @@ class ResearchCollectionsController extends AppController
 {
     private const MAX_CONTENT_BYTES = 65536;
 
+    /**
+     * List collections visible to the authenticated user.
+     */
     public function index(): Response
     {
         $userId = $this->requireUserId();
@@ -40,9 +43,11 @@ class ResearchCollectionsController extends AppController
             ]);
         $total = (clone $query)->count();
         $items = [];
-        foreach ($query->orderBy(['ResearchCollections.id' => 'DESC'])
+        foreach (
+            $query->orderBy(['ResearchCollections.id' => 'DESC'])
             ->limit($limit)
-            ->offset(($page - 1) * $limit) as $collection) {
+            ->offset(($page - 1) * $limit) as $collection
+        ) {
             /** @var \App\Model\Entity\ResearchCollection $collection */
             $items[] = $this->serializeCollection($collection);
         }
@@ -53,6 +58,9 @@ class ResearchCollectionsController extends AppController
         );
     }
 
+    /**
+     * Create a private collection owned by the authenticated user.
+     */
     public function add(): Response
     {
         $userId = $this->requireUserId();
@@ -77,6 +85,9 @@ class ResearchCollectionsController extends AppController
         return $this->respond(['collection' => $this->serializeCollection($collection)], [], 201);
     }
 
+    /**
+     * Read a collection the caller owns or may read.
+     */
     public function view(string $id): Response
     {
         $userId = $this->requireUserId();
@@ -85,6 +96,9 @@ class ResearchCollectionsController extends AppController
         return $this->respond(['collection' => $this->serializeCollection($collection)]);
     }
 
+    /**
+     * Update collection details with edit capability.
+     */
     public function edit(string $id): Response
     {
         $userId = $this->requireUserId();
@@ -108,6 +122,9 @@ class ResearchCollectionsController extends AppController
         return $this->respond(['collection' => $this->serializeCollection($collection)]);
     }
 
+    /**
+     * Delete a collection with delete capability.
+     */
     public function delete(string $id): Response
     {
         $userId = $this->requireUserId();
@@ -116,19 +133,27 @@ class ResearchCollectionsController extends AppController
 
         /** @var \App\Model\Table\CapabilityGrantsTable $grants */
         $grants = $this->fetchTable('CapabilityGrants');
-        $grants->deleteAll([
-            'resource_type' => CapabilityService::RESOURCE_RESEARCH_COLLECTION,
-            'resource_id' => $collectionId,
-        ]);
-        if (!$this->fetchTable('ResearchCollections')->delete($collection)) {
-            throw new InternalErrorException('Unable to delete research collection.');
-        }
+        $collections = $this->fetchTable('ResearchCollections');
+        $collections->getConnection()->transactional(
+            function () use ($grants, $collections, $collection, $collectionId): void {
+                $grants->deleteAll([
+                    'resource_type' => CapabilityService::RESOURCE_RESEARCH_COLLECTION,
+                    'resource_id' => $collectionId,
+                ]);
+                if (!$collections->delete($collection)) {
+                    throw new InternalErrorException('Unable to delete research collection.');
+                }
+            },
+        );
 
         $this->activity()->record($userId, 'research_collection.deleted', 'research_collection', $collectionId);
 
         return $this->respond(['message' => 'Research collection deleted.']);
     }
 
+    /**
+     * List items in a collection the caller may read.
+     */
     public function items(string $id): Response
     {
         $userId = $this->requireUserId();
@@ -140,9 +165,11 @@ class ResearchCollectionsController extends AppController
         $total = (clone $query)->count();
 
         $items = [];
-        foreach ($query->orderBy(['ResearchCollectionItems.id' => 'ASC'])
+        foreach (
+            $query->orderBy(['ResearchCollectionItems.id' => 'ASC'])
             ->limit($limit)
-            ->offset(($page - 1) * $limit) as $item) {
+            ->offset(($page - 1) * $limit) as $item
+        ) {
             /** @var \App\Model\Entity\ResearchCollectionItem $item */
             $items[] = $this->serializeItem($item, $userId);
         }
@@ -153,12 +180,15 @@ class ResearchCollectionsController extends AppController
         );
     }
 
+    /**
+     * Add a plain-text source item to a collection the caller may edit.
+     */
     public function addItem(string $id): Response
     {
         $userId = $this->requireUserId();
         $collection = $this->fetchCollectionOrFail($id, $userId, CapabilityService::CAP_EDIT);
         $data = $this->readBody();
-        $this->validateContentSize($data, ['content']);
+        $this->validateContentSize($data);
         $this->validateReferencePayload($data, $userId);
 
         /** @var \App\Model\Table\ResearchCollectionItemsTable $items */
@@ -186,6 +216,9 @@ class ResearchCollectionsController extends AppController
         return $this->respond(['item' => $this->serializeItem($item, $userId)], [], 201);
     }
 
+    /**
+     * Read one item in a collection the caller may read.
+     */
     public function viewItem(string $id, string $itemId): Response
     {
         $userId = $this->requireUserId();
@@ -195,13 +228,16 @@ class ResearchCollectionsController extends AppController
         return $this->respond(['item' => $this->serializeItem($item, $userId)]);
     }
 
+    /**
+     * Update an item in a collection the caller may edit.
+     */
     public function editItem(string $id, string $itemId): Response
     {
         $userId = $this->requireUserId();
         $collection = $this->fetchCollectionOrFail($id, $userId, CapabilityService::CAP_EDIT);
         $item = $this->fetchItemOrFail($itemId, (int)$collection->id);
         $data = $this->readBody();
-        $this->validateContentSize($data, ['content']);
+        $this->validateContentSize($data);
         $this->validateReferencePayload($data, $userId);
 
         /** @var \App\Model\Table\ResearchCollectionItemsTable $items */
@@ -225,6 +261,9 @@ class ResearchCollectionsController extends AppController
         return $this->respond(['item' => $this->serializeItem($item, $userId)]);
     }
 
+    /**
+     * Delete an item in a collection the caller may delete.
+     */
     public function deleteItem(string $id, string $itemId): Response
     {
         $userId = $this->requireUserId();
@@ -247,6 +286,9 @@ class ResearchCollectionsController extends AppController
         return $this->respond(['message' => 'Research collection item deleted.']);
     }
 
+    /**
+     * Resolve a collection and enforce its required capability.
+     */
     private function fetchCollectionOrFail(string $id, int $userId, string $capability): ResearchCollection
     {
         if (!ctype_digit($id) || (int)$id < 1) {
@@ -256,18 +298,23 @@ class ResearchCollectionsController extends AppController
         $collection = $this->fetchTable('ResearchCollections')->find()
             ->where(['id' => (int)$id])
             ->first();
-        if ($collection === null || !$this->capabilities()->allows(
-            $userId,
-            $capability,
-            CapabilityService::RESOURCE_RESEARCH_COLLECTION,
-            (int)$id,
-        )) {
+        if (
+            $collection === null || !$this->capabilities()->allows(
+                $userId,
+                $capability,
+                CapabilityService::RESOURCE_RESEARCH_COLLECTION,
+                (int)$id,
+            )
+        ) {
             throw new NotFoundException('Research collection not found.');
         }
 
         return $collection;
     }
 
+    /**
+     * Resolve an item scoped to its parent collection.
+     */
     private function fetchItemOrFail(string $itemId, int $collectionId): ResearchCollectionItem
     {
         if (!ctype_digit($itemId) || (int)$itemId < 1) {
@@ -287,6 +334,11 @@ class ResearchCollectionsController extends AppController
         return $item;
     }
 
+    /**
+     * Validate paired reference fields and require authority over the referenced resource.
+     *
+     * @param array<string, mixed> $data
+     */
     private function validateReferencePayload(array $data, int $userId): void
     {
         $hasType = array_key_exists('related_resource_type', $data);
@@ -311,6 +363,9 @@ class ResearchCollectionsController extends AppController
         }
     }
 
+    /**
+     * Check whether the caller may reference a ToDo, Project, or Notebook.
+     */
     private function mayReference(int $userId, string $type, int $resourceId): bool
     {
         if ($type === 'todo') {
@@ -329,12 +384,13 @@ class ResearchCollectionsController extends AppController
     }
 
     /**
+     * Enforce the UTF-8 byte limit for source content.
+     *
      * @param array<string, mixed> $data
-     * @param list<string> $fields
      */
-    private function validateContentSize(array $data, array $fields): void
+    private function validateContentSize(array $data): void
     {
-        if (!in_array('content', $fields, true) || !array_key_exists('content', $data) || $data['content'] === null) {
+        if (!array_key_exists('content', $data) || $data['content'] === null) {
             return;
         }
         if (!is_string($data['content']) || strlen($data['content']) > self::MAX_CONTENT_BYTES) {
@@ -342,6 +398,9 @@ class ResearchCollectionsController extends AppController
         }
     }
 
+    /**
+     * Parse a required positive integer payload value.
+     */
     private function parsePositiveInt(mixed $value, string $field): int
     {
         if (is_int($value) && $value > 0) {
@@ -354,20 +413,29 @@ class ResearchCollectionsController extends AppController
         throw new BadRequestException(sprintf('Invalid field `%s`.', $field));
     }
 
+    /**
+     * Parse a positive pagination query parameter.
+     */
     private function readPositiveQueryInt(string $field, int $default): int
     {
+        $max = intdiv(PHP_INT_MAX, 100);
         $value = $this->request->getQuery($field, $default);
-        if (is_int($value) && $value > 0) {
+        if (is_int($value) && $value > 0 && $value <= $max) {
             return $value;
         }
-        if (is_string($value) && ctype_digit($value) && (int)$value > 0) {
-            return (int)$value;
+        if (is_string($value) && ctype_digit($value) && strlen($value) <= strlen((string)$max)) {
+            $parsed = (int)$value;
+            if ($parsed > 0 && $parsed <= $max) {
+                return $parsed;
+            }
         }
 
         throw new BadRequestException(sprintf('Invalid query parameter `%s`.', $field));
     }
 
     /**
+     * Read a JSON object request body.
+     *
      * @return array<string, mixed>
      */
     private function readBody(): array
@@ -381,6 +449,8 @@ class ResearchCollectionsController extends AppController
     }
 
     /**
+     * Serialize safe collection fields for the API.
+     *
      * @return array<string, mixed>
      */
     private function serializeCollection(ResearchCollection $collection): array
@@ -397,6 +467,8 @@ class ResearchCollectionsController extends AppController
     }
 
     /**
+     * Serialize item data while hiding references the caller cannot access.
+     *
      * @return array<string, mixed>
      */
     private function serializeItem(ResearchCollectionItem $item, int $userId): array
