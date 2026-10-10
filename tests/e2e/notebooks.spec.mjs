@@ -124,7 +124,7 @@ test('a Notebook, its sections and a ToDo assignment can be managed from the cli
     await openNotebooks(page);
 
     await page.getByLabel('Notebook name').fill(notebookName);
-    await page.getByLabel(/^Description/).fill('Created by the browser suite.');
+    await page.locator('#notebook-form').getByLabel(/^Description/).fill('Created by the browser suite.');
     await page.getByRole('button', { name: 'Add Notebook' }).click();
 
     await expect(page.locator('#notice')).toHaveText('Notebook added.');

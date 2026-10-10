@@ -145,7 +145,7 @@ test('a Project, its sections and a ToDo assignment can be managed from the clie
 
     // Creating a Project.
     await page.getByLabel('Project name').fill(projectName);
-    await page.getByLabel(/^Description/).fill('Created by the browser suite.');
+    await page.locator('#project-form').getByLabel(/^Description/).fill('Created by the browser suite.');
     await page.getByRole('button', { name: 'Add Project' }).click();
 
     await expect(page.locator('#notice')).toHaveText('Project added.');

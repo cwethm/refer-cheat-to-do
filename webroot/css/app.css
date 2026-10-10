@@ -74,14 +74,14 @@ button { cursor: pointer; }
 .account-email { min-width: 0; overflow: hidden; color: var(--muted); font-size: 0.9rem; text-overflow: ellipsis; white-space: nowrap; }
 
 .page-shell { width: min(1120px, 90vw); margin: 3rem auto 5rem; }
-.welcome-row { display: flex; align-items: end; justify-content: space-between; gap: 2rem; margin-bottom: 2rem; }
+.welcome-row { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 2rem; margin-bottom: 2rem; }
 .eyebrow { color: var(--accent); font-size: 0.73rem; font-weight: 750; letter-spacing: 0.12em; text-transform: uppercase; }
 h1, h2, p { margin-top: 0; }
 h1 { margin-bottom: 0.55rem; font-size: clamp(2rem, 4vw, 3rem); font-weight: 650; letter-spacing: -0.055em; line-height: 1.1; }
 h2 { margin: 0; font-size: 1.35rem; font-weight: 650; letter-spacing: -0.035em; }
 .intro { color: var(--muted); }
 
-.view-nav { display: flex; gap: 0.25rem; padding: 0.25rem; border: 1px solid var(--line); border-radius: 0.8rem; background: white; }
+.view-nav { display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 0.25rem; border: 1px solid var(--line); border-radius: 0.8rem; background: white; }
 .view-button { padding: 0.55rem 0.9rem; border: 0; border-radius: 0.55rem; background: transparent; color: var(--muted); font-weight: 650; }
 .view-button.is-current, .view-button[aria-pressed="true"] { background: var(--mint); color: var(--accent-dark); }
 
