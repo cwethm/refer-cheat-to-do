@@ -23,8 +23,12 @@ class PagesControllerTest extends TestCase
         $this->assertResponseContains('id="capture-form"');
         $this->assertResponseContains('id="filter-form"');
         $this->assertResponseContains('id="project-form"');
-        $this->assertResponseContains('id="section-form"');
+        $this->assertResponseContains('id="project-section-form"');
         $this->assertResponseContains('id="project-list"');
+        $this->assertResponseContains('id="notebook-form"');
+        $this->assertResponseContains('id="notebook-section-form"');
+        $this->assertResponseContains('id="notebook-list"');
+        $this->assertResponseContains('id="library-list"');
         $this->assertResponseContains('id="review-list"');
         $this->assertResponseContains('src="/js/app.mjs?');
         $this->assertResponseContains('href="/css/app.css?');

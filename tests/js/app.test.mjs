@@ -2,14 +2,21 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
+    buildLibrariesUrl,
+    buildNotebooksUrl,
     buildProjectsUrl,
+    buildSectionAssignmentBody,
     buildTodoUrl,
     formatSectionLabel,
     getErrorMessage,
     isValidId,
     labelForReviewReason,
+    LIBRARY_PAGE_SIZE,
+    NOTEBOOK_PAGE_SIZE,
+    parseSectionOptionValue,
     PROJECT_PAGE_SIZE,
     requestApi,
+    sectionOptionValue,
     SECTION_SOURCE_LIMIT,
     setText,
     TODO_PAGE_SIZE,
@@ -223,10 +230,69 @@ test('Project listing URL clamps pages and limits to what the API accepts', () =
     assert.equal(underLimit.searchParams.get('limit'), '1');
 });
 
-test('a section is labelled with the Project it belongs to', () => {
+test('a section is labelled with the Project or Notebook it belongs to', () => {
     assert.equal(formatSectionLabel('Kitchen rebuild', 'Waiting on quotes'), 'Kitchen rebuild · Waiting on quotes');
     assert.equal(formatSectionLabel('  Kitchen  ', '  Quotes  '), 'Kitchen · Quotes');
     assert.equal(formatSectionLabel(null, 'Quotes'), 'Quotes');
     assert.equal(formatSectionLabel('Kitchen', ''), 'Kitchen');
     assert.equal(formatSectionLabel(undefined, undefined), 'Untitled section');
+});
+
+test('Notebook and Library listings page at their client page sizes', () => {
+    const notebooks = new URL(buildNotebooksUrl(), 'https://example.test');
+    assert.equal(notebooks.pathname, '/api/notebooks');
+    assert.equal(notebooks.searchParams.get('page'), '1');
+    assert.equal(notebooks.searchParams.get('limit'), String(NOTEBOOK_PAGE_SIZE));
+
+    const libraries = new URL(buildLibrariesUrl({ page: 3 }), 'https://example.test');
+    assert.equal(libraries.pathname, '/api/libraries');
+    assert.equal(libraries.searchParams.get('page'), '3');
+    assert.equal(libraries.searchParams.get('limit'), String(LIBRARY_PAGE_SIZE));
+});
+
+test('Notebook and Library listings clamp pages and limits like Projects do', () => {
+    for (const build of [buildNotebooksUrl, buildLibrariesUrl]) {
+        for (const page of [0, -5, Number.NaN]) {
+            const url = new URL(build({ page }), 'https://example.test');
+
+            assert.equal(url.searchParams.get('page'), '1');
+        }
+        assert.equal(
+            new URL(build({ limit: 5000 }), 'https://example.test').searchParams.get('limit'),
+            String(SECTION_SOURCE_LIMIT),
+        );
+        assert.equal(
+            new URL(build({ limit: 0 }), 'https://example.test').searchParams.get('limit'),
+            '1',
+        );
+    }
+});
+
+test('a section picker value carries the kind of section that was chosen', () => {
+    assert.equal(sectionOptionValue('project', 12), 'project:12');
+    assert.equal(sectionOptionValue('notebook', '7'), 'notebook:7');
+    assert.equal(sectionOptionValue('library', 7), '');
+    assert.equal(sectionOptionValue('project', 0), '');
+    assert.equal(sectionOptionValue('notebook', '1 OR 1=1'), '');
+
+    assert.deepEqual(parseSectionOptionValue('project:12'), { kind: 'project', id: 12 });
+    assert.deepEqual(parseSectionOptionValue('notebook:7'), { kind: 'notebook', id: 7 });
+    for (const value of ['', 'project:', 'project:abc', 'tag:1', '12', null, undefined]) {
+        assert.equal(parseSectionOptionValue(value), null);
+    }
+});
+
+test('moving a ToDo always sends both section fields so only one assignment survives', () => {
+    assert.deepEqual(buildSectionAssignmentBody('project:12'), {
+        project_section_id: 12,
+        notebook_section_id: null,
+    });
+    assert.deepEqual(buildSectionAssignmentBody('notebook:7'), {
+        project_section_id: null,
+        notebook_section_id: 7,
+    });
+    assert.deepEqual(buildSectionAssignmentBody(''), {
+        project_section_id: null,
+        notebook_section_id: null,
+    });
 });

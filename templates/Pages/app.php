@@ -49,6 +49,8 @@ $this->disableAutoLayout();
                     <button class="view-button is-current" type="button" data-view="dashboard" aria-pressed="true">Today</button>
                     <button class="view-button" type="button" data-view="inbox" aria-pressed="false">ToDos</button>
                     <button class="view-button" type="button" data-view="projects" aria-pressed="false">Projects</button>
+                    <button class="view-button" type="button" data-view="notebooks" aria-pressed="false">Notebooks</button>
+                    <button class="view-button" type="button" data-view="libraries" aria-pressed="false">Libraries</button>
                     <button class="view-button" type="button" data-view="review" aria-pressed="false">Review</button>
                 </nav>
             </div>
@@ -151,13 +153,74 @@ $this->disableAutoLayout();
                         <div><div class="eyebrow">Inside this Project</div><h3 id="project-detail-title" class="panel-title"></h3></div>
                     </div>
                     <p id="project-detail-description" class="intro"></p>
-                    <form id="section-form" class="tag-form">
-                        <label for="section-name">Add a section</label>
-                        <input id="section-name" name="name" maxlength="255" required placeholder="e.g. Waiting on quotes">
-                        <button class="button button-secondary" type="submit">Add section</button>
+                    <form id="project-section-form" class="tag-form">
+                        <label for="project-section-name">Add a section to this Project</label>
+                        <input id="project-section-name" name="name" maxlength="255" required placeholder="e.g. Waiting on quotes">
+                        <button class="button button-secondary" type="submit">Add Project section</button>
                     </form>
                     <ul id="section-list" class="record-list"></ul>
                     <p id="section-empty" class="empty-copy" hidden>This Project has no sections yet.</p>
+                </section>
+            </section>
+            <section id="notebooks-view" class="view-panel" aria-labelledby="notebooks-title" hidden>
+                <div class="section-heading">
+                    <div><div class="eyebrow">Keep what you are thinking about</div><h2 id="notebooks-title">Your Notebooks</h2></div>
+                </div>
+                <section class="surface" aria-labelledby="notebook-form-title">
+                    <h3 id="notebook-form-title" class="panel-title">Start a Notebook</h3>
+                    <form id="notebook-form" class="form-stack">
+                        <label for="notebook-name">Notebook name</label>
+                        <input id="notebook-name" name="name" maxlength="255" required placeholder="e.g. Reading notes">
+                        <label for="notebook-description">Description <span class="optional">(optional)</span></label>
+                        <textarea id="notebook-description" name="description" rows="2" placeholder="What is this Notebook for?"></textarea>
+                        <button class="button button-primary" type="submit">Add Notebook</button>
+                    </form>
+                </section>
+                <p id="notebook-summary" class="result-summary"></p>
+                <ul id="notebook-list" class="record-list"></ul>
+                <p id="notebook-empty" class="empty-copy" hidden>No Notebooks yet. Add one to keep related notes together.</p>
+                <div class="pagination">
+                    <button id="previous-notebook-page" class="button button-quiet" type="button" disabled>Previous Notebooks</button>
+                    <span id="notebook-page-label" aria-live="polite"></span>
+                    <button id="next-notebook-page" class="button button-quiet" type="button" disabled>Next Notebooks</button>
+                </div>
+                <section id="notebook-detail" class="surface" aria-labelledby="notebook-detail-title" hidden>
+                    <div class="section-heading">
+                        <div><div class="eyebrow">Inside this Notebook</div><h3 id="notebook-detail-title" class="panel-title"></h3></div>
+                    </div>
+                    <p id="notebook-detail-description" class="intro"></p>
+                    <form id="notebook-section-form" class="tag-form">
+                        <label for="notebook-section-name">Add a section to this Notebook</label>
+                        <input id="notebook-section-name" name="name" maxlength="255" required placeholder="e.g. Open questions">
+                        <button class="button button-secondary" type="submit">Add Notebook section</button>
+                    </form>
+                    <ul id="notebook-section-list" class="record-list"></ul>
+                    <p id="notebook-section-empty" class="empty-copy" hidden>This Notebook has no sections yet.</p>
+                </section>
+            </section>
+            <section id="libraries-view" class="view-panel" aria-labelledby="libraries-title" hidden>
+                <div class="section-heading">
+                    <div><div class="eyebrow">See how things group together</div><h2 id="libraries-title">Your Libraries</h2></div>
+                </div>
+                <p class="intro">Libraries gather Projects and Notebooks for browsing. Nothing here changes what they contain.</p>
+                <p id="library-summary" class="result-summary"></p>
+                <ul id="library-list" class="record-list"></ul>
+                <p id="library-empty" class="empty-copy" hidden>No Libraries yet. Create one through the API to group Projects and Notebooks.</p>
+                <div class="pagination">
+                    <button id="previous-library-page" class="button button-quiet" type="button" disabled>Previous Libraries</button>
+                    <span id="library-page-label" aria-live="polite"></span>
+                    <button id="next-library-page" class="button button-quiet" type="button" disabled>Next Libraries</button>
+                </div>
+                <section id="library-detail" class="surface" aria-labelledby="library-detail-title" hidden>
+                    <div class="section-heading">
+                        <div><div class="eyebrow">Inside this Library</div><h3 id="library-detail-title" class="panel-title"></h3></div>
+                    </div>
+                    <p id="library-detail-description" class="intro"></p>
+                    <h4 class="panel-title">Projects</h4>
+                    <ul id="library-projects" class="record-list"></ul>
+                    <h4 class="panel-title">Notebooks</h4>
+                    <ul id="library-notebooks" class="record-list"></ul>
+                    <p id="library-members-empty" class="empty-copy" hidden>This Library has no members yet.</p>
                 </section>
             </section>
             <section id="review-view" class="view-panel" aria-labelledby="review-title" hidden>

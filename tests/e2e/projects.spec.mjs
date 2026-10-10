@@ -154,7 +154,7 @@ test('a Project, its sections and a ToDo assignment can be managed from the clie
     await expect(projectItem).toHaveCount(1);
     created.projects.push(Number(
         await projectItem.getByRole('button', { name: `Open ${projectName}` })
-            .getAttribute('data-project-id'),
+            .getAttribute('data-record-id'),
     ));
 
     // Opening it reveals its sections, and a section can be added.
@@ -163,8 +163,8 @@ test('a Project, its sections and a ToDo assignment can be managed from the clie
     await expect(page.locator('#project-detail-title')).toHaveText(projectName);
     await expect(page.locator('#section-empty')).toBeVisible();
 
-    await page.getByLabel('Add a section').fill(sectionName);
-    await page.getByRole('button', { name: 'Add section' }).click();
+    await page.getByLabel('Add a section to this Project').fill(sectionName);
+    await page.getByRole('button', { name: 'Add Project section' }).click();
 
     await expect(page.locator('#notice')).toHaveText('Section added.');
     await expect(page.locator('#section-empty')).toBeHidden();
@@ -174,7 +174,7 @@ test('a Project, its sections and a ToDo assignment can be managed from the clie
     await findTodo(page, todoTitle);
     const card = todoCard(page, todoTitle);
     await expect(card.locator('.section-assignment')).toHaveCount(0);
-    await card.getByLabel(`Project section for ${todoTitle}`)
+    await card.getByLabel(`Section for ${todoTitle}`)
         .selectOption({ label: `${projectName} · ${sectionName}` });
     await card.getByRole('button', { name: 'Move', exact: true }).click();
 
@@ -195,7 +195,7 @@ test('a Project, its sections and a ToDo assignment can be managed from the clie
     // Clearing the assignment returns the ToDo to no section.
     await findTodo(page, todoTitle);
     await todoCard(page, todoTitle)
-        .getByLabel(`Project section for ${todoTitle}`)
+        .getByLabel(`Section for ${todoTitle}`)
         .selectOption('');
     await todoCard(page, todoTitle).getByRole('button', { name: 'Move', exact: true }).click();
 
@@ -219,10 +219,11 @@ test('a Project, its sections and a ToDo assignment can be managed from the clie
     created.projects = [];
 });
 
-test('a ToDo already in a Notebook section is refused rather than silently moved', async ({ page }) => {
+test('a ToDo filed in a Notebook section moves to a Project section in one action', async ({ page }) => {
     const stamp = Date.now();
     const projectName = `Conflict Project ${stamp}`;
     const sectionName = 'Conflict section';
+    const notebookName = `Notebook ${stamp}`;
     const todoTitle = `Notebook ToDo ${stamp}`;
 
     const api = await apiClient();
@@ -231,7 +232,7 @@ test('a ToDo already in a Notebook section is refused rather than silently moved
         created.projects.push(project.data.project.id);
         await api.post(`/api/projects/${project.data.project.id}/sections`, { data: { name: sectionName } });
 
-        const notebook = await (await api.post('/api/notebooks', { data: { name: `Notebook ${stamp}` } })).json();
+        const notebook = await (await api.post('/api/notebooks', { data: { name: notebookName } })).json();
         created.notebooks.push(notebook.data.notebook.id);
         const section = await (await api.post(
             `/api/notebooks/${notebook.data.notebook.id}/sections`,
@@ -251,21 +252,20 @@ test('a ToDo already in a Notebook section is refused rather than silently moved
     await signIn(page);
     await findTodo(page, todoTitle);
     const card = todoCard(page, todoTitle);
-    await expect(card.locator('.section-assignment')).toHaveText('In a Notebook section');
+    await expect(card.locator('.section-assignment')).toHaveText(`In ${notebookName} · Reading`);
 
-    await card.getByLabel(`Project section for ${todoTitle}`)
+    // One picker holds both kinds of section, so the move is a single explicit action.
+    await card.getByLabel(`Section for ${todoTitle}`)
         .selectOption({ label: `${projectName} · ${sectionName}` });
     await card.getByRole('button', { name: 'Move', exact: true }).click();
 
-    await expect(page.locator('#notice')).toHaveClass(/is-error/);
-    await expect(page.locator('#notice'))
-        .toHaveText('A ToDo may belong to only one organizational section.');
-    await expect(page.locator('#workspace')).toBeVisible();
+    await expect(page.locator('#notice')).toHaveText('ToDo updated.');
+    await expect(page.locator('#notice')).not.toHaveClass(/is-error/);
 
-    // The server refused the move, so the ToDo is still where it was.
+    // The old Notebook assignment was cleared by the same request.
     await findTodo(page, todoTitle);
     await expect(todoCard(page, todoTitle).locator('.section-assignment'))
-        .toHaveText('In a Notebook section');
+        .toHaveText(`In ${projectName} · ${sectionName}`);
 
     await cleanUp();
 });
@@ -328,7 +328,7 @@ test('an ended session during assignment returns the visitor to sign-in', async 
     await signIn(page);
     await findTodo(page, todoTitle);
     const card = todoCard(page, todoTitle);
-    await card.getByLabel(`Project section for ${todoTitle}`)
+    await card.getByLabel(`Section for ${todoTitle}`)
         .selectOption({ label: `${projectName} · Later` });
 
     await context.clearCookies();

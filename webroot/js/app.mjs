@@ -1,14 +1,22 @@
 export const TODO_PAGE_SIZE = 50;
 export const PROJECT_PAGE_SIZE = 20;
+export const NOTEBOOK_PAGE_SIZE = 20;
+export const LIBRARY_PAGE_SIZE = 20;
 
 /**
- * Highest number of Projects whose sections are offered in a ToDo's section picker.
+ * Highest number of Projects or Notebooks whose sections are offered in a ToDo's section picker.
  *
- * The API caps `limit` at 100, so the picker covers at most the newest 100 Projects.
+ * The API caps `limit` at 100, so the picker covers at most the newest 100 of each.
  */
 export const SECTION_SOURCE_LIMIT = 100;
 
-export function buildProjectsUrl({ page = 1, limit = PROJECT_PAGE_SIZE } = {}) {
+/**
+ * Build a paged collection URL for the owner-scoped record lists.
+ *
+ * Projects, Notebooks and Libraries all page the same way, so the clamping lives here
+ * rather than being restated once per collection.
+ */
+export function buildRecordListUrl(path, { page = 1, limit = PROJECT_PAGE_SIZE } = {}) {
     const requestedPage = Number(page);
     const safePage = Number.isFinite(requestedPage) ? Math.max(1, Math.trunc(requestedPage)) : 1;
     const requestedLimit = Number(limit);
@@ -17,21 +25,76 @@ export function buildProjectsUrl({ page = 1, limit = PROJECT_PAGE_SIZE } = {}) {
         : PROJECT_PAGE_SIZE;
     const params = new URLSearchParams({ page: String(safePage), limit: String(safeLimit) });
 
-    return `/api/projects?${params.toString()}`;
+    return `${path}?${params.toString()}`;
+}
+
+export function buildProjectsUrl(options = {}) {
+    return buildRecordListUrl('/api/projects', { limit: PROJECT_PAGE_SIZE, ...options });
+}
+
+export function buildNotebooksUrl(options = {}) {
+    return buildRecordListUrl('/api/notebooks', { limit: NOTEBOOK_PAGE_SIZE, ...options });
+}
+
+export function buildLibrariesUrl(options = {}) {
+    return buildRecordListUrl('/api/libraries', { limit: LIBRARY_PAGE_SIZE, ...options });
 }
 
 /**
- * Label a section in the context of its Project, for pickers and assignment summaries.
+ * Label a section in the context of the Project or Notebook it belongs to, for pickers
+ * and assignment summaries.
  */
-export function formatSectionLabel(projectName, sectionName) {
-    const project = typeof projectName === 'string' ? projectName.trim() : '';
+export function formatSectionLabel(parentName, sectionName) {
+    const parent = typeof parentName === 'string' ? parentName.trim() : '';
     const section = typeof sectionName === 'string' ? sectionName.trim() : '';
 
-    if (project && section) {
-        return `${project} · ${section}`;
+    if (parent && section) {
+        return `${parent} · ${section}`;
     }
 
-    return section || project || 'Untitled section';
+    return section || parent || 'Untitled section';
+}
+
+/**
+ * Encode the kind and id of a section as a single picker value.
+ *
+ * A ToDo has at most one organizational section, so one picker offers both Project and
+ * Notebook sections and the value has to say which kind was chosen.
+ */
+export function sectionOptionValue(kind, id) {
+    if ((kind !== 'project' && kind !== 'notebook') || !isValidId(id)) {
+        return '';
+    }
+
+    return `${kind}:${Number(id)}`;
+}
+
+export function parseSectionOptionValue(value) {
+    if (typeof value !== 'string') {
+        return null;
+    }
+    const [kind, id] = value.split(':');
+    if ((kind !== 'project' && kind !== 'notebook') || !isValidId(id)) {
+        return null;
+    }
+
+    return { kind, id: Number(id) };
+}
+
+/**
+ * Build the body that moves a ToDo to the chosen section.
+ *
+ * Both fields are always sent, so moving between a Project section and a Notebook
+ * section clears one assignment and sets the other in a single request, as
+ * `docs/adr/0001-single-organizational-section-per-todo.md` requires.
+ */
+export function buildSectionAssignmentBody(value) {
+    const choice = parseSectionOptionValue(value);
+
+    return {
+        project_section_id: choice?.kind === 'project' ? choice.id : null,
+        notebook_section_id: choice?.kind === 'notebook' ? choice.id : null,
+    };
 }
 
 export function buildTodoUrl({ query = '', status = '', tagId = '', page = 1 } = {}) {
@@ -145,14 +208,15 @@ const state = {
     tags: [],
     view: 'dashboard',
     filters: { query: '', status: '', tagId: '' },
-    projects: [],
-    projectPage: 1,
-    projectTotal: 0,
-    openProjectId: null,
+    records: {
+        project: { items: [], page: 1, total: 0, openId: null },
+        notebook: { items: [], page: 1, total: 0, openId: null },
+    },
+    libraries: { items: [], page: 1, total: 0, openId: null },
     sectionOptions: [],
     // Monotonic tokens so a slow response cannot repaint a list that a newer
     // request has already replaced, which would silently discard a person's selection.
-    requests: { todos: 0, review: 0, projects: 0 },
+    requests: { todos: 0, review: 0, projects: 0, notebooks: 0, libraries: 0 },
 };
 
 function setNotice(message, isError = false) {
@@ -221,10 +285,8 @@ function renderTags(container, tags, todoId) {
     }
 }
 
-function sectionLabelById(sectionId) {
-    const option = state.sectionOptions.find((entry) => String(entry.id) === String(sectionId));
-
-    return option ? option.label : null;
+function sectionOptionFor(value) {
+    return state.sectionOptions.find((entry) => entry.value === value) ?? null;
 }
 
 /**
@@ -232,11 +294,27 @@ function sectionLabelById(sectionId) {
  * so at most one of the two section fields is ever set.
  */
 function sectionAssignmentText(todo) {
+    const value = currentSectionValue(todo);
+    if (value === '') {
+        return '';
+    }
+    const option = sectionOptionFor(value);
+    if (option) {
+        return `In ${option.label}`;
+    }
+
+    return value.startsWith('project:') ? 'In a Project section' : 'In a Notebook section';
+}
+
+/**
+ * The picker value matching a ToDo's current section, or '' when it has none.
+ */
+function currentSectionValue(todo) {
     if (isValidId(todo?.project_section_id)) {
-        return `In ${sectionLabelById(todo.project_section_id) ?? 'a Project section'}`;
+        return sectionOptionValue('project', todo.project_section_id);
     }
     if (isValidId(todo?.notebook_section_id)) {
-        return 'In a Notebook section';
+        return sectionOptionValue('notebook', todo.notebook_section_id);
     }
 
     return '';
@@ -316,15 +394,16 @@ function renderTodo(todo, reasons = null, suggestedActions = null) {
 
     if (isValidId(todo?.id) && state.sectionOptions.length > 0) {
         const todoTitle = typeof todo?.title === 'string' ? todo.title : 'ToDo';
-        const label = make('label', '', 'Project section');
+        const label = make('label', '', 'Section');
         const select = make('select');
-        select.setAttribute('aria-label', `Project section for ${todoTitle}`);
+        select.setAttribute('aria-label', `Section for ${todoTitle}`);
         select.dataset.sectionPicker = '';
         select.append(new Option('No section', ''));
         for (const option of state.sectionOptions) {
-            select.append(new Option(option.label, String(option.id)));
+            select.append(new Option(option.label, option.value));
         }
-        select.value = isValidId(todo?.project_section_id) ? String(Number(todo.project_section_id)) : '';
+        const current = currentSectionValue(todo);
+        select.value = sectionOptionFor(current) ? current : '';
         label.append(select);
         const move = makeButton('Move', 'assign-section', 'button button-quiet');
         move.dataset.todoId = String(Number(todo.id));
@@ -437,16 +516,16 @@ async function loadReviewQueue() {
 }
 
 /**
- * Build the flat list of Project sections offered when moving a ToDo.
+ * Build the flat list of sections offered when moving a ToDo.
  *
- * Sections are read per Project because the API exposes them that way; the picker
- * therefore covers the newest `SECTION_SOURCE_LIMIT` Projects.
+ * Sections are read per Project and per Notebook because the API exposes them that way;
+ * the picker therefore covers the newest `SECTION_SOURCE_LIMIT` of each.
  */
-async function loadSectionOptions() {
-    const data = await requestApi(buildProjectsUrl({ page: 1, limit: SECTION_SOURCE_LIMIT }));
-    const projects = validItems(data?.items).filter((project) => isValidId(project?.id));
+async function loadSectionOptionsFor(kind, listUrl, path) {
+    const data = await requestApi(listUrl);
+    const records = validItems(data?.items).filter((record) => isValidId(record?.id));
     const responses = await Promise.all(
-        projects.map((project) => requestApi(`/api/projects/${Number(project.id)}/sections`)),
+        records.map((record) => requestApi(`${path}/${Number(record.id)}/sections`)),
     );
 
     const options = [];
@@ -454,30 +533,98 @@ async function loadSectionOptions() {
         for (const section of validItems(response?.items)) {
             if (isValidId(section?.id)) {
                 options.push({
-                    id: Number(section.id),
-                    label: formatSectionLabel(projects[index]?.name, section?.name),
+                    kind,
+                    value: sectionOptionValue(kind, section.id),
+                    label: formatSectionLabel(records[index]?.name, section?.name),
                 });
             }
         }
     });
-    state.sectionOptions = options;
+
+    return options;
 }
 
-function renderProject(project) {
+async function loadSectionOptions() {
+    const [projectOptions, notebookOptions] = await Promise.all([
+        loadSectionOptionsFor(
+            'project',
+            buildProjectsUrl({ page: 1, limit: SECTION_SOURCE_LIMIT }),
+            '/api/projects',
+        ),
+        loadSectionOptionsFor(
+            'notebook',
+            buildNotebooksUrl({ page: 1, limit: SECTION_SOURCE_LIMIT }),
+            '/api/notebooks',
+        ),
+    ]);
+    state.sectionOptions = [...projectOptions, ...notebookOptions];
+}
+
+const RECORD_KINDS = {
+    project: {
+        noun: 'Project',
+        plural: 'Projects',
+        path: '/api/projects',
+        payloadKey: 'project',
+        pageSize: PROJECT_PAGE_SIZE,
+        listUrl: buildProjectsUrl,
+        ids: {
+            list: 'project-list',
+            empty: 'project-empty',
+            summary: 'project-summary',
+            pageLabel: 'project-page-label',
+            previous: 'previous-project-page',
+            next: 'next-project-page',
+            detail: 'project-detail',
+            detailTitle: 'project-detail-title',
+            detailDescription: 'project-detail-description',
+            sectionList: 'section-list',
+            sectionEmpty: 'section-empty',
+        },
+    },
+    notebook: {
+        noun: 'Notebook',
+        plural: 'Notebooks',
+        path: '/api/notebooks',
+        payloadKey: 'notebook',
+        pageSize: NOTEBOOK_PAGE_SIZE,
+        listUrl: buildNotebooksUrl,
+        ids: {
+            list: 'notebook-list',
+            empty: 'notebook-empty',
+            summary: 'notebook-summary',
+            pageLabel: 'notebook-page-label',
+            previous: 'previous-notebook-page',
+            next: 'next-notebook-page',
+            detail: 'notebook-detail',
+            detailTitle: 'notebook-detail-title',
+            detailDescription: 'notebook-detail-description',
+            sectionList: 'notebook-section-list',
+            sectionEmpty: 'notebook-section-empty',
+        },
+    },
+};
+
+/**
+ * Projects and Notebooks are listed, opened and sectioned identically, so one renderer
+ * and one loader serve both; only the endpoint, the wording and the element ids differ.
+ */
+function renderRecord(kind, record) {
+    const config = RECORD_KINDS[kind];
     const item = make('li', 'record-item');
     const heading = make('div', 'record-heading');
-    const name = typeof project?.name === 'string' ? project.name : 'Untitled Project';
+    const name = typeof record?.name === 'string' ? record.name : `Untitled ${config.noun}`;
     heading.append(make('h3', '', name));
     item.append(heading);
 
-    if (typeof project?.description === 'string' && project.description !== '') {
-        item.append(make('p', 'record-description', project.description));
+    if (typeof record?.description === 'string' && record.description !== '') {
+        item.append(make('p', 'record-description', record.description));
     }
 
-    if (!isValidId(project?.id)) {
+    if (!isValidId(record?.id)) {
         return item;
     }
-    const projectId = String(Number(project.id));
+    const recordId = String(Number(record.id));
 
     const actions = make('div', 'record-actions');
     const label = make('label', '', 'Rename');
@@ -485,7 +632,7 @@ function renderProject(project) {
     input.type = 'text';
     input.maxLength = 255;
     input.value = name;
-    input.dataset.projectNameInput = '';
+    input.dataset.recordNameInput = '';
     input.setAttribute('aria-label', `New name for ${name}`);
     label.append(input);
 
@@ -497,8 +644,9 @@ function renderProject(project) {
     ]) {
         const button = make('button', className, text);
         button.type = 'button';
-        button.dataset.projectAction = action;
-        button.dataset.projectId = projectId;
+        button.dataset.recordAction = action;
+        button.dataset.recordKind = kind;
+        button.dataset.recordId = recordId;
         button.setAttribute('aria-label', description);
         actions.append(button);
     }
@@ -507,7 +655,7 @@ function renderProject(project) {
     return item;
 }
 
-function renderSection(section) {
+function renderSection(kind, section) {
     const item = make('li', 'record-item');
     const heading = make('div', 'record-heading');
     const name = typeof section?.name === 'string' ? section.name : 'Untitled section';
@@ -544,12 +692,14 @@ function renderSection(section) {
     const rename = make('button', 'button button-quiet', 'Save name');
     rename.type = 'button';
     rename.dataset.sectionAction = 'rename';
+    rename.dataset.sectionKind = kind;
     rename.dataset.sectionId = String(Number(section.id));
     rename.setAttribute('aria-label', `Save the new name for section ${name}`);
 
     const remove = make('button', 'button button-danger', 'Delete');
     remove.type = 'button';
     remove.dataset.sectionAction = 'delete';
+    remove.dataset.sectionKind = kind;
     remove.dataset.sectionId = String(Number(section.id));
     remove.setAttribute('aria-label', `Delete section ${name}`);
 
@@ -559,78 +709,162 @@ function renderSection(section) {
     return item;
 }
 
-async function loadProjectDetail() {
-    const detail = byId('project-detail');
-    if (!isValidId(state.openProjectId)) {
+async function loadRecordDetail(kind) {
+    const config = RECORD_KINDS[kind];
+    const openId = state.records[kind].openId;
+    const detail = byId(config.ids.detail);
+    if (!isValidId(openId)) {
         detail.hidden = true;
         return;
     }
 
-    const data = await requestApi(`/api/projects/${Number(state.openProjectId)}`);
-    const project = data?.project;
-    setText(byId('project-detail-title'), typeof project?.name === 'string' ? project.name : 'Project');
-    const description = byId('project-detail-description');
-    setText(description, typeof project?.description === 'string' ? project.description : '');
+    const data = await requestApi(`${config.path}/${Number(openId)}`);
+    const record = data?.[config.payloadKey];
+    setText(byId(config.ids.detailTitle), typeof record?.name === 'string' ? record.name : config.noun);
+    const description = byId(config.ids.detailDescription);
+    setText(description, typeof record?.description === 'string' ? record.description : '');
     description.hidden = !description.textContent;
 
-    const sections = validItems(project?.sections);
-    byId('section-list').replaceChildren(...sections.map((section) => renderSection(section)));
-    byId('section-empty').hidden = sections.length > 0;
+    const sections = validItems(record?.sections);
+    byId(config.ids.sectionList).replaceChildren(...sections.map((section) => renderSection(kind, section)));
+    byId(config.ids.sectionEmpty).hidden = sections.length > 0;
     detail.hidden = false;
 }
 
-async function loadProjects() {
-    const token = ++state.requests.projects;
-    const data = await requestApi(buildProjectsUrl({ page: state.projectPage }));
-    if (token !== state.requests.projects) {
+async function loadRecords(kind) {
+    const config = RECORD_KINDS[kind];
+    const records = state.records[kind];
+    const token = ++state.requests[`${kind}s`];
+    const data = await requestApi(config.listUrl({ page: records.page }));
+    if (token !== state.requests[`${kind}s`]) {
         return;
     }
     const items = validItems(data?.items);
-    state.projects = items;
-    state.projectTotal = Number(data?.meta?.pagination?.total) || 0;
-    byId('project-list').replaceChildren(...items.map((project) => renderProject(project)));
-    byId('project-empty').hidden = items.length > 0;
+    records.items = items;
+    records.total = Number(data?.meta?.pagination?.total) || 0;
+    byId(config.ids.list).replaceChildren(...items.map((record) => renderRecord(kind, record)));
+    byId(config.ids.empty).hidden = items.length > 0;
 
-    const pageCount = Math.max(1, Math.ceil(state.projectTotal / PROJECT_PAGE_SIZE));
-    setText(byId('project-summary'), `Showing ${items.length} of ${state.projectTotal} Projects`);
-    setText(byId('project-page-label'), `Projects page ${state.projectPage} of ${pageCount}`);
-    byId('previous-project-page').disabled = state.projectPage <= 1;
-    byId('next-project-page').disabled = state.projectPage >= pageCount;
+    const pageCount = Math.max(1, Math.ceil(records.total / config.pageSize));
+    setText(byId(config.ids.summary), `Showing ${items.length} of ${records.total} ${config.plural}`);
+    setText(byId(config.ids.pageLabel), `${config.plural} page ${records.page} of ${pageCount}`);
+    byId(config.ids.previous).disabled = records.page <= 1;
+    byId(config.ids.next).disabled = records.page >= pageCount;
 
-    await loadProjectDetail();
+    await loadRecordDetail(kind);
 }
+
+function renderLibraryMember(member) {
+    const item = make('li', 'record-item');
+    item.append(make('h4', '', typeof member?.name === 'string' ? member.name : 'Untitled'));
+    if (typeof member?.description === 'string' && member.description !== '') {
+        item.append(make('p', 'record-description', member.description));
+    }
+
+    return item;
+}
+
+function renderLibrary(library) {
+    const item = make('li', 'record-item');
+    const name = typeof library?.name === 'string' ? library.name : 'Untitled Library';
+    const heading = make('div', 'record-heading');
+    heading.append(make('h3', '', name));
+    item.append(heading);
+
+    if (typeof library?.description === 'string' && library.description !== '') {
+        item.append(make('p', 'record-description', library.description));
+    }
+
+    if (isValidId(library?.id)) {
+        const actions = make('div', 'record-actions');
+        const open = make('button', 'button button-secondary', 'Open');
+        open.type = 'button';
+        open.dataset.libraryAction = 'open';
+        open.dataset.libraryId = String(Number(library.id));
+        open.setAttribute('aria-label', `Open ${name}`);
+        actions.append(open);
+        item.append(actions);
+    }
+
+    return item;
+}
+
+/**
+ * Libraries are browsed, not managed: the view reads the collection and its members and
+ * offers no mutation, which is what the Slice 16 contract allows.
+ */
+async function loadLibraryDetail() {
+    const detail = byId('library-detail');
+    if (!isValidId(state.libraries.openId)) {
+        detail.hidden = true;
+        return;
+    }
+
+    const data = await requestApi(`/api/libraries/${Number(state.libraries.openId)}`);
+    const library = data?.library;
+    setText(byId('library-detail-title'), typeof library?.name === 'string' ? library.name : 'Library');
+    const description = byId('library-detail-description');
+    setText(description, typeof library?.description === 'string' ? library.description : '');
+    description.hidden = !description.textContent;
+
+    const projects = validItems(library?.projects);
+    const notebooks = validItems(library?.notebooks);
+    byId('library-projects').replaceChildren(...projects.map((member) => renderLibraryMember(member)));
+    byId('library-notebooks').replaceChildren(...notebooks.map((member) => renderLibraryMember(member)));
+    byId('library-members-empty').hidden = projects.length + notebooks.length > 0;
+    detail.hidden = false;
+}
+
+async function loadLibraries() {
+    const token = ++state.requests.libraries;
+    const data = await requestApi(buildLibrariesUrl({ page: state.libraries.page }));
+    if (token !== state.requests.libraries) {
+        return;
+    }
+    const items = validItems(data?.items);
+    state.libraries.items = items;
+    state.libraries.total = Number(data?.meta?.pagination?.total) || 0;
+    byId('library-list').replaceChildren(...items.map((library) => renderLibrary(library)));
+    byId('library-empty').hidden = items.length > 0;
+
+    const pageCount = Math.max(1, Math.ceil(state.libraries.total / LIBRARY_PAGE_SIZE));
+    setText(byId('library-summary'), `Showing ${items.length} of ${state.libraries.total} Libraries`);
+    setText(byId('library-page-label'), `Libraries page ${state.libraries.page} of ${pageCount}`);
+    byId('previous-library-page').disabled = state.libraries.page <= 1;
+    byId('next-library-page').disabled = state.libraries.page >= pageCount;
+
+    await loadLibraryDetail();
+}
+
+const VIEW_LOADERS = {
+    dashboard: loadDashboard,
+    inbox: loadTodos,
+    review: loadReviewQueue,
+    projects: () => loadRecords('project'),
+    notebooks: () => loadRecords('notebook'),
+    libraries: loadLibraries,
+};
 
 async function refreshWorkspace() {
     await Promise.all([loadDashboard(), loadTags(), loadSectionOptions()]);
-    if (state.view === 'inbox') {
-        await loadTodos();
-    } else if (state.view === 'review') {
-        await loadReviewQueue();
-    } else if (state.view === 'projects') {
-        await loadProjects();
+    if (state.view !== 'dashboard') {
+        await VIEW_LOADERS[state.view]();
     }
 }
 
 async function selectView(view) {
-    state.view = view;
-    for (const name of ['dashboard', 'inbox', 'projects', 'review']) {
-        byId(`${name}-view`).hidden = name !== view;
+    const target = Object.hasOwn(VIEW_LOADERS, view) ? view : 'dashboard';
+    state.view = target;
+    for (const name of Object.keys(VIEW_LOADERS)) {
+        byId(`${name}-view`).hidden = name !== target;
         for (const button of document.querySelectorAll(`[data-view="${name}"]`)) {
-            button.classList.toggle('is-current', name === view);
-            button.setAttribute('aria-pressed', String(name === view));
+            button.classList.toggle('is-current', name === target);
+            button.setAttribute('aria-pressed', String(name === target));
         }
     }
 
     try {
-        if (view === 'inbox') {
-            await loadTodos();
-        } else if (view === 'review') {
-            await loadReviewQueue();
-        } else if (view === 'projects') {
-            await loadProjects();
-        } else {
-            await loadDashboard();
-        }
+        await VIEW_LOADERS[target]();
     } catch (error) {
         displayError(error);
     }
@@ -740,61 +974,80 @@ function bindEvents() {
         }
     });
 
-    byId('project-form').addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const formElement = event.currentTarget;
-        const form = new FormData(formElement);
-        try {
-            await requestApi('/api/projects', {
-                method: 'POST',
-                body: JSON.stringify({
-                    name: form.get('name'),
-                    description: form.get('description') || null,
-                }),
-            });
-            formElement.reset();
-            state.projectPage = 1;
-            await loadSectionOptions();
-            await loadProjects();
-            setNotice('Project added.');
-        } catch (error) {
-            displayError(error);
+    for (const kind of Object.keys(RECORD_KINDS)) {
+        const config = RECORD_KINDS[kind];
+        byId(`${kind}-form`).addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const formElement = event.currentTarget;
+            const form = new FormData(formElement);
+            try {
+                await requestApi(config.path, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        name: form.get('name'),
+                        description: form.get('description') || null,
+                    }),
+                });
+                formElement.reset();
+                state.records[kind].page = 1;
+                await loadSectionOptions();
+                await loadRecords(kind);
+                setNotice(`${config.noun} added.`);
+            } catch (error) {
+                displayError(error);
+            }
+        });
+
+        byId(`${kind}-section-form`).addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const openId = state.records[kind].openId;
+            if (!isValidId(openId)) {
+                setNotice(`Open a ${config.noun} before adding a section.`, true);
+                return;
+            }
+            const formElement = event.currentTarget;
+            const form = new FormData(formElement);
+            try {
+                await requestApi(`${config.path}/${Number(openId)}/sections`, {
+                    method: 'POST',
+                    body: JSON.stringify({ name: form.get('name') }),
+                });
+                formElement.reset();
+                await loadSectionOptions();
+                await loadRecords(kind);
+                setNotice('Section added.');
+            } catch (error) {
+                displayError(error);
+            }
+        });
+
+        byId(config.ids.previous).addEventListener('click', async () => {
+            if (state.records[kind].page > 1) {
+                state.records[kind].page--;
+                await loadRecords(kind).catch(displayError);
+            }
+        });
+
+        byId(config.ids.next).addEventListener('click', async () => {
+            const records = state.records[kind];
+            if (records.page * config.pageSize < records.total) {
+                records.page++;
+                await loadRecords(kind).catch(displayError);
+            }
+        });
+    }
+
+    byId('previous-library-page').addEventListener('click', async () => {
+        if (state.libraries.page > 1) {
+            state.libraries.page--;
+            await loadLibraries().catch(displayError);
         }
     });
 
-    byId('section-form').addEventListener('submit', async (event) => {
-        event.preventDefault();
-        if (!isValidId(state.openProjectId)) {
-            setNotice('Open a Project before adding a section.', true);
-            return;
-        }
-        const formElement = event.currentTarget;
-        const form = new FormData(formElement);
-        try {
-            await requestApi(`/api/projects/${Number(state.openProjectId)}/sections`, {
-                method: 'POST',
-                body: JSON.stringify({ name: form.get('name') }),
-            });
-            formElement.reset();
-            await loadSectionOptions();
-            await loadProjects();
-            setNotice('Section added.');
-        } catch (error) {
-            displayError(error);
-        }
-    });
-
-    byId('previous-project-page').addEventListener('click', async () => {
-        if (state.projectPage > 1) {
-            state.projectPage--;
-            await loadProjects().catch(displayError);
-        }
-    });
-
-    byId('next-project-page').addEventListener('click', async () => {
-        if (state.projectPage * PROJECT_PAGE_SIZE < state.projectTotal) {
-            state.projectPage++;
-            await loadProjects().catch(displayError);
+    byId('next-library-page').addEventListener('click', async () => {
+        if (state.libraries.page * LIBRARY_PAGE_SIZE < state.libraries.total) {
+            state.libraries.page++;
+            await loadLibraries().catch(displayError);
         }
     });
 
@@ -821,34 +1074,36 @@ function bindEvents() {
             return;
         }
 
-        const projectAction = button.dataset.projectAction;
-        if (projectAction && isValidId(button.dataset.projectId)) {
-            const projectId = Number(button.dataset.projectId);
+        const recordAction = button.dataset.recordAction;
+        const recordKind = button.dataset.recordKind;
+        if (recordAction && Object.hasOwn(RECORD_KINDS, recordKind) && isValidId(button.dataset.recordId)) {
+            const config = RECORD_KINDS[recordKind];
+            const recordId = Number(button.dataset.recordId);
             try {
-                if (projectAction === 'open') {
-                    state.openProjectId = projectId;
-                    await loadProjectDetail();
-                    byId('project-detail-title').scrollIntoView({ block: 'nearest' });
+                if (recordAction === 'open') {
+                    state.records[recordKind].openId = recordId;
+                    await loadRecordDetail(recordKind);
+                    byId(config.ids.detailTitle).scrollIntoView({ block: 'nearest' });
                     return;
                 }
-                if (projectAction === 'rename') {
-                    const input = button.parentElement.querySelector('[data-project-name-input]');
-                    await requestApi(`/api/projects/${projectId}`, {
+                if (recordAction === 'rename') {
+                    const input = button.parentElement.querySelector('[data-record-name-input]');
+                    await requestApi(`${config.path}/${recordId}`, {
                         method: 'PATCH',
                         body: JSON.stringify({ name: input?.value ?? '' }),
                     });
-                    setNotice('Project renamed.');
-                } else if (projectAction === 'delete') {
-                    await requestApi(`/api/projects/${projectId}`, { method: 'DELETE' });
-                    if (state.openProjectId === projectId) {
-                        state.openProjectId = null;
+                    setNotice(`${config.noun} renamed.`);
+                } else if (recordAction === 'delete') {
+                    await requestApi(`${config.path}/${recordId}`, { method: 'DELETE' });
+                    if (state.records[recordKind].openId === recordId) {
+                        state.records[recordKind].openId = null;
                     }
-                    setNotice('Project deleted.');
+                    setNotice(`${config.noun} deleted.`);
                 } else {
                     return;
                 }
                 await loadSectionOptions();
-                await loadProjects();
+                await loadRecords(recordKind);
             } catch (error) {
                 displayError(error);
             }
@@ -856,25 +1111,44 @@ function bindEvents() {
         }
 
         const sectionAction = button.dataset.sectionAction;
-        if (sectionAction && isValidId(button.dataset.sectionId) && isValidId(state.openProjectId)) {
-            const projectId = Number(state.openProjectId);
+        const sectionKind = button.dataset.sectionKind;
+        if (
+            sectionAction
+            && Object.hasOwn(RECORD_KINDS, sectionKind)
+            && isValidId(button.dataset.sectionId)
+            && isValidId(state.records[sectionKind].openId)
+        ) {
+            const config = RECORD_KINDS[sectionKind];
+            const parentId = Number(state.records[sectionKind].openId);
             const sectionId = Number(button.dataset.sectionId);
+            const sectionPath = `${config.path}/${parentId}/sections/${sectionId}`;
             try {
                 if (sectionAction === 'rename') {
                     const input = button.parentElement.querySelector('[data-section-name-input]');
-                    await requestApi(`/api/projects/${projectId}/sections/${sectionId}`, {
+                    await requestApi(sectionPath, {
                         method: 'PATCH',
                         body: JSON.stringify({ name: input?.value ?? '' }),
                     });
                     setNotice('Section renamed.');
                 } else if (sectionAction === 'delete') {
-                    await requestApi(`/api/projects/${projectId}/sections/${sectionId}`, { method: 'DELETE' });
+                    await requestApi(sectionPath, { method: 'DELETE' });
                     setNotice('Section deleted.');
                 } else {
                     return;
                 }
                 await loadSectionOptions();
-                await loadProjects();
+                await loadRecords(sectionKind);
+            } catch (error) {
+                displayError(error);
+            }
+            return;
+        }
+
+        if (button.dataset.libraryAction === 'open' && isValidId(button.dataset.libraryId)) {
+            state.libraries.openId = Number(button.dataset.libraryId);
+            try {
+                await loadLibraryDetail();
+                byId('library-detail-title').scrollIntoView({ block: 'nearest' });
             } catch (error) {
                 displayError(error);
             }
@@ -912,15 +1186,15 @@ function bindEvents() {
             } else if (action === 'assign-section') {
                 const picker = button.parentElement.querySelector('[data-section-picker]');
                 const choice = picker?.value ?? '';
-                if (choice !== '' && !isValidId(choice)) {
+                if (choice !== '' && parseSectionOptionValue(choice) === null) {
                     setNotice('Choose a section before moving this ToDo.', true);
                     return;
                 }
+                // Both section fields are sent, so a move between a Project section and a
+                // Notebook section clears one assignment and sets the other in one request.
                 await requestApi(`/api/todos/${todoId}`, {
                     method: 'PATCH',
-                    body: JSON.stringify({
-                        project_section_id: choice === '' ? null : Number(choice),
-                    }),
+                    body: JSON.stringify(buildSectionAssignmentBody(choice)),
                 });
             } else {
                 return;
