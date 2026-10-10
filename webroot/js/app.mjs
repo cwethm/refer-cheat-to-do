@@ -746,10 +746,15 @@ async function loadRecords(kind) {
     const items = validItems(data?.items);
     records.items = items;
     records.total = Number(data?.meta?.pagination?.total) || 0;
+    const pageCount = Math.max(1, Math.ceil(records.total / config.pageSize));
+    if (records.page > pageCount) {
+        records.page = pageCount;
+        await loadRecords(kind);
+        return;
+    }
     byId(config.ids.list).replaceChildren(...items.map((record) => renderRecord(kind, record)));
     byId(config.ids.empty).hidden = items.length > 0;
 
-    const pageCount = Math.max(1, Math.ceil(records.total / config.pageSize));
     setText(byId(config.ids.summary), `Showing ${items.length} of ${records.total} ${config.plural}`);
     setText(byId(config.ids.pageLabel), `${config.plural} page ${records.page} of ${pageCount}`);
     byId(config.ids.previous).disabled = records.page <= 1;
