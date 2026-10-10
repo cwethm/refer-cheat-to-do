@@ -29,7 +29,8 @@ class DataPortabilityServiceTest extends TestCase
         'app.Users', 'app.Projects', 'app.ProjectSections', 'app.Notebooks', 'app.NotebookSections',
         'app.Libraries', 'app.Tags', 'app.Todos', 'app.TodosTags', 'app.RelatedTodos',
         'app.LibrariesProjects', 'app.LibrariesNotebooks', 'app.CapabilityGrants',
-        'app.CrossContextRequests', 'app.ActivityRecords',
+        'app.CrossContextRequests', 'app.ActivityRecords', 'app.ResearchCollections',
+        'app.ResearchCollectionItems',
     ];
 
     /**
@@ -38,6 +39,29 @@ class DataPortabilityServiceTest extends TestCase
     private function connection(): Connection
     {
         return TableRegistry::getTableLocator()->get('Users')->getConnection();
+    }
+
+    public function testLargeResearchContentUsesBoundedChunksAndRestores(): void
+    {
+        $content = str_repeat('é🙂', 10000);
+        $this->connection()->execute('UPDATE research_collection_items SET content=? WHERE id=990', [$content]);
+        $records = $this->exported();
+        $chunks = array_values(array_filter(
+            $this->ofType($records, 'text_chunks'),
+            static fn(array $row): bool => $row['record_type'] === 'research_collection_items',
+        ));
+        $this->assertNotEmpty($chunks);
+        $stream = $this->encoded($records);
+        try {
+            $this->service()->restore(3, $stream);
+        } finally {
+            fclose($stream);
+        }
+        $restored = $this->connection()->execute(
+            'SELECT i.content FROM research_collection_items i '
+            . 'JOIN research_collections c ON c.id=i.research_collection_id WHERE c.user_id=3',
+        )->fetch('assoc');
+        $this->assertSame($content, $restored['content']);
     }
 
     /**
@@ -134,6 +158,24 @@ class DataPortabilityServiceTest extends TestCase
         $recorder = new ActivityRecorder(TableRegistry::getTableLocator());
         $recorder->record(1, 'todo.updated', 'todo', 10, ['status' => 'done', 'tag_id' => 100], 'project', 200);
         $recorder->record(1, 'project.read', 'project', 201, ['foreign_id' => 201], 'notebook', 401);
+        $recorder->record(
+            1,
+            'research_collection.updated',
+            'research_collection',
+            900,
+            [],
+            'research_collection_item',
+            990,
+        );
+        $recorder->record(
+            1,
+            'research_collection_item.updated',
+            'research_collection_item',
+            990,
+            [],
+            'research_collection',
+            900,
+        );
         $recorder->record(2, 'todo.updated', 'todo', 12);
         $db->execute("UPDATE activity_records SET metadata='{\"password\":\"sensitive-history\"}' "
             . "WHERE actor_user_id=1 AND action='project.read'");
@@ -155,8 +197,9 @@ class DataPortabilityServiceTest extends TestCase
         $this->assertSame(['schema' => DataPortabilityService::SCHEMA], $records[0]);
         $expected = [
             'projects' => 1, 'project_sections' => 3, 'notebooks' => 1, 'notebook_sections' => 3,
-            'libraries' => 2, 'tags' => 2, 'todos' => 3, 'todos_tags' => 2, 'related_todos' => 1,
-            'libraries_projects' => 1, 'libraries_notebooks' => 1, 'activity_records' => 2,
+            'libraries' => 2, 'research_collections' => 1, 'research_collection_items' => 1,
+            'tags' => 2, 'todos' => 3, 'todos_tags' => 2, 'related_todos' => 1,
+            'libraries_projects' => 1, 'libraries_notebooks' => 1, 'activity_records' => 4,
         ];
         foreach ($expected as $type => $count) {
             $this->assertCount($count, $this->ofType($records, $type), $type);
@@ -200,6 +243,18 @@ class DataPortabilityServiceTest extends TestCase
         }
     }
 
+    public function testForeignResearchItemReferenceIsRedacted(): void
+    {
+        $this->connection()->execute(
+            "UPDATE research_collection_items SET related_resource_type='todo', related_resource_id=12 WHERE id=990",
+        );
+
+        $item = $this->ofType($this->exported(), 'research_collection_items')[0];
+
+        $this->assertNull($item['related_resource_type']);
+        $this->assertNull($item['related_resource_id']);
+    }
+
     /**
      * Round trip restores all record types with original data and remapped relationships.
      */
@@ -234,7 +289,7 @@ class DataPortabilityServiceTest extends TestCase
             'project_id' => 'projects', 'notebook_id' => 'notebooks', 'library_id' => 'libraries',
             'todo_id' => 'todos', 'related_todo_id' => 'todos', 'tag_id' => 'tags',
             'project_section_id' => 'project_sections', 'notebook_section_id' => 'notebook_sections',
-            'parent_todo_id' => 'todos',
+            'parent_todo_id' => 'todos', 'research_collection_id' => 'research_collections',
         ];
         foreach ($source as $index => $row) {
             if (!isset($row['type'])) {
@@ -247,9 +302,23 @@ class DataPortabilityServiceTest extends TestCase
                     $expected['data'][$field] = $idMaps[$row['type']][$value];
                 } elseif (isset($references[$field]) && $value !== null) {
                     $expected['data'][$field] = $idMaps[$references[$field]][$value];
+                } elseif ($field === 'related_resource_id' && $value !== null) {
+                    $type = $row['data']['related_resource_type'];
+                    $referenceTable = match ($type) {
+                        'todo' => 'todos',
+                        'project' => 'projects',
+                        'notebook' => 'notebooks',
+                    };
+                    $expected['data'][$field] = $idMaps[$referenceTable][$value];
                 } elseif (in_array($field, ['subject_id', 'context_id'], true) && $value) {
                     $kind = $row['data'][str_replace('_id', '_type', $field)];
-                    $expected['data'][$field] = $idMaps[$kind === 'library' ? 'libraries' : $kind . 's'][$value];
+                    $referenceTable = match ($kind) {
+                        'library' => 'libraries',
+                        'research_collection' => 'research_collections',
+                        'research_collection_item' => 'research_collection_items',
+                        default => $kind . 's',
+                    };
+                    $expected['data'][$field] = $idMaps[$referenceTable][$value];
                 } elseif ($field === 'metadata' && $value !== null) {
                     $metadata = json_decode($value, true);
                     if (isset($metadata['tag_id'])) {
@@ -656,9 +725,14 @@ class DataPortabilityServiceTest extends TestCase
         $this->connection()->execute('DELETE FROM todos WHERE user_id=3');
         $this->connection()->execute('DELETE FROM project_sections WHERE project_id IN (SELECT id FROM projects WHERE user_id=3)');
         $this->connection()->execute('DELETE FROM notebook_sections WHERE notebook_id IN (SELECT id FROM notebooks WHERE user_id=3)');
+        $this->connection()->execute(
+            'DELETE FROM research_collection_items WHERE research_collection_id IN '
+            . '(SELECT id FROM research_collections WHERE user_id=3)',
+        );
         foreach (['projects', 'notebooks', 'libraries', 'tags'] as $type) {
             $this->connection()->execute("DELETE FROM $type WHERE user_id=3");
         }
+        $this->connection()->execute('DELETE FROM research_collections WHERE user_id=3');
         $bad = $records;
         foreach ($bad as $index => $row) {
             if (($row['type'] ?? null) === 'text_chunks') {

@@ -30,15 +30,6 @@ class ResearchCollectionsFixture extends TestFixture
                 'created' => '2026-01-01 00:00:00',
                 'modified' => '2026-01-01 00:00:00',
             ],
-            [
-                'id' => 902,
-                'user_id' => 3,
-                'created_by_user_id' => 3,
-                'name' => 'Restricted owner collection',
-                'description' => null,
-                'created' => '2026-01-01 00:00:00',
-                'modified' => '2026-01-01 00:00:00',
-            ],
         ];
 
         parent::init();

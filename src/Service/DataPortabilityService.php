@@ -23,7 +23,7 @@ class DataPortabilityService
     public const TEXT_CHUNK_CHARS = 16384;
 
     /** @var list<string> */
-    private const TEXT_FIELDS = ['notes', 'description', 'terminal_objective', 'result_summary'];
+    private const TEXT_FIELDS = ['notes', 'description', 'terminal_objective', 'result_summary', 'content'];
 
     /**
      * Ordered dependencies and the complete portable field allowlist.
@@ -36,10 +36,13 @@ class DataPortabilityService
         'notebooks' => 'id,name,description,created,modified',
         'notebook_sections' => 'id,notebook_id,name,position,created,modified',
         'libraries' => 'id,name,description,created,modified',
+        'research_collections' => 'id,name,description,created,modified',
         'tags' => 'id,name,created,modified',
         'todos' => 'id,title,notes,status,created,modified,project_section_id,notebook_section_id,'
             . 'archived_at,trashed_at,previous_status,last_reviewed_at,next_review_at,review_interval_days,'
             . 'parent_todo_id,terminal_objective,objective_satisfied_at,result_summary',
+        'research_collection_items' => 'id,research_collection_id,title,content,source_uri,'
+            . 'related_resource_type,related_resource_id,created,modified',
         'todos_tags' => 'todo_id,tag_id',
         'related_todos' => 'todo_id,related_todo_id,created',
         'libraries_projects' => 'library_id,project_id,created',
@@ -58,6 +61,7 @@ class DataPortabilityService
         'project_section_id' => 'project_sections',
         'notebook_section_id' => 'notebook_sections',
         'parent_todo_id' => 'todos',
+        'research_collection_id' => 'research_collections',
     ];
 
     private Connection $connection;
@@ -247,6 +251,8 @@ class DataPortabilityService
             'libraries_notebooks' => 'r.library_id IN (SELECT id FROM libraries WHERE user_id = ?) '
                 . 'AND r.notebook_id IN (SELECT id FROM notebooks WHERE user_id = '
                 . '(SELECT user_id FROM libraries WHERE id = r.library_id))',
+            'research_collection_items' => 'r.research_collection_id IN '
+                . '(SELECT id FROM research_collections WHERE user_id = ?)',
             'activity_records' => 'r.actor_user_id = ?',
             default => 'r.user_id = ?',
         };
@@ -350,6 +356,18 @@ class DataPortabilityService
                 }
             }
         }
+        if ($type === 'research_collection_items' && $row['related_resource_id'] !== null) {
+            $target = match ($row['related_resource_type']) {
+                'todo' => 'todos',
+                'project' => 'projects',
+                'notebook' => 'notebooks',
+                default => null,
+            };
+            if ($target === null || !$this->owns($target, (int)$row['related_resource_id'], $userId)) {
+                $row['related_resource_type'] = null;
+                $row['related_resource_id'] = null;
+            }
+        }
         if ($type === 'activity_records') {
             foreach (['subject', 'context'] as $pointer) {
                 $kind = $this->subjectTable($row[$pointer . '_type']);
@@ -376,8 +394,12 @@ class DataPortabilityService
      */
     private function owns(string $type, int $id, int $userId): bool
     {
-        if (in_array($type, ['projects', 'notebooks', 'libraries'], true)) {
-            $kind = $type === 'libraries' ? 'library' : substr($type, 0, -1);
+        if (in_array($type, ['projects', 'notebooks', 'libraries', 'research_collections'], true)) {
+            $kind = match ($type) {
+                'libraries' => 'library',
+                'research_collections' => CapabilityService::RESOURCE_RESEARCH_COLLECTION,
+                default => substr($type, 0, -1),
+            };
 
             return (new CapabilityService($this->tables))->ownerIdFor($kind, $id) === $userId;
         }
@@ -399,6 +421,8 @@ class DataPortabilityService
             'project' => 'projects',
             'notebook' => 'notebooks',
             'library' => 'libraries',
+            'research_collection' => 'research_collections',
+            'research_collection_item' => 'research_collection_items',
             default => null,
         };
     }
@@ -705,6 +729,26 @@ class DataPortabilityService
         if ($type === 'related_todos' && $data['todo_id'] >= $data['related_todo_id']) {
             throw new DomainException('Related ToDos must be a canonical distinct pair.');
         }
+        if (
+            $type === 'research_collection_items'
+            && $data['content'] !== null
+            && (!is_string($data['content']) || strlen($data['content']) > 65536)
+        ) {
+            throw new DomainException('Research collection item content exceeds its stored byte limit.');
+        }
+        if (
+            $type === 'research_collection_items'
+            && $data['related_resource_type'] !== null
+            && !in_array($data['related_resource_type'], ['todo', 'project', 'notebook'], true)
+        ) {
+            throw new DomainException('Invalid research collection resource reference.');
+        }
+        if (
+            $type === 'research_collection_items'
+            && (($data['related_resource_type'] === null) !== ($data['related_resource_id'] === null))
+        ) {
+            throw new DomainException('Research collection resource type and id must be supplied together.');
+        }
         if ($type === 'activity_records') {
             if (
                 !in_array($data['subject_type'], ActivityRecorder::SUBJECT_TYPES, true)
@@ -755,6 +799,18 @@ class DataPortabilityService
             }
             $data[$field] = $field === 'parent_todo_id' ? null : $this->mappedId($target, $data[$field]);
         }
+        if ($type === 'research_collection_items' && $data['related_resource_id'] !== null) {
+            $target = match ($data['related_resource_type']) {
+                'todo' => 'todos',
+                'project' => 'projects',
+                'notebook' => 'notebooks',
+                default => null,
+            };
+            if ($target === null) {
+                throw new DomainException('Invalid research collection resource reference.');
+            }
+            $data['related_resource_id'] = $this->mappedId($target, $data['related_resource_id']);
+        }
         if ($type === 'related_todos' && $data['todo_id'] > $data['related_todo_id']) {
             [$data['todo_id'], $data['related_todo_id']] = [$data['related_todo_id'], $data['todo_id']];
         }
@@ -788,6 +844,9 @@ class DataPortabilityService
             $data['actor_user_id'] = $userId;
         } elseif (in_array($type, ['projects', 'notebooks', 'libraries', 'tags', 'todos'], true)) {
             $data['user_id'] = $userId;
+        } elseif ($type === 'research_collections') {
+            $data['user_id'] = $userId;
+            $data['created_by_user_id'] = $userId;
         }
         $columns = implode(',', array_keys($data));
         $placeholders = implode(',', array_fill(0, count($data), '?'));

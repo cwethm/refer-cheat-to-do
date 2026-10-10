@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Controller\Api;
 
 use App\Service\CapabilityService;
+use Cake\Database\Exception\QueryException;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
@@ -262,7 +263,13 @@ class ResearchCollectionsControllerTest extends TestCase
 
     public function testOwnerAccountDeletionIsRestrictedWhileCollectionExists(): void
     {
-        $this->expectException(\Cake\Database\Exception\QueryException::class);
+        $collections = TableRegistry::getTableLocator()->get('ResearchCollections');
+        $collection = $collections->newEntity(['name' => 'Restricted owner collection']);
+        $collection->set('user_id', 3);
+        $collection->set('created_by_user_id', 3);
+        $collections->saveOrFail($collection);
+
+        $this->expectException(QueryException::class);
         TableRegistry::getTableLocator()->get('Users')->deleteOrFail(
             TableRegistry::getTableLocator()->get('Users')->get(3),
         );
