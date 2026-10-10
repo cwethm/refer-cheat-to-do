@@ -34,6 +34,8 @@ class ActivityRecorder
         'library',
         'capability_grant',
         'cross_context_request',
+        'research_collection',
+        'research_collection_item',
     ];
 
     /**

@@ -58,11 +58,12 @@ contract deliberately excludes.
 
   | Record type | Fields |
   | --- | --- |
-  | `projects`, `notebooks`, `libraries` | `id`, `name`, `description`, `created`, `modified` |
+  | `projects`, `notebooks`, `libraries`, `research_collections` | `id`, `name`, `description`, `created`, `modified` |
   | `project_sections` | `id`, `project_id`, `name`, `position`, `created`, `modified` |
   | `notebook_sections` | `id`, `notebook_id`, `name`, `position`, `created`, `modified` |
   | `tags` | `id`, `name`, `created`, `modified` |
   | `todos` | `id`, `title`, `notes`, `status`, `created`, `modified`, `project_section_id`, `notebook_section_id`, `archived_at`, `trashed_at`, `previous_status`, `last_reviewed_at`, `next_review_at`, `review_interval_days`, `parent_todo_id`, `terminal_objective`, `objective_satisfied_at`, `result_summary` |
+  | `research_collection_items` | `id`, `research_collection_id`, `title`, `content`, `source_uri`, `related_resource_type`, `related_resource_id`, `created`, `modified` |
   | `todos_tags` | `todo_id`, `tag_id` |
   | `related_todos` | `todo_id`, `related_todo_id`, `created` |
   | `libraries_projects` | `library_id`, `project_id`, `created` |
@@ -70,7 +71,11 @@ contract deliberately excludes.
   | `activity_records` | `id`, `action`, `subject_type`, `subject_id`, `context_type`, `context_id`, `metadata`, `created` |
 
   All fields are present, including nullable fields. IDs and numeric fields are JSON integers.
-  Unrestricted text fields (`notes`, `description`, `terminal_objective`, `result_summary`) longer
+  Collection ownership and creator identity are restored to the target account. Collection item
+  references to ToDos, Projects, and Notebooks are included only when the target is owned and present
+  in the export; otherwise both reference fields are null. Like other user-owned material, research
+  collection content is included in the same private, bounded export and restore.
+  Unrestricted text fields (`notes`, `description`, `terminal_objective`, `result_summary`, `content`) longer
   than 16,384 Unicode characters are represented by `{"chunks":N}` instead of their string value,
   where N is the complete character count. Immediately following records have `type: "text_chunks"`
   and `data` fields `record_type`, `id`, `field`, `offset`, `total`, `value`. Offset is zero-based

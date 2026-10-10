@@ -36,6 +36,7 @@ class CapabilityService
     public const RESOURCE_PROJECT = 'project';
     public const RESOURCE_NOTEBOOK = 'notebook';
     public const RESOURCE_LIBRARY = 'library';
+    public const RESOURCE_RESEARCH_COLLECTION = 'research_collection';
 
     /**
      * The complete capability vocabulary. Anything outside this list is an unknown capability.
@@ -66,6 +67,7 @@ class CapabilityService
         self::RESOURCE_PROJECT => 'Projects',
         self::RESOURCE_NOTEBOOK => 'Notebooks',
         self::RESOURCE_LIBRARY => 'Libraries',
+        self::RESOURCE_RESEARCH_COLLECTION => 'ResearchCollections',
     ];
 
     /**

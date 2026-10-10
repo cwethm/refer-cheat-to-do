@@ -56,6 +56,7 @@ class CapabilityGrantsTable extends Table
                 CapabilityService::RESOURCE_PROJECT,
                 CapabilityService::RESOURCE_NOTEBOOK,
                 CapabilityService::RESOURCE_LIBRARY,
+                CapabilityService::RESOURCE_RESEARCH_COLLECTION,
             ])
             ->requirePresence('resource_type', 'create')
             ->notEmptyString('resource_type');
