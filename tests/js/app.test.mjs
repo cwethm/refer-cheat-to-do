@@ -2,11 +2,15 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
+    buildProjectsUrl,
     buildTodoUrl,
+    formatSectionLabel,
     getErrorMessage,
     isValidId,
     labelForReviewReason,
+    PROJECT_PAGE_SIZE,
     requestApi,
+    SECTION_SOURCE_LIMIT,
     setText,
     TODO_PAGE_SIZE,
 } from '../../webroot/js/app.mjs';
@@ -191,4 +195,38 @@ test('empty collections are returned as data, not as a missing response', async 
     } finally {
         globalThis.fetch = originalFetch;
     }
+});
+
+test('Project listing URL pages at the client page size', () => {
+    const url = new URL(buildProjectsUrl(), 'https://example.test');
+
+    assert.equal(url.pathname, '/api/projects');
+    assert.equal(url.searchParams.get('page'), '1');
+    assert.equal(url.searchParams.get('limit'), String(PROJECT_PAGE_SIZE));
+    assert.equal(
+        new URL(buildProjectsUrl({ page: 4 }), 'https://example.test').searchParams.get('page'),
+        '4',
+    );
+});
+
+test('Project listing URL clamps pages and limits to what the API accepts', () => {
+    for (const page of [0, -2, Number.NaN]) {
+        const url = new URL(buildProjectsUrl({ page }), 'https://example.test');
+
+        assert.equal(url.searchParams.get('page'), '1');
+    }
+
+    const overLimit = new URL(buildProjectsUrl({ limit: 5000 }), 'https://example.test');
+    assert.equal(overLimit.searchParams.get('limit'), String(SECTION_SOURCE_LIMIT));
+
+    const underLimit = new URL(buildProjectsUrl({ limit: 0 }), 'https://example.test');
+    assert.equal(underLimit.searchParams.get('limit'), '1');
+});
+
+test('a section is labelled with the Project it belongs to', () => {
+    assert.equal(formatSectionLabel('Kitchen rebuild', 'Waiting on quotes'), 'Kitchen rebuild · Waiting on quotes');
+    assert.equal(formatSectionLabel('  Kitchen  ', '  Quotes  '), 'Kitchen · Quotes');
+    assert.equal(formatSectionLabel(null, 'Quotes'), 'Quotes');
+    assert.equal(formatSectionLabel('Kitchen', ''), 'Kitchen');
+    assert.equal(formatSectionLabel(undefined, undefined), 'Untitled section');
 });

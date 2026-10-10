@@ -48,6 +48,7 @@ $this->disableAutoLayout();
                 <nav class="view-nav" aria-label="Workspace views">
                     <button class="view-button is-current" type="button" data-view="dashboard" aria-pressed="true">Today</button>
                     <button class="view-button" type="button" data-view="inbox" aria-pressed="false">ToDos</button>
+                    <button class="view-button" type="button" data-view="projects" aria-pressed="false">Projects</button>
                     <button class="view-button" type="button" data-view="review" aria-pressed="false">Review</button>
                 </nav>
             </div>
@@ -121,6 +122,42 @@ $this->disableAutoLayout();
                     </form>
                     <ul id="tag-list" class="tag-list"></ul>
                     <p id="tag-empty" class="empty-copy" hidden>No tags yet. Add one to make related ToDos easier to find.</p>
+                </section>
+            </section>
+            <section id="projects-view" class="view-panel" aria-labelledby="projects-title" hidden>
+                <div class="section-heading">
+                    <div><div class="eyebrow">Give work a home</div><h2 id="projects-title">Your Projects</h2></div>
+                </div>
+                <section class="surface" aria-labelledby="project-form-title">
+                    <h3 id="project-form-title" class="panel-title">Start a Project</h3>
+                    <form id="project-form" class="form-stack">
+                        <label for="project-name">Project name</label>
+                        <input id="project-name" name="name" maxlength="255" required placeholder="e.g. Kitchen rebuild">
+                        <label for="project-description">Description <span class="optional">(optional)</span></label>
+                        <textarea id="project-description" name="description" rows="2" placeholder="What is this Project for?"></textarea>
+                        <button class="button button-primary" type="submit">Add Project</button>
+                    </form>
+                </section>
+                <p id="project-summary" class="result-summary"></p>
+                <ul id="project-list" class="record-list"></ul>
+                <p id="project-empty" class="empty-copy" hidden>No Projects yet. Add one to give your ToDos a home.</p>
+                <div class="pagination">
+                    <button id="previous-project-page" class="button button-quiet" type="button" disabled>Previous Projects</button>
+                    <span id="project-page-label" aria-live="polite"></span>
+                    <button id="next-project-page" class="button button-quiet" type="button" disabled>Next Projects</button>
+                </div>
+                <section id="project-detail" class="surface" aria-labelledby="project-detail-title" hidden>
+                    <div class="section-heading">
+                        <div><div class="eyebrow">Inside this Project</div><h3 id="project-detail-title" class="panel-title"></h3></div>
+                    </div>
+                    <p id="project-detail-description" class="intro"></p>
+                    <form id="section-form" class="tag-form">
+                        <label for="section-name">Add a section</label>
+                        <input id="section-name" name="name" maxlength="255" required placeholder="e.g. Waiting on quotes">
+                        <button class="button button-secondary" type="submit">Add section</button>
+                    </form>
+                    <ul id="section-list" class="record-list"></ul>
+                    <p id="section-empty" class="empty-copy" hidden>This Project has no sections yet.</p>
                 </section>
             </section>
             <section id="review-view" class="view-panel" aria-labelledby="review-title" hidden>
