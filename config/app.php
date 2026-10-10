@@ -9,7 +9,7 @@ use Cake\Log\Engine\FileLog;
 use Cake\Mailer\Transport\MailTransport;
 use function Cake\Core\env;
 
-$debug = filter_var(env('DEBUG', true), FILTER_VALIDATE_BOOLEAN);
+$debug = filter_var(env('DEBUG', false), FILTER_VALIDATE_BOOLEAN);
 $appName = env('APP_NAME', 'refer-cheat-to-do');
 $appEnv = env('APP_ENV', 'production');
 $dbHost = env('DB_HOST', '127.0.0.1');
