@@ -59,8 +59,10 @@ by a database `CHECK`; extending it is a deliberate migration, not an incidental
   rather than silently transferring or deleting user material. This repository has no admin identity,
   account-quarantine, or audited claim workflow yet; implementing those is a prerequisite to changing
   this policy. Capability grants are removed with a deleted subject, as in Slice 10.
-- Activity remains actor-only and is not exposed through collection endpoints. Collection and item
-  mutations record one explicit activity entry after the successful mutation.
+- Activity remains actor-only and is not exposed through collection endpoints. API collection and item
+  mutations record one explicit activity entry after the successful mutation. Referential unlinking
+  caused by deleting a linked resource is database integrity cleanup, not a separately requested item
+  mutation.
 
 #### Content limits and handling
 - An item has a required title (≤255 characters), plain-text content (≤65,536 UTF-8 bytes), and an
@@ -91,3 +93,12 @@ by a database `CHECK`; extending it is a deliberate migration, not an incidental
 
 The existing capability API manages named-user grants using `resource_type: research_collection`.
 No publish endpoint or client UI is included.
+
+### Completion
+- Migration `20261010220000_CreateResearchCollections` applies, rolls back to
+  `20260916210000_CreateActivityRecords`, and reapplies successfully on PostgreSQL.
+- ResearchCollection API and portability tests pass (37 tests, 435 assertions).
+- PHP syntax checks, PHPCS, and PHPStan over all changed application classes pass.
+- Full PHPUnit ran 701 tests: 700 passed; the unrelated `ApplicationTest::testBootstrapInDebug` fails
+  because this checkout does not provide the optional DebugKit plugin. No new browser tests are
+  required because this slice adds no client work.
