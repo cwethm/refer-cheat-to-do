@@ -20,6 +20,10 @@ class DataPortabilityService
     public const BATCH_SIZE = 100;
     public const MAX_LINE_BYTES = 1048576;
     public const MAX_METADATA_BYTES = 8192;
+    public const TEXT_CHUNK_CHARS = 16384;
+
+    /** @var list<string> */
+    private const TEXT_FIELDS = ['notes', 'description', 'terminal_objective', 'result_summary'];
 
     /**
      * Ordered dependencies and the complete portable field allowlist.
@@ -85,9 +89,36 @@ class DataPortabilityService
                     $rows = $this->exportBatch($type, $fields, $userId, $keys, $last);
                     foreach ($rows as $row) {
                         $last = array_map(static fn(string $key): int => (int)$row[$key], $keys);
+                        $lengths = [];
+                        foreach (self::TEXT_FIELDS as $field) {
+                            if (isset($row['_length_' . $field])) {
+                                $lengths[$field] = (int)$row['_length_' . $field];
+                                if ($lengths[$field] > self::TEXT_CHUNK_CHARS) {
+                                    $row[$field] = ['chunks' => $lengths[$field]];
+                                }
+                            }
+                            unset($row['_length_' . $field]);
+                        }
                         $this->sanitize($type, $row, $userId);
                         $this->writeLine($stream, ['type' => $type, 'data' => $row]);
                         $count++;
+                        foreach ($lengths as $field => $length) {
+                            if ($length <= self::TEXT_CHUNK_CHARS) {
+                                continue;
+                            }
+                            for ($offset = 0; $offset < $length; $offset += self::TEXT_CHUNK_CHARS) {
+                                $chunk = $this->connection->execute(
+                                    "SELECT substring($field FROM CAST(? AS integer) FOR CAST(? AS integer)) "
+                                        . "AS value FROM $type WHERE id = ?",
+                                    [$offset + 1, self::TEXT_CHUNK_CHARS, $row['id']],
+                                )->fetch('assoc');
+                                $this->writeLine($stream, ['type' => 'text_chunks', 'data' => [
+                                    'record_type' => $type, 'id' => $row['id'], 'field' => $field,
+                                    'offset' => $offset, 'total' => $length, 'value' => $chunk['value'],
+                                ]]);
+                                $count++;
+                            }
+                        }
                     }
                     $size = count($rows);
                 } while ($size === self::BATCH_SIZE);
@@ -124,7 +155,17 @@ class DataPortabilityService
                 'CREATE TEMP TABLE portability_ids (kind text NOT NULL, old_id bigint NOT NULL, '
                 . 'new_id bigint NOT NULL, PRIMARY KEY(kind, old_id)) ON COMMIT DROP',
             );
+            $this->connection->execute(
+                'CREATE TEMP TABLE portability_chunks (kind text NOT NULL, old_id bigint NOT NULL, '
+                . 'field text NOT NULL, position bigint NOT NULL, total bigint NOT NULL, value text NOT NULL, '
+                . 'PRIMARY KEY(kind, old_id, field, position)) ON COMMIT DROP',
+            );
+            $this->connection->execute(
+                'CREATE TEMP TABLE portability_text (kind text NOT NULL, old_id bigint NOT NULL, '
+                . 'field text NOT NULL, total bigint NOT NULL, PRIMARY KEY(kind,old_id,field)) ON COMMIT DROP',
+            );
             $this->stage($stream);
+            $this->assembleChunks();
             foreach (self::FIELDS as $type => $fields) {
                 $last = 0;
                 do {
@@ -141,6 +182,7 @@ class DataPortabilityService
                     $size = count($rows);
                 } while ($size === self::BATCH_SIZE);
             }
+            $this->restoreText();
             $this->restoreParents();
         }, false);
     }
@@ -255,7 +297,13 @@ class DataPortabilityService
 
             return $rows;
         }
-        $columns = implode(',', array_map(static fn(string $field): string => 'r.' . $field, explode(',', $fields)));
+        $columns = implode(',', array_map(
+            static fn(string $field): string => in_array($field, self::TEXT_FIELDS, true)
+                ? "CASE WHEN char_length(r.$field) <= " . self::TEXT_CHUNK_CHARS
+                    . " THEN r.$field ELSE NULL END AS $field, char_length(r.$field) AS _length_$field"
+                : 'r.' . $field,
+            explode(',', $fields),
+        ));
         $keySql = implode(',', array_map(static fn(string $key): string => 'r.' . $key, $keys));
         $sql = "SELECT $columns FROM $type r WHERE " . $this->ownership($type);
         $params = [$userId];
@@ -273,6 +321,9 @@ class DataPortabilityService
             $row = [];
             foreach (explode(',', $fields) as $field) {
                 $row[$field] = $record[$field];
+                if (in_array($field, self::TEXT_FIELDS, true)) {
+                    $row['_length_' . $field] = $record['_length_' . $field];
+                }
             }
             $rows[] = $row;
         }
@@ -470,6 +521,11 @@ class DataPortabilityService
             }
             $keys = array_keys($record);
             sort($keys);
+            if ($keys === ['data', 'type'] && $record['type'] === 'text_chunks') {
+                $this->stageChunk($record['data']);
+                $count++;
+                continue;
+            }
             if (
                 $keys !== ['data', 'type'] || !is_string($record['type'])
                 || !isset(self::FIELDS[$record['type']]) || !is_array($record['data'])
@@ -478,6 +534,22 @@ class DataPortabilityService
             }
             $type = $record['type'];
             $data = $record['data'];
+            foreach (self::TEXT_FIELDS as $field) {
+                if (isset($data[$field]) && is_array($data[$field])) {
+                    if (
+                        array_keys($data[$field]) !== ['chunks'] || !is_int($data[$field]['chunks'])
+                        || $data[$field]['chunks'] <= self::TEXT_CHUNK_CHARS
+                        || !isset($data['id']) || !is_int($data['id'])
+                    ) {
+                        throw new DomainException('Invalid chunk declaration.');
+                    }
+                    $this->connection->execute(
+                        'INSERT INTO portability_text (kind,old_id,field,total) VALUES (?,?,?,?)',
+                        [$type, $data['id'], $field, $data[$field]['chunks']],
+                    );
+                    $data[$field] = null;
+                }
+            }
             $this->validate($type, $data);
             $key = implode(':', array_map(
                 static fn(string $field): string => (string)$data[$field],
@@ -489,6 +561,79 @@ class DataPortabilityService
             );
         }
         throw new DomainException('Missing export footer.');
+    }
+
+    /**
+     * @param mixed $data Untrusted chunk.
+     */
+    private function stageChunk(mixed $data): void
+    {
+        if (!is_array($data)) {
+            throw new DomainException('Invalid text chunk.');
+        }
+        $keys = array_keys($data);
+        sort($keys);
+        if (
+            $keys !== ['field', 'id', 'offset', 'record_type', 'total', 'value']
+            || !is_string($data['record_type']) || !isset(self::FIELDS[$data['record_type']])
+            || !is_string($data['field']) || !in_array($data['field'], self::TEXT_FIELDS, true)
+            || !in_array($data['field'], explode(',', self::FIELDS[$data['record_type']]), true)
+            || !is_int($data['id']) || $data['id'] < 1 || !is_int($data['offset']) || $data['offset'] < 0
+            || !is_int($data['total']) || $data['total'] <= self::TEXT_CHUNK_CHARS
+            || !is_string($data['value']) || str_contains($data['value'], "\0")
+            || mb_strlen($data['value']) !== min(self::TEXT_CHUNK_CHARS, $data['total'] - $data['offset'])
+            || $data['offset'] % self::TEXT_CHUNK_CHARS !== 0
+        ) {
+            throw new DomainException('Invalid text chunk fields.');
+        }
+        $this->connection->execute(
+            'INSERT INTO portability_chunks (kind,old_id,field,position,total,value) VALUES (?,?,?,?,?,?)',
+            [$data['record_type'], $data['id'], $data['field'], $data['offset'], $data['total'], $data['value']],
+        );
+    }
+
+    /**
+     * Reassemble text in PostgreSQL, not in application memory.
+     */
+    private function assembleChunks(): void
+    {
+        $invalid = $this->connection->execute(
+            'SELECT 1 FROM portability_chunks c LEFT JOIN portability_rows r '
+            . 'ON r.kind=c.kind AND r.source_key=c.old_id::text LEFT JOIN portability_text d '
+            . 'ON d.kind=c.kind AND d.old_id=c.old_id AND d.field=c.field '
+            . 'WHERE r.seq IS NULL OR d.total IS NULL OR d.total <> c.total '
+            . "OR r.data->c.field <> 'null'::jsonb LIMIT 1",
+        )->fetch('assoc');
+        $missing = $this->connection->execute(
+            'SELECT 1 FROM portability_text d WHERE NOT EXISTS (SELECT 1 FROM portability_chunks c '
+            . 'WHERE c.kind=d.kind AND c.old_id=d.old_id AND c.field=d.field) LIMIT 1',
+        )->fetch('assoc');
+        $incomplete = $this->connection->execute(
+            'SELECT 1 FROM portability_chunks GROUP BY kind,old_id,field HAVING MIN(position) <> 0 '
+            . 'OR MIN(total) <> MAX(total) OR SUM(char_length(value)) <> MAX(total) '
+            . 'OR MAX(position) + MAX(char_length(value)) < MAX(total) LIMIT 1',
+        )->fetch('assoc');
+        if ($invalid || $incomplete || $missing) {
+            throw new DomainException('Missing, conflicting or incomplete text chunks.');
+        }
+    }
+
+    /**
+     * Large text never passes back through PHP during restore.
+     */
+    private function restoreText(): void
+    {
+        foreach (self::FIELDS as $type => $fields) {
+            foreach (array_intersect(explode(',', $fields), self::TEXT_FIELDS) as $field) {
+                $this->connection->execute(
+                    "UPDATE $type r SET $field=c.value FROM (SELECT i.new_id, "
+                    . "string_agg(c.value, '' ORDER BY c.position) AS value "
+                    . 'FROM portability_chunks c JOIN portability_ids i ON i.kind=c.kind AND i.old_id=c.old_id '
+                    . 'WHERE c.kind=? AND c.field=? GROUP BY i.new_id) c WHERE r.id=c.new_id',
+                    [$type, $field],
+                );
+            }
+        }
     }
 
     /**
@@ -609,6 +754,9 @@ class DataPortabilityService
                 continue;
             }
             $data[$field] = $field === 'parent_todo_id' ? null : $this->mappedId($target, $data[$field]);
+        }
+        if ($type === 'related_todos' && $data['todo_id'] > $data['related_todo_id']) {
+            [$data['todo_id'], $data['related_todo_id']] = [$data['related_todo_id'], $data['todo_id']];
         }
         if ($type === 'activity_records') {
             if ($data['metadata'] !== null) {

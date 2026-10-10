@@ -70,6 +70,15 @@ contract deliberately excludes.
   | `activity_records` | `id`, `action`, `subject_type`, `subject_id`, `context_type`, `context_id`, `metadata`, `created` |
 
   All fields are present, including nullable fields. IDs and numeric fields are JSON integers.
+  Unrestricted text fields (`notes`, `description`, `terminal_objective`, `result_summary`) longer
+  than 16,384 Unicode characters are represented by `{"chunks":N}` instead of their string value,
+  where N is the complete character count. Immediately following records have `type: "text_chunks"`
+  and `data` fields `record_type`, `id`, `field`, `offset`, `total`, `value`. Offset is zero-based
+  in Unicode characters; total equals N. Chunks contain at most 16,384 characters and are counted
+  in the footer. Chunk declarations and every chunk are mandatory; duplicate, missing, conflicting,
+  truncated and foreign-record chunks are rejected. PostgreSQL extracts each bounded substring
+  before fetching and reassembles text directly into restored rows without passing whole values
+  through PHP. This preserves arbitrarily large notes/objectives/results/descriptions.
   Dates use PostgreSQL's stored `YYYY-MM-DD HH:MM:SS` representation with an optional fractional
   second component of one to six digits; restore retains these values,
   statuses, objective/results, review schedules, and activity timestamps without invoking mutation
@@ -78,7 +87,9 @@ contract deliberately excludes.
   Ownership is mandatory, not merely a read capability. Projects, Notebooks, and Libraries are
   checked through `CapabilityService::ownerIdFor()`, and history uses `ActivityRecorder::forActor()`.
   Other rows are restricted through their owner or owned parent; every relationship and membership
-  requires both endpoints to be owned. Archived and trashed ToDos are included. ToDo section and
+  requires both endpoints to be owned. ToDo ownership uses the same `user_id` predicate as the
+  existing ToDo controller's owner-only read path, not capability grants. Archived and trashed
+  ToDos are included. ToDo section and
   parent pointers to missing or other-owned records are replaced with null. Capability grants and
   cross-context requests are intentionally excluded: they are inter-account authorization/workflow
   records, not owned workspace records. They are not recreated on restore.
@@ -103,11 +114,10 @@ contract deliberately excludes.
   The authenticated `GET /api/export` endpoint returns an attachment named
   `cheat-to-do-export-v1.jsonl`. The client offers a plain download link to that route, using the
   existing signed-in session; it does not fetch the entire export into a JavaScript array or Blob.
-  Unauthenticated access is denied by the existing authentication middleware.
+  Unauthenticated access is denied by the endpoint's existing `requireUserId()` authentication guard.
 
-  The batch bound limits record counts, not the size of user-written text. Records are not split
-  across lines: a single record larger than the line limit causes export generation to fail rather
-  than emitting a file that cannot be restored. Restore reads at most the line limit before rejecting
+  Both record count and unrestricted text reads are bounded: large text is split into the chunk
+  records above, and each batch contains at most 100 workspace rows. Restore reads at most the line limit before rejecting
   an oversized record. Activity metadata is fetched only when its stored size is at most 8,192
   bytes, so unbounded historical metadata cannot enlarge a portable activity record.
 
@@ -123,7 +133,11 @@ contract deliberately excludes.
   Choose a private destination directory and retain the export securely. No new dependencies are needed.
 
   Restore first requires an **existing empty target account**, provisioned through the normal account
-  operator workflow. Existing credentials and identity are unchanged. Any owned workspace records
+  operator workflow. Run restore in **maintenance mode** with normal application mutations stopped
+  for its duration. Restore locks the target user row to serialize competing restores, but ordinary
+  application mutations do not acquire this lock and must not run concurrently with the emptiness
+  check/import. Bring the application back online only after the command completes successfully.
+  Existing credentials and identity are unchanged. Any owned workspace records
   or actor history cause rejection; restore never merges accounts or deletes existing rows.
   The input stream need not be seekable. All input is validated and staged in PostgreSQL temporary
   tables, with database-backed source-to-target ID maps; no whole-file PHP arrays are constructed.

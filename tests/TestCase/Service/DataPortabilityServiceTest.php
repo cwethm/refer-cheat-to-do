@@ -151,6 +151,7 @@ class DataPortabilityServiceTest extends TestCase
         $capabilities->grant(2, 1, 'read', 'notebook', 401);
         $capabilities->grant(2, 1, 'read', 'library', 602);
         $records = $this->exported();
+        $this->assertSame('urn:cheat-to-do:export:1', DataPortabilityService::SCHEMA);
         $this->assertSame(['schema' => DataPortabilityService::SCHEMA], $records[0]);
         $expected = [
             'projects' => 1, 'project_sections' => 3, 'notebooks' => 1, 'notebook_sections' => 3,
@@ -322,6 +323,30 @@ class DataPortabilityServiceTest extends TestCase
             }
             $this->assertCount(2, $this->exported(3));
         }
+    }
+
+    /**
+     * Input ordering is irrelevant; related pairs remain canonical after generated ID remapping.
+     */
+    public function testShuffledTodoOrderRestoresCanonicalRelatedPair(): void
+    {
+        $this->populate();
+        $records = $this->exported();
+        $positions = [];
+        foreach ($records as $index => $record) {
+            if (($record['type'] ?? null) === 'todos') {
+                $positions[] = $index;
+            }
+        }
+        [$records[$positions[0]], $records[$positions[1]]] = [$records[$positions[1]], $records[$positions[0]]];
+        $stream = $this->encoded($records);
+        try {
+            $this->service()->restore(3, $stream);
+        } finally {
+            fclose($stream);
+        }
+        $related = $this->ofType($this->exported(3), 'related_todos')[0];
+        $this->assertLessThan($related['related_todo_id'], $related['todo_id']);
     }
 
     /**
@@ -603,18 +628,60 @@ class DataPortabilityServiceTest extends TestCase
     }
 
     /**
-     * A failed operator export cannot leave a misleading partial download.
+     * Large unrestricted text is emitted in bounded chunks and restored without loss.
      */
-    public function testOperatorRemovesFailedExport(): void
+    public function testLargeTextRoundTrip(): void
     {
+        $text = str_repeat('é漢🙂', 120000);
         $this->connection()->execute('UPDATE todos SET notes=? WHERE id=10', [
-            str_repeat('x', DataPortabilityService::MAX_LINE_BYTES),
+            $text,
         ]);
+        $records = $this->exported();
+        $chunks = $this->ofType($records, 'text_chunks');
+        $this->assertGreaterThan(10, count($chunks));
+        $this->assertSame(['chunks' => mb_strlen($text)], $this->ofType($records, 'todos')[0]['notes']);
+        foreach ($chunks as $chunk) {
+            $this->assertLessThanOrEqual(DataPortabilityService::TEXT_CHUNK_CHARS, mb_strlen($chunk['value']));
+        }
+        $stream = $this->encoded($records);
+        try {
+            $this->service()->restore(3, $stream);
+        } finally {
+            fclose($stream);
+        }
+        $restored = $this->connection()->execute('SELECT notes FROM todos WHERE user_id=3 ORDER BY id LIMIT 1')
+            ->fetch('assoc');
+        $this->assertSame($text, $restored['notes']);
+        $this->connection()->execute('UPDATE todos SET parent_todo_id=NULL WHERE user_id=3');
+        $this->connection()->execute('DELETE FROM todos WHERE user_id=3');
+        $this->connection()->execute('DELETE FROM project_sections WHERE project_id IN (SELECT id FROM projects WHERE user_id=3)');
+        $this->connection()->execute('DELETE FROM notebook_sections WHERE notebook_id IN (SELECT id FROM notebooks WHERE user_id=3)');
+        foreach (['projects', 'notebooks', 'libraries', 'tags'] as $type) {
+            $this->connection()->execute("DELETE FROM $type WHERE user_id=3");
+        }
+        $bad = $records;
+        foreach ($bad as $index => $row) {
+            if (($row['type'] ?? null) === 'text_chunks') {
+                array_splice($bad, $index, 1);
+                break;
+            }
+        }
+        $bad[count($bad) - 1]['records']--;
+        $stream = $this->encoded($bad);
+        try {
+            $this->service()->restore(3, $stream);
+            $this->fail('Incomplete text chunks restored.');
+        } catch (DomainException $exception) {
+            $this->assertStringContainsString('chunks', $exception->getMessage());
+        } finally {
+            fclose($stream);
+        }
+        $this->assertCount(2, $this->exported(3));
         $path = getcwd() . '/.portability-test-' . bin2hex(random_bytes(8)) . '.jsonl';
         try {
             $this->exec('export_user_data owner@example.com ' . $path);
-            $this->assertExitError();
-            $this->assertFileDoesNotExist($path);
+            $this->assertExitSuccess();
+            $this->assertGreaterThan(DataPortabilityService::MAX_LINE_BYTES, filesize($path));
         } finally {
             if (file_exists($path)) {
                 unlink($path);
