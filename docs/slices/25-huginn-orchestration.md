@@ -3,7 +3,7 @@
 ## Slice Contract
 
 ### Status
-PROPOSED — fourth slice of the post-MVP domain program
+PROPOSED — fourth slice of the post-MVP domain program; Phase G, scheduled after Phase F
 
 ### Goal
 Allow external, event-driven automation to trigger the capabilities built in Slices 22–24 without

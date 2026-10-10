@@ -3,7 +3,7 @@
 ## Slice Contract
 
 ### Status
-PROPOSED — third slice of the post-MVP domain program
+PROPOSED — third slice of the post-MVP domain program; Phase G, scheduled after Phase F
 
 ### Goal
 Allow an explicitly configured agent to act on a user's data within the existing default-deny
@@ -24,10 +24,16 @@ capability model, with every action attributable and reversible.
   the slice.
 
 ### Dependencies
-Slices 10 (capabilities), 12 (activity history), 22, 23.
+Slices 10 (capabilities), 12 (activity history), 22, 23. Phase F record types (`docs/intended-use.md`)
+are in the data an agent could reach.
 
 ### Required threat and authorization review
-Before implementation the slice must state: how agent credentials are stored and rotated; how an
+Discussion and event records, community needs and decisions (Slices 27, 31, 32) may describe other
+people and sensitive community work. They are excluded from agent access by default: an agent may
+read them only through a grant that names that resource, never through a type-wide or inherited
+grant, and their content is untrusted input in every case.
+
+Before implementation the slice must also state: how agent credentials are stored and rotated; how an
 agent is prevented from escalating beyond its grantor's capabilities; what prompt-injected content
 can and cannot cause, given that ResearchCollection material is attacker-controllable in the general
 case; what data leaves the system and to where; and how a runaway agent is stopped.

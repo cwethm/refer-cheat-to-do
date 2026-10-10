@@ -3,11 +3,12 @@
 ## Slice Contract
 
 ### Status
-PROPOSED — second slice of the post-MVP domain program
+PROPOSED — second slice of the post-MVP domain program; Phase G, scheduled after Phase F
 
 ### Goal
-Produce documents deterministically from data the user already owns — ToDos, Projects, Notebooks and
-ResearchCollections — with no model inference involved.
+Produce documents deterministically from data the user already owns — ToDos, Projects, Notebooks,
+ResearchCollections and reference cards and cheat sheets (Slice 26) — with no model inference
+involved. The first intended use is a printable cheat sheet, the fallback when there is no signal.
 
 ### In scope
 - A document definition: template, bound data sources, and output format.
@@ -22,7 +23,9 @@ ResearchCollections — with no model inference involved.
 - Arbitrary user-authored template code.
 
 ### Dependencies
-Slice 22 (ResearchCollection), Slices 10 and 12.
+Slice 22 (ResearchCollection), Slice 26 (cards and cheat sheets), Slices 10 and 12. Discussion and
+event records, and community needs (Slices 27 and 31), are not data sources unless a later decision
+adds them with the sensitive-information constraints in `docs/intended-use.md`.
 
 ### Required threat and authorization review
 Templates that interpolate user-supplied content are an injection surface. Before implementation the

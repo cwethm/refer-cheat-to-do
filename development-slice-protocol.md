@@ -110,6 +110,9 @@ docs/mvp-feature-list.md
 docs/development-slice-protocol.md
 ```
 
+Slices in `docs/roadmap.md` Phase F and later must also consult `docs/intended-use.md`, including its
+standing requirements and sensitive-information constraints.
+
 If relevant ADRs exist, they must also be consulted.
 
 The slice implementation must not silently contradict these documents.
