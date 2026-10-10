@@ -47,7 +47,14 @@ nbproject/*
 # Sass preprocessor
 .sass-cache/
 # node
-/node_modules/*
+/node_modules/
 # yarn
 yarn-debug.log
 yarn-error.log
+
+# Browser end-to-end tests #
+############################
+/test-results/
+/playwright-report/
+/blob-report/
+/.playwright/
