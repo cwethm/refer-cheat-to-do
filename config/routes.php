@@ -239,6 +239,54 @@ return function (RouteBuilder $routes): void {
             ['pass' => ['id'], 'id' => '\d+'],
         );
         $builder->connect(
+            '/research-collections',
+            ['controller' => 'ResearchCollections', 'action' => 'index', '_method' => 'GET'],
+        );
+        $builder->connect(
+            '/research-collections',
+            ['controller' => 'ResearchCollections', 'action' => 'add', '_method' => 'POST'],
+        );
+        $builder->connect(
+            '/research-collections/{id}',
+            ['controller' => 'ResearchCollections', 'action' => 'view', '_method' => 'GET'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/research-collections/{id}',
+            ['controller' => 'ResearchCollections', 'action' => 'edit', '_method' => 'PATCH'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/research-collections/{id}',
+            ['controller' => 'ResearchCollections', 'action' => 'delete', '_method' => 'DELETE'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/research-collections/{id}/items',
+            ['controller' => 'ResearchCollections', 'action' => 'items', '_method' => 'GET'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/research-collections/{id}/items',
+            ['controller' => 'ResearchCollections', 'action' => 'addItem', '_method' => 'POST'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/research-collections/{id}/items/{itemId}',
+            ['controller' => 'ResearchCollections', 'action' => 'viewItem', '_method' => 'GET'],
+            ['pass' => ['id', 'itemId'], 'id' => '\d+', 'itemId' => '\d+'],
+        );
+        $builder->connect(
+            '/research-collections/{id}/items/{itemId}',
+            ['controller' => 'ResearchCollections', 'action' => 'editItem', '_method' => 'PATCH'],
+            ['pass' => ['id', 'itemId'], 'id' => '\d+', 'itemId' => '\d+'],
+        );
+        $builder->connect(
+            '/research-collections/{id}/items/{itemId}',
+            ['controller' => 'ResearchCollections', 'action' => 'deleteItem', '_method' => 'DELETE'],
+            ['pass' => ['id', 'itemId'], 'id' => '\d+', 'itemId' => '\d+'],
+        );
+        $builder->connect(
             '/cross-context-requests',
             ['controller' => 'CrossContextRequests', 'action' => 'add', '_method' => 'POST'],
         );

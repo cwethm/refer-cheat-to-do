@@ -60,10 +60,37 @@ class CreateResearchCollections extends BaseMigration
             . "'capability_grant', 'cross_context_request', 'research_collection', "
             . "'research_collection_item'))",
         );
+        $this->execute(
+            <<<'SQL'
+            CREATE FUNCTION clear_research_collection_resource_link() RETURNS trigger AS $$
+            BEGIN
+                UPDATE research_collection_items
+                SET related_resource_type = NULL, related_resource_id = NULL, modified = CURRENT_TIMESTAMP
+                WHERE related_resource_type = TG_ARGV[0] AND related_resource_id = OLD.id;
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql
+            SQL,
+        );
+        foreach (['todos' => 'todo', 'projects' => 'project', 'notebooks' => 'notebook'] as $table => $type) {
+            $this->execute(
+                sprintf(
+                    'CREATE TRIGGER %s_clear_research_collection_links BEFORE DELETE ON %s '
+                    . 'FOR EACH ROW EXECUTE FUNCTION clear_research_collection_resource_link(%s)',
+                    $table,
+                    $table,
+                    "'" . $type . "'",
+                ),
+            );
+        }
     }
 
     public function down(): void
     {
+        foreach (['todos', 'projects', 'notebooks'] as $table) {
+            $this->execute(sprintf('DROP TRIGGER IF EXISTS %s_clear_research_collection_links ON %s', $table, $table));
+        }
+        $this->execute('DROP FUNCTION IF EXISTS clear_research_collection_resource_link()');
         $this->execute(
             "DELETE FROM capability_grants WHERE resource_type = 'research_collection'",
         );
