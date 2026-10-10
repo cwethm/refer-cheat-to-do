@@ -57,8 +57,17 @@ the file modification time so deployments do not depend on stale cached client c
 ## Known limitations
 - The client does not yet manage Projects, Notebooks, Libraries, or section assignment. The review
   queue explains when a ToDo needs a section, but assigning one remains outside this slice.
-- Accounts remain operator-managed through `bin/cake set_user_password`.
-- Assistive-technology testing beyond semantic and keyboard-focused checks remains future work.
+  Slices 15-17 close this.
+- Accounts remain operator-managed through `bin/cake set_user_password`. Slice 19 closes this.
+- Assistive-technology testing with real screen readers remains future work. The automated axe
+  WCAG 2.1 A/AA audit, keyboard-reachability checks and responsive overflow assertions added in
+  Phase A (`tests/e2e/accessibility.spec.mjs`) replace the one-off manual measurements recorded
+  above.
+
+## Follow-up
+The manual Chromium smoke pass described under "Tests and verification" has been superseded by the
+automated suite in `tests/e2e/`. See `docs/front-end-testing-policy.md` for the strategy every
+later client slice inherits.
 
 ## Slice Completion Report
 

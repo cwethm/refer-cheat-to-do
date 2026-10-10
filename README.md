@@ -632,8 +632,28 @@ composer lint
 composer cs-check
 composer stan
 composer test
+composer ui-test
 composer check
 ```
+
+### Browser end-to-end, accessibility and responsive tests
+
+The web client at `/app` also has an automated browser suite. It needs Node.js 22 and a
+PostgreSQL role that may create databases:
+
+```bash
+npm ci
+npx playwright install --with-deps chromium
+npx playwright test
+```
+
+The suite drops and recreates a dedicated `refer_cheat_to_do_e2e` database and seeds its own
+account on every run, so it never touches the `default` or PHPUnit `test` connection. Override the
+host, port, database and credentials with the `E2E_*` environment variables.
+
+`docs/front-end-testing-policy.md` records which layer each kind of client change belongs in, the
+supported browser baseline, the offline and slow-network expectations, and the standing client
+security checklist.
 
 ## Development workflow
 
