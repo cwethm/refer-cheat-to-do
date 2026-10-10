@@ -49,7 +49,7 @@ test.describe('accessibility', () => {
         expect(describeViolations(results), describeViolations(results)).toBe('');
     });
 
-    for (const view of ['Today', 'ToDos', 'Projects', 'Notebooks', 'Libraries', 'Review']) {
+    for (const view of ['Today', 'ToDos', 'Projects', 'Notebooks', 'Libraries', 'Review', 'Activity']) {
         test(`the ${view} view has no WCAG A/AA violations`, async ({ page }) => {
             await signIn(page);
             await openView(page, view);
@@ -58,6 +58,16 @@ test.describe('accessibility', () => {
             expect(describeViolations(results), describeViolations(results)).toBe('');
         });
     }
+
+    test('the open ToDo detail panel has no WCAG A/AA violations', async ({ page }) => {
+        await signIn(page);
+        await openView(page, 'ToDos');
+        await page.locator('#todo-list button[data-todo-action="open-detail"]').first().click();
+        await expect(page.locator('#todo-detail')).toBeVisible();
+
+        const results = await audit(page);
+        expect(describeViolations(results), describeViolations(results)).toBe('');
+    });
 
     test('the skip link and sign-in form are reachable by keyboard alone', async ({ page }) => {
         await page.goto('/app');
@@ -77,12 +87,27 @@ test.describe('accessibility', () => {
 });
 
 test.describe('responsive layout', () => {
+    test('the open ToDo detail panel does not overflow the narrowest viewport', async ({ page }) => {
+        await page.setViewportSize({ width: 320, height: 900 });
+        await signIn(page);
+        await openView(page, 'ToDos');
+        await page.locator('#todo-list button[data-todo-action="open-detail"]').first().click();
+        await expect(page.locator('#todo-detail')).toBeVisible();
+
+        const overflow = await page.evaluate(() => ({
+            scrollWidth: document.documentElement.scrollWidth,
+            clientWidth: document.documentElement.clientWidth,
+        }));
+        expect(overflow.scrollWidth, 'the ToDo detail panel overflows at 320px')
+            .toBeLessThanOrEqual(overflow.clientWidth);
+    });
+
     for (const width of VIEWPORTS) {
         test(`the workspace has no horizontal overflow at ${width} CSS pixels`, async ({ page }) => {
             await page.setViewportSize({ width, height: 900 });
             await signIn(page);
 
-            for (const view of ['Today', 'ToDos', 'Projects', 'Notebooks', 'Libraries', 'Review']) {
+            for (const view of ['Today', 'ToDos', 'Projects', 'Notebooks', 'Libraries', 'Review', 'Activity']) {
                 await openView(page, view);
                 const overflow = await page.evaluate(() => ({
                     scrollWidth: document.documentElement.scrollWidth,

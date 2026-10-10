@@ -2,6 +2,7 @@ export const TODO_PAGE_SIZE = 50;
 export const PROJECT_PAGE_SIZE = 20;
 export const NOTEBOOK_PAGE_SIZE = 20;
 export const LIBRARY_PAGE_SIZE = 20;
+export const ACTIVITY_PAGE_SIZE = 20;
 
 /**
  * Highest number of Projects or Notebooks whose sections are offered in a ToDo's section picker.
@@ -38,6 +39,141 @@ export function buildNotebooksUrl(options = {}) {
 
 export function buildLibrariesUrl(options = {}) {
     return buildRecordListUrl('/api/libraries', { limit: LIBRARY_PAGE_SIZE, ...options });
+}
+
+export function buildActivityUrl(options = {}) {
+    return buildRecordListUrl('/api/activity', { limit: ACTIVITY_PAGE_SIZE, ...options });
+}
+
+/**
+ * Sub-resources of a ToDo, and the HTTP method each one is reached with.
+ *
+ * The client never builds one of these paths by hand: an unknown action yields no URL at
+ * all, so a typo cannot become a request against an unintended endpoint.
+ */
+export const TODO_ACTIONS = {
+    activate: 'POST',
+    complete: 'POST',
+    archive: 'POST',
+    trash: 'POST',
+    restore: 'POST',
+    reviewed: 'POST',
+    snooze: 'POST',
+    hierarchy: 'GET',
+    parent: 'PATCH',
+    objective: 'PATCH',
+    result: 'POST',
+    permanent: 'DELETE',
+};
+
+/**
+ * Actions that destroy data irrecoverably and therefore need an explicit confirmation.
+ */
+export function requiresConfirmation(action) {
+    return action === 'permanent';
+}
+
+export function buildTodoActionUrl(todoId, action) {
+    if (!isValidId(todoId) || !Object.hasOwn(TODO_ACTIONS, action)) {
+        return '';
+    }
+
+    return `/api/todos/${Number(todoId)}/${action}`;
+}
+
+export function buildRelatedTodoUrl(todoId, relatedId) {
+    if (!isValidId(todoId) || !isValidId(relatedId) || Number(todoId) === Number(relatedId)) {
+        return '';
+    }
+
+    return `/api/todos/${Number(todoId)}/related/${Number(relatedId)}`;
+}
+
+/**
+ * Build the body that pushes a ToDo's next review out by a number of days.
+ *
+ * The API accepts either a duration or an explicit date; the client offers the duration,
+ * and the server still owns the range rules.
+ */
+export function buildSnoozeBody(days) {
+    const requested = Number(days);
+
+    return { days: Number.isFinite(requested) ? Math.max(1, Math.trunc(requested)) : 1 };
+}
+
+const ACTIVITY_ACTION_LABELS = {
+    'todo.created': 'Created a ToDo',
+    'todo.updated': 'Updated a ToDo',
+    'todo.deleted': 'Permanently deleted a ToDo',
+    'todo.inbox': 'Moved a ToDo back to the inbox',
+    'todo.active': 'Moved a ToDo to in progress',
+    'todo.done': 'Marked a ToDo done',
+    'todo.archived': 'Archived a ToDo',
+    'todo.trashed': 'Moved a ToDo to the trash',
+    'todo.tag_attached': 'Added a tag to a ToDo',
+    'todo.tag_detached': 'Removed a tag from a ToDo',
+    'project.created': 'Created a Project',
+    'project.deleted': 'Deleted a Project',
+    'notebook.created': 'Created a Notebook',
+    'notebook.deleted': 'Deleted a Notebook',
+    'library.created': 'Created a Library',
+    'library.deleted': 'Deleted a Library',
+    'capability.granted': 'Granted a capability',
+    'capability.revoked': 'Revoked a capability',
+    'request.sent': 'Sent a request',
+    'request.accepted': 'Accepted a request',
+    'request.rejected': 'Rejected a request',
+    'request.modified': 'Changed a request',
+    'request.callback': 'Reported back on a request',
+};
+
+export function labelForActivityAction(action) {
+    const key = typeof action === 'string' ? action : '';
+
+    return ACTIVITY_ACTION_LABELS[key] ?? key.replaceAll('.', ' ').replaceAll('_', ' ').trim();
+}
+
+const ACTIVITY_SUBJECT_NOUNS = {
+    todo: 'ToDo',
+    project: 'Project',
+    notebook: 'Notebook',
+    library: 'Library',
+    capability_grant: 'Capability grant',
+    cross_context_request: 'Request',
+};
+
+/**
+ * Format a stored timestamp without depending on the reader's locale.
+ *
+ * Activity entries are an audit trail, so an unambiguous UTC rendering is preferred over a
+ * friendlier but ambiguous local one.
+ */
+export function formatActivityTimestamp(value) {
+    if (typeof value !== 'string' || value === '') {
+        return '';
+    }
+    const moment = new Date(value);
+    if (Number.isNaN(moment.getTime())) {
+        return '';
+    }
+
+    return `${moment.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+}
+
+/**
+ * Turn one activity record into the three readable parts the history list shows.
+ */
+export function formatActivityEntry(entry) {
+    const subjectType = typeof entry?.subject_type === 'string' ? entry.subject_type : '';
+    const noun = ACTIVITY_SUBJECT_NOUNS[subjectType] ?? subjectType.replaceAll('_', ' ');
+
+    return {
+        action: labelForActivityAction(entry?.action),
+        subject: isValidId(entry?.subject_id) && noun !== ''
+            ? `${noun} #${Number(entry.subject_id)}`
+            : noun,
+        when: formatActivityTimestamp(entry?.created),
+    };
 }
 
 /**
@@ -212,6 +348,11 @@ const state = {
     tags: [],
     view: 'dashboard',
     filters: { query: '', status: '', tagId: '' },
+    // The ToDos currently listed, so the parent and related pickers can offer them by name
+    // instead of asking a person to type an id.
+    todoItems: [],
+    todoDetail: { id: null },
+    activity: { page: 1, total: 0 },
     records: {
         project: { items: [], page: 1, total: 0, openId: null },
         notebook: { items: [], page: 1, total: 0, openId: null },
@@ -220,7 +361,7 @@ const state = {
     sectionOptions: [],
     // Monotonic tokens so a slow response cannot repaint a list that a newer
     // request has already replaced, which would silently discard a person's selection.
-    requests: { todos: 0, review: 0, projects: 0, notebooks: 0, libraries: 0 },
+    requests: { todos: 0, review: 0, projects: 0, notebooks: 0, libraries: 0, activity: 0 },
 };
 
 function setNotice(message, isError = false) {
@@ -378,6 +519,33 @@ function renderTodo(todo, reasons = null, suggestedActions = null) {
         actions.append(reviewed);
     }
 
+    // Snoozing belongs next to the review queue: it defers the next review without
+    // claiming the ToDo was looked at.
+    if (Array.isArray(reasons) && isValidId(todo?.id)) {
+        const todoTitle = typeof todo?.title === 'string' ? todo.title : 'ToDo';
+        const label = make('label', '', 'Snooze for days');
+        const input = make('input');
+        input.type = 'number';
+        input.min = '1';
+        input.max = '365';
+        input.value = '7';
+        input.dataset.snoozeDays = '';
+        input.setAttribute('aria-label', `Days to snooze ${todoTitle}`);
+        label.append(input);
+        const snooze = makeButton('Snooze', 'snooze', 'button button-quiet');
+        snooze.dataset.todoId = String(Number(todo.id));
+        snooze.setAttribute('aria-label', `Snooze ${todoTitle}`);
+        actions.append(label, snooze);
+    }
+
+    if (reasons === null && isValidId(todo?.id)) {
+        const todoTitle = typeof todo?.title === 'string' ? todo.title : 'ToDo';
+        const details = makeButton('Details', 'open-detail', 'button button-quiet');
+        details.dataset.todoId = String(Number(todo.id));
+        details.setAttribute('aria-label', `Open details for ${todoTitle}`);
+        actions.append(details);
+    }
+
     if (isValidId(todo?.id) && state.tags.length > 0) {
         const label = make('label', '', 'Add a tag');
         const select = make('select');
@@ -495,6 +663,7 @@ async function loadTodos() {
         return;
     }
     const items = validItems(data?.items);
+    state.todoItems = items;
     state.total = Number(data?.meta?.pagination?.total) || 0;
     const list = byId('todo-list');
     list.replaceChildren(...items.map((todo) => renderTodo(todo)));
@@ -505,6 +674,213 @@ async function loadTodos() {
     setText(byId('page-label'), `Page ${state.page} of ${pageCount}`);
     byId('previous-page').disabled = state.page <= 1;
     byId('next-page').disabled = state.page >= pageCount;
+
+    await loadTodoDetail();
+}
+
+/**
+ * Lifecycle actions offered for each status, with the sentence that states what each does.
+ *
+ * The server owns the transition rules; this map only decides what is worth showing, and it
+ * is deliberately explicit so no destructive action is ever offered by accident.
+ */
+const LIFECYCLE_ACTIONS = {
+    archive: {
+        label: 'Archive',
+        className: 'button button-quiet',
+        explanation: 'Archiving hides this ToDo from your lists. You can move it back later.',
+        statuses: ['inbox', 'active', 'done'],
+    },
+    activate: {
+        label: 'Move to in progress',
+        className: 'button button-secondary',
+        explanation: 'Bringing an archived ToDo back puts it in progress again.',
+        statuses: ['archived'],
+    },
+    trash: {
+        label: 'Move to trash',
+        className: 'button button-quiet',
+        explanation: 'Trashing keeps this ToDo so you can restore it, and is required before it can be deleted.',
+        statuses: ['inbox', 'active', 'done', 'archived'],
+    },
+    restore: {
+        label: 'Restore',
+        className: 'button button-secondary',
+        explanation: 'Restoring returns this ToDo to the status it had before it was trashed.',
+        statuses: ['trashed'],
+    },
+    permanent: {
+        label: 'Delete permanently',
+        className: 'button button-danger',
+        explanation: 'Deleting permanently removes this ToDo and cannot be undone.',
+        statuses: ['trashed'],
+    },
+};
+
+function todoTitleOf(todo) {
+    return typeof todo?.title === 'string' && todo.title !== '' ? todo.title : 'Untitled ToDo';
+}
+
+/**
+ * Offer every ToDo except the one being edited as a candidate parent or related ToDo.
+ */
+function todoChoices(excludeId) {
+    return state.todoItems.filter(
+        (todo) => isValidId(todo?.id) && Number(todo.id) !== Number(excludeId),
+    );
+}
+
+function fillTodoPicker(select, excludeId, placeholder) {
+    select.replaceChildren(new Option(placeholder, ''));
+    for (const todo of todoChoices(excludeId)) {
+        select.append(new Option(todoTitleOf(todo), String(Number(todo.id))));
+    }
+}
+
+function renderRelatedTodo(todo, todoId) {
+    const item = make('li', 'record-item');
+    const heading = make('div', 'record-heading');
+    heading.append(make('h4', '', todoTitleOf(todo)));
+    heading.append(make('span', 'status-label', todo?.status ?? ''));
+    item.append(heading);
+
+    if (isValidId(todo?.id) && isValidId(todoId)) {
+        const actions = make('div', 'record-actions');
+        const unlink = make('button', 'button button-quiet', 'Unlink');
+        unlink.type = 'button';
+        unlink.dataset.todoAction = 'unrelate';
+        unlink.dataset.todoId = String(Number(todoId));
+        unlink.dataset.relatedId = String(Number(todo.id));
+        unlink.setAttribute('aria-label', `Unlink ${todoTitleOf(todo)}`);
+        actions.append(unlink);
+        item.append(actions);
+    }
+
+    return item;
+}
+
+function renderChildTodo(todo) {
+    const item = make('li', 'record-item');
+    const heading = make('div', 'record-heading');
+    heading.append(make('h4', '', todoTitleOf(todo)));
+    heading.append(make('span', 'status-label', todo?.status ?? ''));
+    item.append(heading);
+    if (typeof todo?.result_summary === 'string' && todo.result_summary !== '') {
+        item.append(make('p', 'record-description', `Reported: ${todo.result_summary}`));
+    }
+
+    return item;
+}
+
+/**
+ * Render the lifecycle controls for the open ToDo.
+ *
+ * `Delete permanently` is armed by a first press and only sends the request on the second,
+ * so no single click can destroy a ToDo.
+ */
+function renderLifecycleActions(todo) {
+    const container = byId('todo-lifecycle-actions');
+    const explanations = byId('todo-lifecycle-explanations');
+    container.replaceChildren();
+    explanations.replaceChildren();
+    const status = typeof todo?.status === 'string' ? todo.status : '';
+    const todoId = String(Number(todo.id));
+
+    for (const [action, config] of Object.entries(LIFECYCLE_ACTIONS)) {
+        if (!config.statuses.includes(status)) {
+            continue;
+        }
+        const button = make('button', config.className, config.label);
+        button.type = 'button';
+        button.dataset.todoAction = action;
+        button.dataset.todoId = todoId;
+        button.setAttribute('aria-label', `${config.label}: ${todoTitleOf(todo)}`);
+        if (requiresConfirmation(action)) {
+            button.dataset.confirmed = 'false';
+        }
+        container.append(button);
+        explanations.append(make('li', '', `${config.label}: ${config.explanation}`));
+    }
+}
+
+/**
+ * Load and render the open ToDo's parent, children, related ToDos, objective and lifecycle.
+ */
+async function loadTodoDetail() {
+    const detail = byId('todo-detail');
+    const openId = state.todoDetail.id;
+    if (!isValidId(openId)) {
+        detail.hidden = true;
+        return;
+    }
+
+    const data = await requestApi(buildTodoActionUrl(openId, 'hierarchy'));
+    const todo = data?.todo;
+    setText(byId('todo-detail-title'), todoTitleOf(todo));
+    setText(byId('todo-detail-status'), `Status: ${todo?.status ?? 'unknown'}`);
+
+    const parentSelect = byId('todo-parent-select');
+    fillTodoPicker(parentSelect, openId, 'No parent');
+    const parentId = data?.parent?.id;
+    if (isValidId(parentId)) {
+        if (!todoChoices(openId).some((candidate) => Number(candidate.id) === Number(parentId))) {
+            parentSelect.append(new Option(todoTitleOf(data.parent), String(Number(parentId))));
+        }
+        parentSelect.value = String(Number(parentId));
+    } else {
+        parentSelect.value = '';
+    }
+    fillTodoPicker(byId('todo-related-select'), openId, 'Choose a ToDo');
+
+    const children = validItems(data?.children);
+    byId('todo-children-list').replaceChildren(...children.map((child) => renderChildTodo(child)));
+    byId('todo-children-empty').hidden = children.length > 0;
+
+    const related = validItems(data?.related);
+    byId('todo-related-list').replaceChildren(
+        ...related.map((entry) => renderRelatedTodo(entry, openId)),
+    );
+    byId('todo-related-empty').hidden = related.length > 0;
+
+    byId('todo-objective').value = typeof todo?.terminal_objective === 'string' ? todo.terminal_objective : '';
+    byId('todo-result').value = '';
+    const reported = byId('todo-result-summary');
+    setText(
+        reported,
+        typeof todo?.result_summary === 'string' && todo.result_summary !== ''
+            ? `Reported result: ${todo.result_summary}`
+            : '',
+    );
+    reported.hidden = !reported.textContent;
+
+    renderLifecycleActions(todo);
+    detail.hidden = false;
+}
+
+async function loadActivity() {
+    const token = ++state.requests.activity;
+    const data = await requestApi(buildActivityUrl({ page: state.activity.page }));
+    if (token !== state.requests.activity) {
+        return;
+    }
+    const items = validItems(data?.items);
+    state.activity.total = Number(data?.meta?.pagination?.total) || 0;
+    const list = byId('activity-list');
+    list.replaceChildren(...items.map((entry) => {
+        const formatted = formatActivityEntry(entry);
+        const item = make('li');
+        item.append(make('span', '', `${formatted.action} — ${formatted.subject}`));
+        item.append(make('span', 'status-label', formatted.when));
+
+        return item;
+    }));
+    byId('activity-empty').hidden = items.length > 0;
+
+    const pageCount = Math.max(1, Math.ceil(state.activity.total / ACTIVITY_PAGE_SIZE));
+    setText(byId('activity-summary'), `Showing ${items.length} of ${state.activity.total} entries`);
+    setText(byId('activity-page-label'), `Activity page ${state.activity.page} of ${pageCount}`);
+    byId('previous-activity-page').disabled = state.activity.page <= 1;
+    byId('next-activity-page').disabled = state.activity.page >= pageCount;
 }
 
 async function loadReviewQueue() {
@@ -852,6 +1228,7 @@ const VIEW_LOADERS = {
     projects: () => loadRecords('project'),
     notebooks: () => loadRecords('notebook'),
     libraries: loadLibraries,
+    activity: loadActivity,
 };
 
 async function refreshWorkspace() {
@@ -1060,6 +1437,94 @@ function bindEvents() {
         }
     });
 
+    byId('previous-activity-page').addEventListener('click', async () => {
+        if (state.activity.page > 1) {
+            state.activity.page--;
+            await loadActivity().catch(displayError);
+        }
+    });
+
+    byId('next-activity-page').addEventListener('click', async () => {
+        if (state.activity.page * ACTIVITY_PAGE_SIZE < state.activity.total) {
+            state.activity.page++;
+            await loadActivity().catch(displayError);
+        }
+    });
+
+    byId('todo-parent-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const openId = state.todoDetail.id;
+        if (!isValidId(openId)) {
+            return;
+        }
+        const chosen = byId('todo-parent-select').value;
+        try {
+            await requestApi(buildTodoActionUrl(openId, 'parent'), {
+                method: 'PATCH',
+                body: JSON.stringify({ parent_todo_id: isValidId(chosen) ? Number(chosen) : null }),
+            });
+            setNotice(isValidId(chosen) ? 'Parent set.' : 'Parent cleared.');
+            await loadTodoDetail();
+        } catch (error) {
+            displayError(error);
+        }
+    });
+
+    byId('todo-relate-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const openId = state.todoDetail.id;
+        const chosen = byId('todo-related-select').value;
+        const url = buildRelatedTodoUrl(openId, chosen);
+        if (url === '') {
+            setNotice('Choose another ToDo to link.', true);
+            return;
+        }
+        try {
+            await requestApi(url, { method: 'POST', body: '{}' });
+            setNotice('ToDos linked.');
+            await loadTodoDetail();
+        } catch (error) {
+            displayError(error);
+        }
+    });
+
+    byId('todo-objective-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const openId = state.todoDetail.id;
+        if (!isValidId(openId)) {
+            return;
+        }
+        const objective = byId('todo-objective').value.trim();
+        try {
+            await requestApi(buildTodoActionUrl(openId, 'objective'), {
+                method: 'PATCH',
+                body: JSON.stringify({ terminal_objective: objective === '' ? null : objective }),
+            });
+            setNotice(objective === '' ? 'Objective cleared.' : 'Objective saved.');
+            await loadTodoDetail();
+        } catch (error) {
+            displayError(error);
+        }
+    });
+
+    byId('todo-result-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const openId = state.todoDetail.id;
+        if (!isValidId(openId)) {
+            return;
+        }
+        try {
+            await requestApi(buildTodoActionUrl(openId, 'result'), {
+                method: 'POST',
+                body: JSON.stringify({ result: byId('todo-result').value }),
+            });
+            setNotice('Result reported.');
+            await loadTodoDetail();
+        } catch (error) {
+            displayError(error);
+        }
+    });
+
     for (const button of document.querySelectorAll('[data-view]')) {
         button.addEventListener('click', () => {
             void selectView(button.dataset.view);
@@ -1170,6 +1635,26 @@ function bindEvents() {
             return;
         }
 
+        if (action === 'open-detail') {
+            state.todoDetail.id = Number(todoId);
+            try {
+                await loadTodoDetail();
+                byId('todo-detail-title').scrollIntoView({ block: 'nearest' });
+            } catch (error) {
+                displayError(error);
+            }
+            return;
+        }
+
+        // A destructive action is armed by the first press and only sent by the second, so
+        // one misdirected click can never destroy a ToDo.
+        if (requiresConfirmation(action) && button.dataset.confirmed !== 'true') {
+            button.dataset.confirmed = 'true';
+            setText(button, `Confirm: ${LIFECYCLE_ACTIONS[action].label.toLowerCase()}`);
+            setNotice('This cannot be undone. Press the button again to confirm.', true);
+            return;
+        }
+
         try {
             if (action === 'detach-tag') {
                 if (!isValidId(button.dataset.tagId)) {
@@ -1182,6 +1667,24 @@ function bindEvents() {
                 await requestApi(`/api/todos/${todoId}/${action}`, { method: 'POST', body: '{}' });
             } else if (action === 'reviewed') {
                 await requestApi(`/api/todos/${todoId}/reviewed`, { method: 'POST', body: '{}' });
+            } else if (action === 'archive' || action === 'trash' || action === 'restore') {
+                await requestApi(buildTodoActionUrl(todoId, action), { method: 'POST', body: '{}' });
+            } else if (action === 'permanent') {
+                await requestApi(buildTodoActionUrl(todoId, action), { method: 'DELETE' });
+                state.todoDetail.id = null;
+                byId('todo-detail').hidden = true;
+            } else if (action === 'unrelate') {
+                const url = buildRelatedTodoUrl(todoId, button.dataset.relatedId);
+                if (url === '') {
+                    return;
+                }
+                await requestApi(url, { method: 'DELETE' });
+            } else if (action === 'snooze') {
+                const input = button.parentElement.querySelector('[data-snooze-days]');
+                await requestApi(buildTodoActionUrl(todoId, 'snooze'), {
+                    method: 'POST',
+                    body: JSON.stringify(buildSnoozeBody(input?.value)),
+                });
             } else if (action === 'attach-tag') {
                 const picker = button.parentElement.querySelector('[data-tag-picker]');
                 if (!isValidId(picker?.value)) {
@@ -1208,7 +1711,7 @@ function bindEvents() {
             } else {
                 return;
             }
-            setNotice('ToDo updated.');
+            setNotice(action === 'permanent' ? 'ToDo permanently deleted.' : 'ToDo updated.');
             await refreshWorkspace();
         } catch (error) {
             displayError(error);

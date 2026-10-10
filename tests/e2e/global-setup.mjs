@@ -12,8 +12,10 @@ import {
     applicationEnv,
     baseURL,
     database,
+    freshAccount,
     repositoryRoot,
     seededTodoCount,
+    soloAccount,
 } from './environment.mjs';
 
 const run = promisify(execFile);
@@ -121,6 +123,22 @@ async function seedTodos() {
 export default async function globalSetup() {
     await resetDatabase();
     await cake(['set_user_password', account.email, '--create', '--password', account.password]);
+    // Created but never acted as, so the activity history has an observable empty state.
+    await cake([
+        'set_user_password',
+        freshAccount.email,
+        '--create',
+        '--password',
+        freshAccount.password,
+    ]);
+    // Owns no ToDos at first, so specs can rely on a short review queue.
+    await cake([
+        'set_user_password',
+        soloAccount.email,
+        '--create',
+        '--password',
+        soloAccount.password,
+    ]);
     await waitForServer();
     await seedTodos();
 }

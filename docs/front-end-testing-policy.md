@@ -15,6 +15,8 @@ client slices inherit a known testing shape instead of re-deciding it each time.
 | Browser Projects | `tests/e2e/projects.spec.mjs` | `npm run test:e2e` | Projects and ProjectSections in the client: the empty state, creating, renaming and deleting a Project and a section, assigning and clearing a ToDo's section, the single-section conflict, Projects paging, and a `401` during assignment. |
 | Browser Notebooks | `tests/e2e/notebooks.spec.mjs` | `npm run test:e2e` | Notebooks and NotebookSections in the client: the empty state, creating, renaming and deleting a Notebook and a section, assigning and clearing a ToDo's section, moving a ToDo from a Project section to a Notebook section in one action, Notebooks paging, and a refused deletion. |
 | Browser Libraries | `tests/e2e/libraries.spec.mjs` | `npm run test:e2e` | Read-oriented Library browsing: the empty state, opening a Library and seeing the Projects and Notebooks it groups, an empty Library, Libraries paging, and an expired session while browsing. |
+| Browser ToDo lifecycle | `tests/e2e/todo-lifecycle.spec.mjs` | `npm run test:e2e` | The ToDo detail panel: setting and clearing a parent, linking and unlinking a related ToDo, saving an objective, reporting a result to the parent, the archive → trash → restore → permanent-delete path, the two-step confirmation that makes a single click harmless, and snoozing from the review queue. |
+| Browser Activity | `tests/e2e/activity.spec.mjs` | `npm run test:e2e` | The read-only activity history: the empty state for an actor who has done nothing, paging boundaries, and a newly captured ToDo appearing at the top with a UTC timestamp. |
 | Accessibility and responsive | `tests/e2e/accessibility.spec.mjs` | `npm run test:e2e` | An axe WCAG 2.1 A/AA audit of each view, keyboard reachability of the sign-in path, and horizontal-overflow assertions at 320, 375, 768 and 1280 CSS pixels. |
 
 ### Which layer to use
@@ -27,7 +29,11 @@ client slices inherit a known testing shape instead of re-deciding it each time.
 - Browser specs must leave the seeded dataset intact. Global setup seeds more ToDos than fit on one
   client page, and the smoke journey depends on that; a spec that deletes seeded rows makes the
   suite order-dependent. A spec that creates its own Projects, Notebooks or ToDos must remove them
-  again, so later specs see the same dataset global setup wrote.
+  again, so later specs see the same dataset global setup wrote. A spec that needs a short list of
+  its own (an empty history, a one-item review queue) signs in as one of the extra accounts global
+  setup creates rather than disturbing the seeded account.
+- A destructive action gets a browser test for both halves of its confirmation: the one that
+  changes nothing, and the one that destroys.
 - Every new view, panel, or dialog gets an **accessibility** audit and is added to the
   responsive overflow loop.
 - Every new client file is automatically covered by the **client security** suite; it reads the

@@ -2,20 +2,29 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
+    ACTIVITY_PAGE_SIZE,
+    buildActivityUrl,
     buildLibrariesUrl,
     buildNotebooksUrl,
     buildProjectsUrl,
+    buildRelatedTodoUrl,
     buildSectionAssignmentBody,
+    buildSnoozeBody,
+    buildTodoActionUrl,
     buildTodoUrl,
+    formatActivityEntry,
+    formatActivityTimestamp,
     formatSectionLabel,
     getErrorMessage,
     isValidId,
+    labelForActivityAction,
     labelForReviewReason,
     LIBRARY_PAGE_SIZE,
     NOTEBOOK_PAGE_SIZE,
     parseSectionOptionValue,
     PROJECT_PAGE_SIZE,
     requestApi,
+    requiresConfirmation,
     sectionOptionValue,
     SECTION_SOURCE_LIMIT,
     setText,
@@ -295,4 +304,102 @@ test('moving a ToDo always sends both section fields so only one assignment surv
         project_section_id: null,
         notebook_section_id: null,
     });
+});
+
+test('lifecycle and relationship URLs are built only from known actions and valid ids', () => {
+    assert.equal(buildTodoActionUrl(12, 'archive'), '/api/todos/12/archive');
+    assert.equal(buildTodoActionUrl('12', 'permanent'), '/api/todos/12/permanent');
+    assert.equal(buildTodoActionUrl(12, 'hierarchy'), '/api/todos/12/hierarchy');
+
+    for (const [id, action] of [
+        [12, 'drop-database'],
+        [12, '../../auth/logout'],
+        [0, 'archive'],
+        ['1 OR 1=1', 'archive'],
+        [null, 'archive'],
+        [12, ''],
+    ]) {
+        assert.equal(buildTodoActionUrl(id, action), '');
+    }
+});
+
+test('a relationship URL refuses malformed ids and self-linking', () => {
+    assert.equal(buildRelatedTodoUrl(4, 9), '/api/todos/4/related/9');
+    assert.equal(buildRelatedTodoUrl('4', '9'), '/api/todos/4/related/9');
+    assert.equal(buildRelatedTodoUrl(4, 4), '');
+    assert.equal(buildRelatedTodoUrl(4, ''), '');
+    assert.equal(buildRelatedTodoUrl('', 9), '');
+    assert.equal(buildRelatedTodoUrl(4, '9; DROP TABLE todos'), '');
+});
+
+test('only permanent deletion is treated as needing confirmation', () => {
+    assert.equal(requiresConfirmation('permanent'), true);
+    for (const action of ['archive', 'trash', 'restore', 'complete', '', undefined]) {
+        assert.equal(requiresConfirmation(action), false);
+    }
+});
+
+test('a snooze always asks for at least one whole day', () => {
+    assert.deepEqual(buildSnoozeBody('14'), { days: 14 });
+    assert.deepEqual(buildSnoozeBody(3.7), { days: 3 });
+    for (const value of ['', 0, -5, 'soon', null, undefined]) {
+        assert.deepEqual(buildSnoozeBody(value), { days: 1 });
+    }
+});
+
+test('the activity listing URL pages at the client page size and clamps requests', () => {
+    const url = new URL(buildActivityUrl(), 'https://example.test');
+
+    assert.equal(url.pathname, '/api/activity');
+    assert.equal(url.searchParams.get('page'), '1');
+    assert.equal(url.searchParams.get('limit'), String(ACTIVITY_PAGE_SIZE));
+    assert.equal(
+        new URL(buildActivityUrl({ page: 0 }), 'https://example.test').searchParams.get('page'),
+        '1',
+    );
+    assert.equal(
+        new URL(buildActivityUrl({ limit: 5000 }), 'https://example.test').searchParams.get('limit'),
+        String(SECTION_SOURCE_LIMIT),
+    );
+});
+
+test('activity actions are presented as readable sentences', () => {
+    assert.equal(labelForActivityAction('todo.created'), 'Created a ToDo');
+    assert.equal(labelForActivityAction('todo.trashed'), 'Moved a ToDo to the trash');
+    assert.equal(labelForActivityAction('todo.tag_attached'), 'Added a tag to a ToDo');
+    assert.equal(labelForActivityAction('widget.future_action'), 'widget future action');
+    assert.equal(labelForActivityAction(undefined), '');
+});
+
+test('activity timestamps are rendered unambiguously and never as a broken date', () => {
+    assert.equal(formatActivityTimestamp('2026-10-10T15:37:47+00:00'), '2026-10-10 15:37 UTC');
+    for (const value of ['', 'not a date', null, undefined, 42]) {
+        assert.equal(formatActivityTimestamp(value), '');
+    }
+});
+
+test('an activity entry formats its action, subject and moment', () => {
+    assert.deepEqual(formatActivityEntry({
+        action: 'todo.archived',
+        subject_type: 'todo',
+        subject_id: 12,
+        created: '2026-10-10T15:37:47+00:00',
+    }), {
+        action: 'Archived a ToDo',
+        subject: 'ToDo #12',
+        when: '2026-10-10 15:37 UTC',
+    });
+
+    assert.deepEqual(formatActivityEntry({
+        action: 'request.sent',
+        subject_type: 'cross_context_request',
+        subject_id: '4',
+        created: null,
+    }), {
+        action: 'Sent a request',
+        subject: 'Request #4',
+        when: '',
+    });
+
+    assert.deepEqual(formatActivityEntry({}), { action: '', subject: '', when: '' });
 });

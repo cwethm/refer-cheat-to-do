@@ -19,6 +19,28 @@ export const account = {
 };
 
 /**
+ * A second account that global setup creates and never acts as.
+ *
+ * The seeded account always has activity history, so the empty state of the actor-only
+ * history can only be observed through an actor that has done nothing.
+ */
+export const freshAccount = {
+    email: process.env.E2E_FRESH_USER_EMAIL ?? 'e2e-fresh@example.test',
+    password: process.env.E2E_FRESH_USER_PASSWORD ?? 'e2e-fresh-password',
+};
+
+/**
+ * A third account used by specs that need a short, predictable review queue.
+ *
+ * The seeded account has more ToDos awaiting review than the review view shows at once,
+ * so a ToDo created there cannot be found on screen. This account starts with none.
+ */
+export const soloAccount = {
+    email: process.env.E2E_SOLO_USER_EMAIL ?? 'e2e-solo@example.test',
+    password: process.env.E2E_SOLO_USER_PASSWORD ?? 'e2e-solo-password',
+};
+
+/**
  * Number of seeded ToDos. The client pages at 50, so this must exceed one page for
  * the pagination step of the smoke test to be meaningful.
  */
