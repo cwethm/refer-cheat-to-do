@@ -150,6 +150,10 @@ test('a request can be sent, accepted, declined, and called back', async ({ page
     await pendingRequest.getByRole('button', { name: 'Send callback' }).click();
     await expect(pendingRequest).toContainText('Callback: Reviewed and sent feedback.');
 
+    await page.locator('#request-source-type').selectOption('project');
+    await page.locator('#request-source-id').fill(String(sourceId));
+    await page.locator('#request-target-type').selectOption('notebook');
+    await page.locator('#request-target-id').fill(String(targetId));
     await page.locator('#request-title').fill('Please check the schedule');
     await page.getByRole('button', { name: 'Send request' }).click();
     await expect(page.locator('#request-outbox-list')).toContainText('Please check the schedule');

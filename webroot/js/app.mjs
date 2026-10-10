@@ -376,11 +376,25 @@ function setNotice(message, isError = false) {
 
 function showLogin(message = '') {
     state.userId = null;
+    state.view = 'dashboard';
     state.collaboration = { resource: null, inbox: [], outbox: [] };
+    byId('collaboration-resource-form').reset();
+    byId('capability-grant-form').reset();
+    byId('cross-context-request-form').reset();
     byId('capability-panel').hidden = true;
     byId('capability-list').replaceChildren();
     byId('request-inbox-list').replaceChildren();
     byId('request-outbox-list').replaceChildren();
+    byId('request-inbox-empty').hidden = false;
+    byId('request-outbox-empty').hidden = false;
+    for (const button of document.querySelectorAll('[data-view]')) {
+        const current = button.dataset.view === 'dashboard';
+        button.classList.toggle('is-current', current);
+        button.setAttribute('aria-pressed', String(current));
+    }
+    for (const name of ['dashboard', 'inbox', 'projects', 'notebooks', 'libraries', 'review', 'activity', 'collaboration']) {
+        byId(`${name}-view`).hidden = name !== 'dashboard';
+    }
     byId('workspace').hidden = true;
     byId('account-actions').hidden = true;
     byId('login-panel').hidden = false;
