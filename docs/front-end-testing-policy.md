@@ -13,6 +13,8 @@ client slices inherit a known testing shape instead of re-deciding it each time.
 | Browser smoke | `tests/e2e/smoke.spec.mjs` | `npm run test:e2e` | One end-to-end journey over the integration seam: sign in, capture, tag, filter, page, review, sign out, with no console errors and no unexpected failing requests. |
 | Browser boundaries | `tests/e2e/app.spec.mjs` | `npm run test:e2e` | What the smoke journey does not cover: empty search results, paging limits, API errors surfaced to the person, expired sessions, rejected credentials. |
 | Browser Projects | `tests/e2e/projects.spec.mjs` | `npm run test:e2e` | Projects and ProjectSections in the client: the empty state, creating, renaming and deleting a Project and a section, assigning and clearing a ToDo's section, the single-section conflict, Projects paging, and a `401` during assignment. |
+| Browser Notebooks | `tests/e2e/notebooks.spec.mjs` | `npm run test:e2e` | Notebooks and NotebookSections in the client: the empty state, creating, renaming and deleting a Notebook and a section, assigning and clearing a ToDo's section, moving a ToDo from a Project section to a Notebook section in one action, Notebooks paging, and a refused deletion. |
+| Browser Libraries | `tests/e2e/libraries.spec.mjs` | `npm run test:e2e` | Read-oriented Library browsing: the empty state, opening a Library and seeing the Projects and Notebooks it groups, an empty Library, Libraries paging, and an expired session while browsing. |
 | Accessibility and responsive | `tests/e2e/accessibility.spec.mjs` | `npm run test:e2e` | An axe WCAG 2.1 A/AA audit of each view, keyboard reachability of the sign-in path, and horizontal-overflow assertions at 320, 375, 768 and 1280 CSS pixels. |
 
 ### Which layer to use

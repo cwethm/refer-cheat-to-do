@@ -48,7 +48,8 @@ The manual Chromium verification recorded in Slice 14 is now an automated, CI-ru
 
 15. Projects and ProjectSections in the client, including section assignment — **APPROVED**; see
     `docs/slices/15-client-projects-and-sections.md`
-16. Notebooks, NotebookSections and Libraries in the client
+16. Notebooks, NotebookSections and Libraries in the client — **APPROVED**; see
+    `docs/slices/16-client-notebooks-and-libraries.md`
 17. Relationships, objectives, lifecycle and activity history in the client
 
 Each follows the Slice 14 rule: no new domain rules, no new endpoints, no new authorization.
