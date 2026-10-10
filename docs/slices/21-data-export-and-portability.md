@@ -85,9 +85,13 @@ contract deliberately excludes.
 
   History contains only the exporting actor's entries. Missing, foreign, or excluded subjects are
   represented with `subject_id: 0`; unsafe contexts become `context_type: null, context_id: null`.
-  Original action and subject type remain, but opaque history `metadata` is always null: historical
-  metadata can contain credentials or foreign identifiers, and version 1 deliberately does not
-  claim it can safely infer ownership of arbitrary nested values. Restore preserves these redactions.
+  Original action and subject type remain. History metadata reuses `ActivityRecorder::redact()` and
+  preserves a bounded whitelist: lifecycle `status`/`previous_status`, known `capability`, changed
+  `fields`, owned reference fields, and owned `member`, `resource`, or `target` type/id pairs.
+  Credential keys, user IDs, unknown keys, arbitrary text/nesting, and foreign/missing references
+  are dropped; empty metadata is null. Metadata larger than 8,192 stored bytes is omitted by the
+  database query before fetching. Restore validates this whitelist, remaps reference IDs, and
+  preserves the safe details and redactions.
 
   Generation runs in its own PostgreSQL `REPEATABLE READ` transaction, using keyset pagination
   and fixed batches of at most 100 records, including composite-key membership/relationship pages.
@@ -104,8 +108,8 @@ contract deliberately excludes.
   The batch bound limits record counts, not the size of user-written text. Records are not split
   across lines: a single record larger than the line limit causes export generation to fail rather
   than emitting a file that cannot be restored. Restore reads at most the line limit before rejecting
-  an oversized record. Activity metadata is not fetched or emitted as user data and is always null,
-  so unbounded historical metadata cannot enlarge a portable activity record.
+  an oversized record. Activity metadata is fetched only when its stored size is at most 8,192
+  bytes, so unbounded historical metadata cannot enlarge a portable activity record.
 
   ## Operator export and restore
 

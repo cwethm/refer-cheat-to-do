@@ -19,6 +19,7 @@ class DataPortabilityService
     public const SCHEMA = 'urn:cheat-to-do:export:1';
     public const BATCH_SIZE = 100;
     public const MAX_LINE_BYTES = 1048576;
+    public const MAX_METADATA_BYTES = 8192;
 
     /**
      * Ordered dependencies and the complete portable field allowlist.
@@ -235,6 +236,10 @@ class DataPortabilityService
             $query = (new ActivityRecorder($this->tables))->forActor($userId)
                 ->select($selected)->disableHydration()
                 ->orderBy(['ActivityRecords.id' => 'ASC'], true)->limit(self::BATCH_SIZE);
+            $query->select(['metadata' => $query->expr(
+                'CASE WHEN octet_length(ActivityRecords.metadata) <= ' . self::MAX_METADATA_BYTES
+                . ' THEN ActivityRecords.metadata ELSE NULL END',
+            )]);
             if ($last !== null) {
                 $query->where(['ActivityRecords.id >' => $last[0]]);
             }
@@ -243,9 +248,7 @@ class DataPortabilityService
             foreach ($query->all() as $entity) {
                 $row = [];
                 foreach (explode(',', $fields) as $field) {
-                    $row[$field] = $field === 'metadata'
-                        ? null
-                        : (is_array($entity) ? $entity[$field] : $entity->get($field));
+                    $row[$field] = is_array($entity) ? $entity[$field] : $entity->get($field);
                 }
                 $rows[] = $row;
             }
@@ -307,8 +310,9 @@ class DataPortabilityService
                     }
                 }
             }
-            // Metadata is opaque and can embed foreign identifiers or historic credential material.
-            $row['metadata'] = null;
+            $metadata = is_string($row['metadata']) ? json_decode($row['metadata'], true, 16) : null;
+            $safe = is_array($metadata) ? $this->safeMetadata($metadata, $userId) : [];
+            $row['metadata'] = $safe === [] ? null : json_encode($safe, JSON_THROW_ON_ERROR);
             if ($row['created'] instanceof DateTimeInterface) {
                 $format = $row['created']->format('u') === '000000' ? 'Y-m-d H:i:s' : 'Y-m-d H:i:s.u';
                 $row['created'] = $row['created']->format($format);
@@ -321,6 +325,12 @@ class DataPortabilityService
      */
     private function owns(string $type, int $id, int $userId): bool
     {
+        if (in_array($type, ['projects', 'notebooks', 'libraries'], true)) {
+            $kind = $type === 'libraries' ? 'library' : substr($type, 0, -1);
+
+            return (new CapabilityService($this->tables))->ownerIdFor($kind, $id) === $userId;
+        }
+
         return (bool)$this->connection->execute(
             "SELECT 1 FROM $type r WHERE r.id = ? AND " . $this->ownership($type),
             [$id, $userId],
@@ -340,6 +350,55 @@ class DataPortabilityService
             'library' => 'libraries',
             default => null,
         };
+    }
+
+    /**
+     * Preserve known application history details, never opaque arbitrary payloads.
+     *
+     * @param array<string, mixed> $metadata Stored metadata.
+     * @return array<string, mixed>
+     */
+    private function safeMetadata(array $metadata, ?int $userId): array
+    {
+        $metadata = (new ActivityRecorder($this->tables))->redact($metadata);
+        $safe = [];
+        foreach (['status', 'previous_status'] as $field) {
+            if (isset($metadata[$field]) && in_array($metadata[$field], TodosTable::ALLOWED_STATUSES, true)) {
+                $safe[$field] = $metadata[$field];
+            }
+        }
+        if (
+            isset($metadata['capability'])
+            && in_array($metadata['capability'], CapabilityService::CAPABILITIES, true)
+        ) {
+            $safe['capability'] = $metadata['capability'];
+        }
+        if (isset($metadata['fields']) && is_array($metadata['fields']) && array_is_list($metadata['fields'])) {
+            $safe['fields'] = array_values(array_intersect(
+                array_filter($metadata['fields'], 'is_string'),
+                ['title', 'notes', 'status', 'project_section_id', 'notebook_section_id'],
+            ));
+        }
+        foreach (self::REFERENCES as $field => $target) {
+            $id = $metadata[$field] ?? null;
+            if (is_int($id) && $id > 0 && ($userId === null || $this->owns($target, $id, $userId))) {
+                $safe[$field] = $userId === null ? $this->mappedId($target, $id) : $id;
+            }
+        }
+        foreach (['member', 'resource', 'target'] as $pointer) {
+            $kind = $metadata[$pointer . '_type'] ?? null;
+            $id = $metadata[$pointer . '_id'] ?? null;
+            $target = is_string($kind) ? $this->subjectTable($kind) : null;
+            if (
+                $target !== null && is_int($id) && $id > 0
+                && ($userId === null || $this->owns($target, $id, $userId))
+            ) {
+                $safe[$pointer . '_type'] = $kind;
+                $safe[$pointer . '_id'] = $userId === null ? $this->mappedId($target, $id) : $id;
+            }
+        }
+
+        return $safe;
     }
 
     /**
@@ -507,9 +566,25 @@ class DataPortabilityService
                 || ($data['context_type'] !== null
                 && !in_array($data['context_type'], ActivityRecorder::SUBJECT_TYPES, true))
                 || (($data['context_type'] === null) !== ($data['context_id'] === null))
-                || $data['metadata'] !== null
             ) {
                 throw new DomainException('Invalid or unsafe activity record.');
+            }
+            if ($data['metadata'] !== null) {
+                if (!is_string($data['metadata']) || strlen($data['metadata']) > self::MAX_METADATA_BYTES) {
+                    throw new DomainException('Activity metadata exceeds the portable bound.');
+                }
+                $metadata = json_decode($data['metadata'], true, 16, JSON_THROW_ON_ERROR);
+                if (!is_array($metadata) || array_is_list($metadata)) {
+                    throw new DomainException('Activity metadata must be an object.');
+                }
+                $allowed = array_merge(
+                    ['status', 'previous_status', 'capability', 'fields'],
+                    array_keys(self::REFERENCES),
+                    ['member_type', 'member_id', 'resource_type', 'resource_id', 'target_type', 'target_id'],
+                );
+                if (array_diff(array_keys($metadata), $allowed) !== []) {
+                    throw new DomainException('Unknown or sensitive activity metadata fields.');
+                }
             }
         }
     }
@@ -536,6 +611,21 @@ class DataPortabilityService
             $data[$field] = $field === 'parent_todo_id' ? null : $this->mappedId($target, $data[$field]);
         }
         if ($type === 'activity_records') {
+            if ($data['metadata'] !== null) {
+                $metadata = json_decode($data['metadata'], true, 16, JSON_THROW_ON_ERROR);
+                $safe = $this->safeMetadata($metadata, null);
+                $keys = array_keys($safe);
+                $originalKeys = array_keys($metadata);
+                sort($keys);
+                sort($originalKeys);
+                if (
+                    $keys !== $originalKeys
+                    || (isset($metadata['fields']) && $safe['fields'] !== $metadata['fields'])
+                ) {
+                    throw new DomainException('Invalid activity metadata values or references.');
+                }
+                $data['metadata'] = json_encode($safe, JSON_THROW_ON_ERROR);
+            }
             foreach (['subject', 'context'] as $pointer) {
                 $id = $data[$pointer . '_id'];
                 if ($id === null || $id === 0) {

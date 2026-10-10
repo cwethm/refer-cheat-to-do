@@ -6,6 +6,7 @@ namespace App\Test\TestCase\Service;
 use App\Service\ActivityRecorder;
 use App\Service\CapabilityService;
 use App\Service\DataPortabilityService;
+use App\Service\TodoLifecycleService;
 use Cake\Console\TestSuite\ConsoleIntegrationTestTrait;
 use Cake\Database\Connection;
 use Cake\ORM\TableRegistry;
@@ -131,7 +132,7 @@ class DataPortabilityServiceTest extends TestCase
             . "VALUES (600,400,'2026-02-03 01:02:03'), (600,401,'2026-02-03 01:02:03')");
         $db->execute('INSERT INTO todos_tags (todo_id, tag_id) VALUES (10,102), (12,100)');
         $recorder = new ActivityRecorder(TableRegistry::getTableLocator());
-        $recorder->record(1, 'todo.updated', 'todo', 10, ['status' => 'done'], 'project', 200);
+        $recorder->record(1, 'todo.updated', 'todo', 10, ['status' => 'done', 'tag_id' => 100], 'project', 200);
         $recorder->record(1, 'project.read', 'project', 201, ['foreign_id' => 201], 'notebook', 401);
         $recorder->record(2, 'todo.updated', 'todo', 12);
         $db->execute("UPDATE activity_records SET metadata='{\"password\":\"sensitive-history\"}' "
@@ -169,8 +170,11 @@ class DataPortabilityServiceTest extends TestCase
         $this->assertSame([], $this->ofType($records, 'capability_grants'));
         $this->assertSame([], $this->ofType($records, 'cross_context_requests'));
         foreach ($this->ofType($records, 'activity_records') as $history) {
-            $this->assertNull($history['metadata']);
+            if ($history['action'] === 'todo.updated') {
+                $this->assertSame(['status' => 'done', 'tag_id' => 100], json_decode($history['metadata'], true));
+            }
             if ($history['action'] === 'project.read') {
+                $this->assertNull($history['metadata']);
                 $this->assertSame(0, $history['subject_id']);
                 $this->assertNull($history['context_type']);
                 $this->assertNull($history['context_id']);
@@ -245,6 +249,12 @@ class DataPortabilityServiceTest extends TestCase
                 } elseif (in_array($field, ['subject_id', 'context_id'], true) && $value) {
                     $kind = $row['data'][str_replace('_id', '_type', $field)];
                     $expected['data'][$field] = $idMaps[$kind === 'library' ? 'libraries' : $kind . 's'][$value];
+                } elseif ($field === 'metadata' && $value !== null) {
+                    $metadata = json_decode($value, true);
+                    if (isset($metadata['tag_id'])) {
+                        $metadata['tag_id'] = $idMaps['tags'][$metadata['tag_id']];
+                    }
+                    $expected['data'][$field] = json_encode($metadata);
                 }
             }
             $this->assertSame($expected, $target[$index], $row['type']);
@@ -266,6 +276,52 @@ class DataPortabilityServiceTest extends TestCase
             fclose($stream);
         }
         $this->assertCount(count($source), $this->exported(3));
+    }
+
+    /**
+     * Credentials and foreign IDs in metadata are redacted; restored references remain file-local.
+     */
+    public function testMetadataSafetyAndReferenceValidation(): void
+    {
+        $recorder = new ActivityRecorder(TableRegistry::getTableLocator());
+        $recorder->record(1, 'todo.updated', 'todo', 10, [
+            'status' => 'inbox', 'tag_id' => 102, 'resource_type' => 'project', 'resource_id' => 201,
+            'subject_user_id' => 2, 'unknown' => ['password' => 'secret'],
+            'password_hash' => 'forbidden-hash', 'access_token' => 'forbidden-token',
+            'fields' => ['title', 'notes'],
+        ]);
+        $source = $this->exported();
+        $history = $this->ofType($source, 'activity_records')[0];
+        $this->assertSame(['status' => 'inbox', 'fields' => ['title', 'notes']], json_decode($history['metadata'], true));
+        foreach (
+            [
+            ['password' => 'forbidden'],
+            ['password_hash' => 'forbidden-hash'],
+            ['access_token' => 'forbidden-token'],
+            ['tag_id' => 102],
+            ['fields' => ['password']],
+            ['resource_type' => 'project', 'resource_id' => 201],
+            ['status' => ['password' => 'forbidden']],
+            ] as $unsafe
+        ) {
+            $bad = $source;
+            foreach ($bad as &$row) {
+                if (($row['type'] ?? null) === 'activity_records') {
+                    $row['data']['metadata'] = json_encode($unsafe);
+                }
+            }
+            unset($row);
+            $stream = $this->encoded($bad);
+            try {
+                $this->service()->restore(3, $stream);
+                $this->fail('Unsafe activity metadata was restored.');
+            } catch (Throwable $exception) {
+                $this->assertNotInstanceOf(AssertionFailedError::class, $exception);
+            } finally {
+                fclose($stream);
+            }
+            $this->assertCount(2, $this->exported(3));
+        }
     }
 
     /**
@@ -338,7 +394,7 @@ class DataPortabilityServiceTest extends TestCase
         ));
         $this->assertNotEmpty($activityQueries);
         foreach ($activityQueries as $sql) {
-            $this->assertStringNotContainsString('metadata', $sql);
+            $this->assertStringContainsString('octet_length(ActivityRecords.metadata) <= 8192', $sql);
             $this->assertStringContainsString('LIMIT 100', $sql);
         }
         $this->assertNull($this->ofType($records, 'activity_records')[0]['metadata']);
@@ -520,6 +576,30 @@ class DataPortabilityServiceTest extends TestCase
             fclose($stream);
         }
         $this->assertSame($before, $this->exported(3));
+    }
+
+    /**
+     * The lifecycle authority clears archived_at when trashing but retains previous_status.
+     */
+    public function testArchiveThenTrashRoundTrip(): void
+    {
+        $todos = TableRegistry::getTableLocator()->get('Todos');
+        $lifecycle = new TodoLifecycleService($todos);
+        $todo = $todos->get(10);
+        $lifecycle->transition($todo, 'archived');
+        $lifecycle->transition($todo, 'trashed');
+        $source = $this->ofType($this->exported(), 'todos')[0];
+        $this->assertSame('archived', $source['previous_status']);
+        $this->assertNull($source['archived_at']);
+        $stream = $this->encoded($this->exported());
+        try {
+            $this->service()->restore(3, $stream);
+        } finally {
+            fclose($stream);
+        }
+        $target = $this->ofType($this->exported(3), 'todos')[0];
+        unset($source['id'], $target['id']);
+        $this->assertSame($source, $target);
     }
 
     /**
