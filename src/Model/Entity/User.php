@@ -9,6 +9,7 @@ use Cake\ORM\Entity;
  * @property int $id
  * @property string $email
  * @property string $password
+ * @property int $credential_version
  * @property \Cake\I18n\DateTime|null $created
  * @property \Cake\I18n\DateTime|null $modified
  */
@@ -22,6 +23,7 @@ class User extends Entity
     protected array $_accessible = [
         'email' => true,
         'password' => true,
+        'credential_version' => false,
         'created' => true,
         'modified' => true,
     ];
@@ -33,6 +35,7 @@ class User extends Entity
      */
     protected array $_hidden = [
         'password',
+        'credential_version',
     ];
 
     /**

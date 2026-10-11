@@ -17,6 +17,23 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/auth/login', ['controller' => 'Auth', 'action' => 'login', '_method' => 'POST']);
         $builder->connect('/auth/logout', ['controller' => 'Auth', 'action' => 'logout', '_method' => 'POST']);
         $builder->connect('/auth/me', ['controller' => 'Auth', 'action' => 'me', '_method' => 'GET']);
+        $builder->connect(
+            '/auth/password',
+            ['controller' => 'Auth', 'action' => 'changePassword', '_method' => 'POST'],
+        );
+        $builder->connect(
+            '/auth/password-reset',
+            ['controller' => 'Auth', 'action' => 'requestPasswordReset', '_method' => 'POST'],
+        );
+        $builder->connect(
+            '/auth/password-reset/complete',
+            ['controller' => 'Auth', 'action' => 'completePasswordReset', '_method' => 'POST'],
+        );
+        $builder->connect('/invitations', ['controller' => 'Invitations', 'action' => 'add', '_method' => 'POST']);
+        $builder->connect(
+            '/invitations/accept',
+            ['controller' => 'Invitations', 'action' => 'accept', '_method' => 'POST'],
+        );
         $builder->connect('/export', ['controller' => 'Exports', 'action' => 'download', '_method' => 'GET']);
 
         $builder->connect('/todos', ['controller' => 'Todos', 'action' => 'index', '_method' => 'GET']);

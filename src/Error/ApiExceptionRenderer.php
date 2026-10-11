@@ -73,6 +73,7 @@ class ApiExceptionRenderer extends WebExceptionRenderer
             405 => 'METHOD_NOT_ALLOWED',
             409 => 'CONFLICT',
             422 => 'VALIDATION_ERROR',
+            429 => 'TOO_MANY_REQUESTS',
             default => $status >= 500 ? 'INTERNAL_SERVER_ERROR' : 'REQUEST_ERROR',
         };
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Controller\Api;
 
 use App\Service\CapabilityService;
+use App\Test\TestCase\SignedInSessionTrait;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
@@ -11,6 +12,7 @@ use Cake\TestSuite\TestCase;
 class CapabilitiesControllerTest extends TestCase
 {
     use IntegrationTestTrait;
+    use SignedInSessionTrait;
 
     /**
      * @var list<string>
@@ -31,7 +33,7 @@ class CapabilitiesControllerTest extends TestCase
 
     private function authenticate(int $userId = 1): void
     {
-        $this->session(['Auth.user_id' => $userId]);
+        $this->signIn($userId);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);

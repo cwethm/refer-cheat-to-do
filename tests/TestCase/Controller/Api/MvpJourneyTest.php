@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Controller\Api;
 
+use App\Test\TestCase\SignedInSessionTrait;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\IntegrationTestTrait;
@@ -18,6 +19,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 class MvpJourneyTest extends TestCase
 {
     use IntegrationTestTrait;
+    use SignedInSessionTrait;
 
     /**
      * @var list<string>
@@ -41,7 +43,7 @@ class MvpJourneyTest extends TestCase
 
     private function authenticate(int $userId = 1): void
     {
-        $this->session(['Auth.user_id' => $userId]);
+        $this->signIn($userId);
         $this->configRequest(['headers' => ['Accept' => 'application/json']]);
     }
 

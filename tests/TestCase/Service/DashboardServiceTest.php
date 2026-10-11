@@ -9,6 +9,7 @@ use App\Service\DashboardService;
 use App\Service\OrphanDetectionService;
 use App\Service\ReviewSchedulingService;
 use App\Service\TodoLifecycleService;
+use App\Test\TestCase\SignedInSessionTrait;
 use Cake\Chronos\Chronos;
 use Cake\Database\Log\LoggedQuery;
 use Cake\I18n\DateTime;
@@ -23,6 +24,7 @@ use Stringable;
 class DashboardServiceTest extends TestCase
 {
     use IntegrationTestTrait;
+    use SignedInSessionTrait;
 
     /**
      * @var list<string>
@@ -189,7 +191,7 @@ class DashboardServiceTest extends TestCase
         foreach (array_values(self::boundaryProvider()) as $index => [$overrides, $tagged]) {
             $this->insertTodo(1000 + $index, $overrides, $tagged);
         }
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest(['headers' => ['Accept' => 'application/json']]);
         $expected = json_encode(
             ['data' => $this->legacySummary(1, 5)],

@@ -41,6 +41,45 @@ return [
     'Security' => [
         'salt' => env('SECURITY_SALT', 'change-me-to-a-long-random-string'),
     ],
+    /*
+     * Sessions (Slice 19). `timeout` is the idle expiry in minutes, enforced by the server-side
+     * session; `Accounts.sessionLifetime` is the absolute expiry checked on every API request.
+     * The cookie is HTTP-only, SameSite=Strict and, on HTTPS, Secure; strict mode refuses
+     * session ids the server did not issue.
+     */
+    'Session' => [
+        'defaults' => 'php',
+        'timeout' => 120,
+        'ini' => [
+            'session.cookie_httponly' => true,
+            'session.cookie_samesite' => 'Strict',
+            'session.use_strict_mode' => true,
+        ],
+    ],
+    'Accounts' => [
+        // Absolute session lifetime in seconds, counted from sign-in.
+        'sessionLifetime' => 12 * 3600,
+        'invitationLifetime' => 7 * 24 * 3600,
+        'passwordResetLifetime' => 3600,
+    ],
+    /*
+     * Rate limits for authentication-related operations, stored in `rate_limit_hits`.
+     * `limit` attempts are allowed per `window` seconds for each bucket.
+     */
+    'RateLimit' => [
+        // Failed sign-ins for one email address, and from one client address.
+        'login_account' => ['limit' => 5, 'window' => 900],
+        'login_client' => ['limit' => 20, 'window' => 900],
+        // Reset requests for one address, and from one client address, counted whether known or not.
+        'password_reset_account' => ['limit' => 3, 'window' => 3600],
+        'password_reset_client' => ['limit' => 10, 'window' => 3600],
+        // Failed invitation or reset redemptions from one client address.
+        'token_redeem_client' => ['limit' => 10, 'window' => 900],
+        // Wrong current passwords for one signed-in account.
+        'password_change_account' => ['limit' => 5, 'window' => 900],
+        // Invitations issued by one account.
+        'invitation_issue_account' => ['limit' => 10, 'window' => 86400],
+    ],
     'Asset' => [
         'cacheTime' => '+1 year',
     ],
@@ -97,7 +136,7 @@ return [
     'Email' => [
         'default' => [
             'transport' => 'default',
-            'from' => 'noreply@localhost',
+            'from' => env('EMAIL_FROM', 'noreply@localhost.localdomain'),
         ],
     ],
     'Datasources' => [

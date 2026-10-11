@@ -3,12 +3,14 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Controller\Api;
 
+use App\Test\TestCase\SignedInSessionTrait;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 
 class ActivityControllerTest extends TestCase
 {
     use IntegrationTestTrait;
+    use SignedInSessionTrait;
 
     /**
      * @var list<string>
@@ -32,7 +34,7 @@ class ActivityControllerTest extends TestCase
 
     private function authenticate(int $userId = 1): void
     {
-        $this->session(['Auth.user_id' => $userId]);
+        $this->signIn($userId);
         $this->configRequest(['headers' => ['Accept' => 'application/json']]);
     }
 
