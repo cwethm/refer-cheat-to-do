@@ -3,7 +3,7 @@
 ## Slice Contract
 
 ### Status
-PROPOSED — fifth slice of Phase F (`docs/intended-use.md`)
+PROPOSED — fourth slice of Phase F (`docs/roadmap.md`)
 
 ### Goal
 Give each social issue the owner is engaged with a named place that gathers everything known about
@@ -37,19 +37,12 @@ Slices 26 and 27 (cards and records), 9 (Libraries and the non-authority invaria
 two specific items.
 
 ### Required decision (ADR)
-Whether an issue is a **Library with a wider membership vocabulary** or a **new Issue entity**.
-
-The leaning is to reuse Libraries. A Library is already a user-owned context grouping with an
-explicit, tested non-authority invariant (Slice 9) and `libraries_*` membership join tables with
-composite primary keys, `CASCADE` on the join row and no cascade to the parents. Extending the member
-vocabulary to cards, records and ToDos is a deliberate migration and avoids a parallel grouping
-concept. The ADR must settle the cost of that choice: ToDos in a Library would be the first member
-type that is not a Project or Notebook, the `capability_grants` `library` resource type and existing
-Library capability checks must be shown unaffected, and the client must label hubs as Issues without
-creating two names for one thing.
-
-A separate Issue entity is justified only if a field specific to issues is needed that a description
-cannot carry. If chosen, the ADR must say why Libraries could not serve.
+Decision: create a separate `Issue` entity, not a Library. Issues use a distinct `/api/issues`
+namespace and Issues client view, are owner-only, and receive no capability resource type or grants.
+Deleting an Issue removes its membership rows only and never deletes members; unlike a Library,
+deletion is allowed while memberships remain. Library routes, its `409` for deleting a non-empty
+Library, and its `library` capability checks remain unchanged. The ADR and tests must preserve those
+distinctions.
 
 ### Required threat and authorization review
 - Hubs are owner-only; members must be owned by the hub's owner. Another user's hub, a nonexistent

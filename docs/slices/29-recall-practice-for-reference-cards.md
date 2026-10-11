@@ -3,10 +3,11 @@
 ## Slice Contract
 
 ### Status
-PROPOSED — scheduled last in Phase F (`docs/intended-use.md`). Fast lookup (Slice 26) and offline
-access (Slice 35) do most of the work of not straining to recall; practice reinforces the cards the
-owner wants to know by heart. It depends only on Slice 26, so it can be moved earlier without
-affecting any other contract.
+PROPOSED — scheduled after Slice 35 in Phase F and before Slices 19 and 36 (`docs/roadmap.md`). Fast
+lookup (Slice 26) and offline access (Slice 35) do most of the work of not straining to recall;
+practice reinforces the cards the owner wants to know by heart. Its core depends on Slice 26; the
+optional issue-scoped session depends on Slice 30, so moving it before Slice 30 requires deferring
+that option.
 
 ### Goal
 Resurface reference cards on a deterministic schedule so that concepts and dialogue patterns are

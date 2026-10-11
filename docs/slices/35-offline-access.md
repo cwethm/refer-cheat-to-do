@@ -48,11 +48,16 @@ The ADR must resolve each of the following before implementation:
    `indexedDB` and `document.cookie`. The ADR must name the one module allowed to use browser
    storage, require that it never touches credentials, cookies or session state, amend the test so
    the exception is that module only (every other module stays prohibited), and update the policy.
-2. **At-rest protection and unlock.** Options: (a) readable offline with only the device's own lock
-   protecting it; (b) encrypted with a key derived from a PIN or passphrase held only on the device
-   and unlocked per use, wiped after repeated failures or after its maximum age; (c) readable only
-   while an earlier online unlock is still valid. The leaning is (b). The ADR must say what a lost,
+2. **At-rest protection, unlock and script compromise.** Options: (a) readable offline with only
+   the device's own lock protecting it; (b) encrypted with a key derived from a PIN or passphrase
+   held only on the device and unlocked per use, wiped after repeated failures or after its maximum
+   age; (c) readable only while an earlier online unlock remains valid. The leaning is (b). The ADR
+   must say what a lost,
    stolen or shared phone can and cannot reveal, and that the server cannot revoke a stored copy.
+   Treat same-origin script compromise separately:
+   `textContent` prevents stored text from becoming markup when rendered, but cannot stop already
+   running same-origin JavaScript from reading IndexedDB. State what a compromised script can read
+   and when, including how long an unlocked key or plaintext remains available.
 3. **No-store and caching policy.** `docs/application-design.md` requires authenticated responses to
    be `private, no-store`. The ADR must state that the service worker does not cache API responses
    through the HTTP cache, and that the single, explicit store of bundle copies is the only
@@ -69,8 +74,9 @@ The ADR must resolve each of the following before implementation:
   the ADR's at-rest protection, a maximum age, expiry removal and logout removal. Each needs a test.
 - A stored copy must never be larger in scope than what the owner could read online at the time it
   was fetched. Nothing in the store may be fetched by a path other than the contents endpoint.
-- The existing no-HTML-sink rule (`textContent` only) is the main defence against script access to
-  the store and must keep passing.
+- The existing no-HTML-sink rule (`textContent` only) prevents stored text from becoming executable
+  markup when rendered; it does not prevent already-running same-origin JavaScript from accessing
+  IndexedDB. Script compromise and unlocked-key/plaintext lifetime are separate ADR concerns.
 - A service worker widens the cross-site and caching surface; its scope, the origins it will fetch
   and the requests it may intercept are limited to the application's own origin.
 - Nothing is logged about stored content. The server learns only the ordinary authenticated request

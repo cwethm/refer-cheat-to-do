@@ -129,10 +129,11 @@ Ordering notes:
 - Slice 27 follows 26 because it reuses its tag and client conventions, and 28 needs both. Slices 30,
   31 and 32 need 28's links. Slice 33 (people) comes after the records, needs and decisions it
   connects to exist, and 34 after every type it can contain.
-- The owner confirmed the order 33, 34, 35, then 29. Slice 29 depends only on 26. It follows 30 and 31
-  because the owner's stated purpose for community needs is to broaden the perspective behind
-  recommendations, which those slices serve directly. The choice is reversible: moving 29 earlier
-  changes no dependency. The implications of each order are set out in `docs/intended-use.md`.
+- The owner confirmed the order 33, 34, 35, then 29. Slice 29's core depends on 26, and its optional
+  issue-scoped sessions depend on 30. It follows 30 and 31 because the owner's stated purpose for
+  community needs is to broaden the perspective behind recommendations, which those slices serve
+  directly. Moving 29 ahead of 30 requires deferring issue-scoped practice until 30 is available. The
+  implications of each order are set out in `docs/intended-use.md`.
 - Slice 36 depends on Slices 19 and 26 and on no other Phase F slice, so it follows 19 and can be moved
   ahead of 29, or earlier still, without changing a dependency. It is placed after 29 only to leave the
   confirmed order undisturbed; whether to bring it forward is an open question in
@@ -149,6 +150,6 @@ each with its own threat and authorization review:
 
 23. Document generation — first use is printing cheat sheets (Slice 26); see
     `docs/slices/23-document-generation.md`
-24. AI agent integration — records and needs are excluded from agent access unless granted per
-    resource; see `docs/slices/24-ai-agent-integration.md`
+24. AI agent integration — records, needs, decisions and parties are excluded from agent access unless
+    granted individually; bundles confer no member reads. See `docs/slices/24-ai-agent-integration.md`
 25. Huginn orchestration — see `docs/slices/25-huginn-orchestration.md`
