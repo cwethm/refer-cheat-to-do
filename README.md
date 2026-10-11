@@ -65,6 +65,7 @@ from the console with `bin/cake set_user_password`
 
 - [docs/application-design.md](docs/application-design.md)
 - [docs/roadmap.md](docs/roadmap.md)
+- [docs/intended-use.md](docs/intended-use.md) (how the application is meant to be used; governs Phase F)
 - [docs/mvp-feature-list.md](docs/mvp-feature-list.md)
 - [docs/adr/](docs/adr/)
 
@@ -705,7 +706,10 @@ expectations, and the standing client security checklist.
 
 ## Current project status
 
-Authentication, ToDo capture, and tagging slices are implemented on top of the
-application foundation, shared API conventions, and developer tooling. Account
-self-registration, richer research and knowledge-refinement workflows, and the
-remaining roadmap capabilities are still pending.
+MVP 1 and post-MVP Slices 14–18 and 20–22 are implemented (see
+[docs/roadmap.md](docs/roadmap.md) for per-slice status). Account lifecycle and
+self-registration (Slice 19) is still pending. The next direction is Phase F: reference cards and
+cheat sheets, discussion and event records, cross-links, issues, community needs, planning and a
+decision log, people and organisations, bundles, read-only offline access to bundles, recall
+practice, and finally sharing cheat sheets with named people (which needs Slice 19 first), described
+in [docs/intended-use.md](docs/intended-use.md).

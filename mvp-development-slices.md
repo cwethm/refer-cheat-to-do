@@ -4,7 +4,10 @@
 
 **Implementation Plan — MVP 1**
 
-This document converts the MVP roadmap into explicit development slices.
+This document converts the MVP roadmap into explicit development slices. It covers MVP 1 only and is
+not revised as later work is planned. Post-MVP slices (14 onward) are sequenced in `docs/roadmap.md`,
+each with a contract in `docs/slices/`, and the intended use that now directs them is in
+`docs/intended-use.md`.
 
 Every slice in this document must be implemented according to:
 
