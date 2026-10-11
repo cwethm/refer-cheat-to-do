@@ -21,6 +21,8 @@ use App\Middleware\HostHeaderMiddleware;
 use App\Middleware\RequestLoggingMiddleware;
 use Cake\Core\Configure;
 use Cake\Error\Middleware\ErrorHandlerMiddleware;
+use Cake\Http\Middleware\BodyParserMiddleware;
+use Cake\Http\Middleware\CsrfProtectionMiddleware;
 use Cake\Http\MiddlewareQueue;
 use Cake\Routing\Middleware\AssetMiddleware;
 use Cake\Routing\Middleware\RoutingMiddleware;
@@ -87,5 +89,9 @@ class ApplicationTest extends TestCase
         $this->assertInstanceOf(AssetMiddleware::class, $middleware->current());
         $middleware->seek(4);
         $this->assertInstanceOf(RoutingMiddleware::class, $middleware->current());
+        $middleware->seek(5);
+        $this->assertInstanceOf(BodyParserMiddleware::class, $middleware->current());
+        $middleware->seek(6);
+        $this->assertInstanceOf(CsrfProtectionMiddleware::class, $middleware->current());
     }
 }

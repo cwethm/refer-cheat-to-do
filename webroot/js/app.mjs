@@ -428,6 +428,13 @@ export function setText(element, value) {
 
 export async function requestApi(path, options = {}) {
     const headers = { Accept: 'application/json', ...options.headers };
+    const method = String(options.method ?? 'GET').toUpperCase();
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+        const csrfToken = globalThis.document?.querySelector('meta[name="csrf-token"]')?.content;
+        if (typeof csrfToken === 'string' && csrfToken !== '') {
+            headers['X-CSRF-Token'] = csrfToken;
+        }
+    }
     const requestOptions = {
         ...options,
         credentials: 'same-origin',

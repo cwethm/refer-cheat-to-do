@@ -96,9 +96,13 @@ test('user-provided text is assigned as text, never parsed as markup', () => {
     assert.equal(element.textContent, hostile);
 });
 
-test('API client unwraps success data and uses same-origin session requests', async () => {
+test('API client sends the CSRF token and uses same-origin session requests', async () => {
     const originalFetch = globalThis.fetch;
+    const originalDocument = globalThis.document;
     let captured;
+    globalThis.document = {
+        querySelector: (selector) => (selector === 'meta[name="csrf-token"]' ? { content: 'csrf-token' } : null),
+    };
     globalThis.fetch = async (path, options) => {
         captured = { path, options };
         return {
@@ -107,16 +111,22 @@ test('API client unwraps success data and uses same-origin session requests', as
         };
     };
     try {
-        assert.deepEqual(await requestApi('/api/todos', {
+        assert.deepEqual(await requestApi('/api/reference-cards', {
             method: 'POST',
             body: JSON.stringify({ title: 'Write tests' }),
         }), { saved: true, meta: { pagination: { total: 1 } } });
-        assert.equal(captured.path, '/api/todos');
+        assert.equal(captured.path, '/api/reference-cards');
         assert.equal(captured.options.credentials, 'same-origin');
         assert.equal(captured.options.headers.Accept, 'application/json');
         assert.equal(captured.options.headers['Content-Type'], 'application/json');
+        assert.equal(captured.options.headers['X-CSRF-Token'], 'csrf-token');
     } finally {
         globalThis.fetch = originalFetch;
+        if (originalDocument === undefined) {
+            delete globalThis.document;
+        } else {
+            globalThis.document = originalDocument;
+        }
     }
 });
 

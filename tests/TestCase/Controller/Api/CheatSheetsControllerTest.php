@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Controller\Api;
 
+use Cake\Http\Middleware\CsrfProtectionMiddleware;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
@@ -10,6 +11,8 @@ use Cake\TestSuite\TestCase;
 class CheatSheetsControllerTest extends TestCase
 {
     use IntegrationTestTrait;
+
+    private string $csrfToken;
 
     /**
      * @var list<string>
@@ -24,10 +27,25 @@ class CheatSheetsControllerTest extends TestCase
         'app.CheatSheetsReferenceCards',
     ];
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->csrfToken = (new CsrfProtectionMiddleware())->createToken();
+        $this->cookie('csrfToken', $this->csrfToken);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function csrfHeaders(): array
+    {
+        return ['Accept' => 'application/json', 'X-CSRF-Token' => $this->csrfToken];
+    }
+
     private function authenticate(int $userId = 1): void
     {
         $this->session(['Auth.user_id' => $userId]);
-        $this->configRequest(['headers' => ['Accept' => 'application/json']]);
+        $this->configRequest(['headers' => $this->csrfHeaders()]);
     }
 
     /**
@@ -47,7 +65,7 @@ class CheatSheetsControllerTest extends TestCase
     private function postJson(string $url, array $body = []): void
     {
         $this->replaceRequest([
-            'headers' => ['Accept' => 'application/json', 'Content-Type' => 'application/json'],
+            'headers' => $this->csrfHeaders() + ['Content-Type' => 'application/json'],
         ]);
         $this->post($url, (string)json_encode($body));
     }
@@ -58,9 +76,15 @@ class CheatSheetsControllerTest extends TestCase
     private function patchJson(string $url, array $body): void
     {
         $this->replaceRequest([
-            'headers' => ['Accept' => 'application/json', 'Content-Type' => 'application/json'],
+            'headers' => $this->csrfHeaders() + ['Content-Type' => 'application/json'],
         ]);
         $this->patch($url, (string)json_encode($body));
+    }
+
+    private function deleteWithCsrf(string $url): void
+    {
+        $this->replaceRequest(['headers' => $this->csrfHeaders()]);
+        $this->delete($url);
     }
 
     /**
@@ -105,7 +129,7 @@ class CheatSheetsControllerTest extends TestCase
 
     public function testAnonymousAccessIsDeniedAcrossAllEndpoints(): void
     {
-        $this->configRequest(['headers' => ['Accept' => 'application/json']]);
+        $this->configRequest(['headers' => $this->csrfHeaders()]);
         $requests = [
             ['get', '/api/cheat-sheets'],
             ['post', '/api/cheat-sheets'],
@@ -118,7 +142,7 @@ class CheatSheetsControllerTest extends TestCase
             ['delete', '/api/cheat-sheets/1100/cards/1000'],
         ];
         foreach ($requests as [$method, $url]) {
-            $this->replaceRequest(['headers' => ['Accept' => 'application/json']]);
+            $this->replaceRequest(['headers' => $this->csrfHeaders()]);
             $this->{$method}($url);
             $this->assertResponseCode(401, $method . ' ' . $url);
         }
@@ -175,10 +199,9 @@ class CheatSheetsControllerTest extends TestCase
         $this->assertResponseCode(404);
         $this->patchJson('/api/cheat-sheets/1101/cards/1002', ['position' => 1]);
         $this->assertResponseCode(404);
-        $this->replaceRequest(['headers' => ['Accept' => 'application/json']]);
-        $this->delete('/api/cheat-sheets/1101/cards/1002');
+        $this->deleteWithCsrf('/api/cheat-sheets/1101/cards/1002');
         $this->assertResponseCode(404);
-        $this->delete('/api/cheat-sheets/1101');
+        $this->deleteWithCsrf('/api/cheat-sheets/1101');
         $this->assertResponseCode(404);
         $this->assertSame([[1002, 1]], $this->order(1101));
     }
@@ -285,12 +308,12 @@ class CheatSheetsControllerTest extends TestCase
     public function testRemoveCardRenumbersAndKeepsCard(): void
     {
         $this->authenticate();
-        $this->delete('/api/cheat-sheets/1100/cards/1001');
+        $this->deleteWithCsrf('/api/cheat-sheets/1100/cards/1001');
         $this->assertResponseOk();
         $this->assertSame([[1000, 1]], $this->order());
         $this->assertTrue(TableRegistry::getTableLocator()->get('ReferenceCards')->exists(['id' => 1001]));
 
-        $this->delete('/api/cheat-sheets/1100/cards/1001');
+        $this->deleteWithCsrf('/api/cheat-sheets/1100/cards/1001');
         $this->assertResponseCode(404);
         $this->assertSame(['cheat_sheet.card_removed'], $this->actions());
     }
@@ -298,7 +321,7 @@ class CheatSheetsControllerTest extends TestCase
     public function testDeleteSheetKeepsCards(): void
     {
         $this->authenticate();
-        $this->delete('/api/cheat-sheets/1100');
+        $this->deleteWithCsrf('/api/cheat-sheets/1100');
         $this->assertResponseOk();
 
         $locator = TableRegistry::getTableLocator();

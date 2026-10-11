@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Controller\Api;
 
 use Cake\Database\Exception\QueryException;
+use Cake\Http\Middleware\CsrfProtectionMiddleware;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
@@ -11,6 +12,8 @@ use Cake\TestSuite\TestCase;
 class ReferenceCardsControllerTest extends TestCase
 {
     use IntegrationTestTrait;
+
+    private string $csrfToken;
 
     /**
      * @var list<string>
@@ -31,10 +34,25 @@ class ReferenceCardsControllerTest extends TestCase
         'app.CheatSheetsReferenceCards',
     ];
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->csrfToken = (new CsrfProtectionMiddleware())->createToken();
+        $this->cookie('csrfToken', $this->csrfToken);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function csrfHeaders(): array
+    {
+        return ['Accept' => 'application/json', 'X-CSRF-Token' => $this->csrfToken];
+    }
+
     private function authenticate(int $userId = 1): void
     {
         $this->session(['Auth.user_id' => $userId]);
-        $this->configRequest(['headers' => ['Accept' => 'application/json']]);
+        $this->configRequest(['headers' => $this->csrfHeaders()]);
     }
 
     /**
@@ -54,7 +72,7 @@ class ReferenceCardsControllerTest extends TestCase
     private function postJson(string $url, array $body = []): void
     {
         $this->replaceRequest([
-            'headers' => ['Accept' => 'application/json', 'Content-Type' => 'application/json'],
+            'headers' => $this->csrfHeaders() + ['Content-Type' => 'application/json'],
         ]);
         $this->post($url, (string)json_encode($body));
     }
@@ -65,9 +83,21 @@ class ReferenceCardsControllerTest extends TestCase
     private function patchJson(string $url, array $body): void
     {
         $this->replaceRequest([
-            'headers' => ['Accept' => 'application/json', 'Content-Type' => 'application/json'],
+            'headers' => $this->csrfHeaders() + ['Content-Type' => 'application/json'],
         ]);
         $this->patch($url, (string)json_encode($body));
+    }
+
+    private function postWithCsrf(string $url): void
+    {
+        $this->replaceRequest(['headers' => $this->csrfHeaders()]);
+        $this->post($url);
+    }
+
+    private function deleteWithCsrf(string $url): void
+    {
+        $this->replaceRequest(['headers' => $this->csrfHeaders()]);
+        $this->delete($url);
     }
 
     /**
@@ -96,20 +126,20 @@ class ReferenceCardsControllerTest extends TestCase
 
     public function testAnonymousAccessIsDeniedAcrossAllEndpoints(): void
     {
-        $this->configRequest(['headers' => ['Accept' => 'application/json']]);
+        $this->configRequest(['headers' => $this->csrfHeaders()]);
         $this->get('/api/reference-cards');
         $this->assertResponseCode(401);
-        $this->post('/api/reference-cards', ['title' => 'Anonymous']);
+        $this->postJson('/api/reference-cards', ['title' => 'Anonymous']);
         $this->assertResponseCode(401);
         $this->get('/api/reference-cards/1000');
         $this->assertResponseCode(401);
-        $this->patch('/api/reference-cards/1000', ['title' => 'Anonymous']);
+        $this->patchJson('/api/reference-cards/1000', ['title' => 'Anonymous']);
         $this->assertResponseCode(401);
-        $this->delete('/api/reference-cards/1000');
+        $this->deleteWithCsrf('/api/reference-cards/1000');
         $this->assertResponseCode(401);
-        $this->post('/api/reference-cards/1000/tags/101');
+        $this->postWithCsrf('/api/reference-cards/1000/tags/101');
         $this->assertResponseCode(401);
-        $this->delete('/api/reference-cards/1000/tags/100');
+        $this->deleteWithCsrf('/api/reference-cards/1000/tags/100');
         $this->assertResponseCode(401);
     }
 
@@ -265,7 +295,7 @@ class ReferenceCardsControllerTest extends TestCase
         }
         $this->patchJson('/api/reference-cards/1002', ['title' => 'Hijack']);
         $this->assertResponseCode(404);
-        $this->delete('/api/reference-cards/1002');
+        $this->deleteWithCsrf('/api/reference-cards/1002');
         $this->assertResponseCode(404);
         $this->assertSame('Other user card', TableRegistry::getTableLocator()->get('ReferenceCards')->get(1002)->get('title'));
     }
@@ -301,7 +331,7 @@ class ReferenceCardsControllerTest extends TestCase
     public function testDeleteRemovesMembershipsAndRenumbersButKeepsSheetsAndTags(): void
     {
         $this->authenticate();
-        $this->delete('/api/reference-cards/1001');
+        $this->deleteWithCsrf('/api/reference-cards/1001');
         $this->assertResponseOk();
 
         $locator = TableRegistry::getTableLocator();
@@ -315,7 +345,7 @@ class ReferenceCardsControllerTest extends TestCase
         $this->assertSame(1000, (int)$memberships[0]->get('reference_card_id'));
         $this->assertSame(1, (int)$memberships[0]->get('position'));
 
-        $this->delete('/api/reference-cards/1000');
+        $this->deleteWithCsrf('/api/reference-cards/1000');
         $this->assertResponseOk();
         $this->assertTrue($locator->get('Tags')->exists(['id' => 100]));
         $this->assertFalse($locator->get('ReferenceCardsTags')->exists(['reference_card_id' => 1000]));
@@ -325,19 +355,19 @@ class ReferenceCardsControllerTest extends TestCase
     public function testTagAttachAndDetachRequireOwnedCardAndTag(): void
     {
         $this->authenticate();
-        $this->post('/api/reference-cards/1001/tags/101');
+        $this->postWithCsrf('/api/reference-cards/1001/tags/101');
         $this->assertResponseCode(201);
-        $this->post('/api/reference-cards/1001/tags/101');
+        $this->postWithCsrf('/api/reference-cards/1001/tags/101');
         $this->assertResponseCode(409);
-        $this->post('/api/reference-cards/1001/tags/102');
+        $this->postWithCsrf('/api/reference-cards/1001/tags/102');
         $this->assertResponseCode(404);
-        $this->post('/api/reference-cards/1002/tags/101');
+        $this->postWithCsrf('/api/reference-cards/1002/tags/101');
         $this->assertResponseCode(404);
-        $this->delete('/api/reference-cards/1001/tags/101');
+        $this->deleteWithCsrf('/api/reference-cards/1001/tags/101');
         $this->assertResponseOk();
-        $this->delete('/api/reference-cards/1001/tags/101');
+        $this->deleteWithCsrf('/api/reference-cards/1001/tags/101');
         $this->assertResponseCode(404);
-        $this->delete('/api/reference-cards/1002/tags/102');
+        $this->deleteWithCsrf('/api/reference-cards/1002/tags/102');
         $this->assertResponseCode(404);
 
         $this->assertSame(['reference_card.tag_attached', 'reference_card.tag_detached'], $this->actions());
@@ -386,7 +416,7 @@ class ReferenceCardsControllerTest extends TestCase
         $this->postJson('/api/reference-cards', ['title' => 'Unrelated card']);
         $this->assertResponseCode(201);
         $cardId = $this->payload()['data']['card']['id'];
-        $this->post('/api/reference-cards/' . $cardId . '/tags/101');
+        $this->postWithCsrf('/api/reference-cards/' . $cardId . '/tags/101');
         $this->assertResponseCode(201);
 
         foreach ($before as $url => $payload) {

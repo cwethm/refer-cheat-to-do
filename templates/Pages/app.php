@@ -12,6 +12,7 @@ $this->disableAutoLayout();
     <?= $this->Html->charset() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f7f7f2">
+    <meta name="csrf-token" content="<?= h((string)$this->getRequest()->getAttribute('csrfToken', '')) ?>">
     <title>Cheat to do</title>
     <?= $this->Html->css('/css/app.css?v=' . filemtime(WWW_ROOT . 'css/app.css')) ?>
     <?= $this->Html->script('/js/app.mjs?v=' . filemtime(WWW_ROOT . 'js/app.mjs'), ['type' => 'module']) ?>
