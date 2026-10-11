@@ -151,6 +151,144 @@ export function labelForCardType(type) {
         : 'Reference card';
 }
 
+export const TIMELINE_PAGE_SIZE = 20;
+
+/**
+ * Kinds of discussion and event record, mirroring the closed set the server enforces.
+ */
+export const TIMELINE_KINDS = {
+    discussion: 'Discussion',
+    event: 'Event',
+};
+
+export function labelForTimelineKind(kind) {
+    return typeof kind === 'string' && Object.hasOwn(TIMELINE_KINDS, kind) ? TIMELINE_KINDS[kind] : 'Record';
+}
+
+const pad = (value, length = 2) => String(value).padStart(length, '0');
+
+/**
+ * Convert a `datetime-local` value, read in the reader's own timezone, to an ISO 8601 UTC
+ * timestamp the API accepts. Anything that is not such a value yields `null`.
+ */
+export function localDateTimeToIso(value) {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/.test(value)) {
+        return null;
+    }
+    const moment = new Date(value);
+
+    return Number.isNaN(moment.getTime()) ? null : moment.toISOString();
+}
+
+/**
+ * Show a stored timestamp in a `datetime-local` field, in the reader's own timezone.
+ */
+export function isoToLocalDateTimeInput(value) {
+    const moment = typeof value === 'string' && value !== '' ? new Date(value) : null;
+    if (moment === null || Number.isNaN(moment.getTime())) {
+        return '';
+    }
+
+    return `${pad(moment.getFullYear(), 4)}-${pad(moment.getMonth() + 1)}-${pad(moment.getDate())}`
+        + `T${pad(moment.getHours())}:${pad(moment.getMinutes())}`;
+}
+
+/**
+ * When a record happened, in the reader's own timezone, without depending on their locale.
+ */
+export function formatTimelineTime(value) {
+    const local = isoToLocalDateTimeInput(value);
+
+    return local === '' ? '' : local.replace('T', ' ');
+}
+
+/**
+ * The first or last moment of a calendar day in the reader's own timezone, as an ISO timestamp,
+ * so a date-range filter matches the days the timeline displays.
+ */
+export function localDayBoundIso(value, endOfDay = false) {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return null;
+    }
+    const [year, month, day] = value.split('-').map(Number);
+    const moment = endOfDay
+        ? new Date(year, month - 1, day, 23, 59, 59)
+        : new Date(year, month - 1, day, 0, 0, 0);
+    if (Number.isNaN(moment.getTime()) || moment.getDate() !== day || moment.getMonth() !== month - 1) {
+        return null;
+    }
+    moment.setFullYear(year);
+
+    return moment.toISOString().replace('.000Z', 'Z');
+}
+
+/**
+ * Build the timeline URL. Unknown kinds, malformed ids and dates are dropped rather than sent,
+ * and the search text is trimmed and bounded to what the API accepts.
+ */
+export function buildTimelineUrl({ query = '', kind = '', tagId = '', from = '', to = '', page = 1 } = {}) {
+    const requestedPage = Number(page);
+    const safePage = Number.isFinite(requestedPage) ? Math.max(1, Math.trunc(requestedPage)) : 1;
+    const params = new URLSearchParams({ page: String(safePage), limit: String(TIMELINE_PAGE_SIZE) });
+    const cleanQuery = Array.from(String(query ?? '').trim()).slice(0, REFERENCE_SEARCH_MAX_CHARS).join('').trim();
+
+    if (cleanQuery) {
+        params.set('q', cleanQuery);
+    }
+    if (typeof kind === 'string' && Object.hasOwn(TIMELINE_KINDS, kind)) {
+        params.set('kind', kind);
+    }
+    if (isValidId(tagId)) {
+        params.set('tag', String(Number(tagId)));
+    }
+    const fromIso = localDayBoundIso(from);
+    if (fromIso !== null) {
+        params.set('from', fromIso);
+    }
+    const toIso = localDayBoundIso(to, true);
+    if (toIso !== null) {
+        params.set('to', toIso);
+    }
+
+    return `/api/records?${params.toString()}`;
+}
+
+/**
+ * Whether a chosen date range runs backwards; such a range would match nothing.
+ */
+export function isReversedDateRange(from, to) {
+    const start = localDayBoundIso(from);
+    const end = localDayBoundIso(to, true);
+
+    return start !== null && end !== null && start > end;
+}
+
+/**
+ * Build a create or update payload from the record form. Blank optional text is sent as `null`,
+ * only an event keeps a location, and a blank time is left out so the server keeps the stored
+ * time on an edit and uses now on a create.
+ */
+export function buildTimelineRecordBody(values = {}) {
+    const kind = typeof values.kind === 'string' && Object.hasOwn(TIMELINE_KINDS, values.kind)
+        ? values.kind
+        : 'discussion';
+    const optional = (value) => (typeof value === 'string' && value.trim() !== '' ? value : null);
+    const body = {
+        kind,
+        title: typeof values.title === 'string' ? values.title.trim() : '',
+        participants: optional(values.participants),
+        location: kind === 'event' ? optional(values.location) : null,
+        summary: optional(values.summary),
+        details: optional(values.details),
+    };
+    const occurredAt = localDateTimeToIso(values.occurred_at);
+    if (occurredAt !== null) {
+        body.occurred_at = occurredAt;
+    }
+
+    return body;
+}
+
 /**
  * Build a cheat sheet's card-membership URL; malformed ids yield no URL at all.
  */
@@ -266,6 +404,11 @@ const ACTIVITY_ACTION_LABELS = {
     'reference_card.deleted': 'Deleted a reference card',
     'reference_card.tag_attached': 'Added a tag to a reference card',
     'reference_card.tag_detached': 'Removed a tag from a reference card',
+    'record.created': 'Created a record',
+    'record.updated': 'Updated a record',
+    'record.deleted': 'Deleted a record',
+    'record.tag_attached': 'Added a tag to a record',
+    'record.tag_detached': 'Removed a tag from a record',
     'cheat_sheet.created': 'Created a cheat sheet',
     'cheat_sheet.updated': 'Updated a cheat sheet',
     'cheat_sheet.deleted': 'Deleted a cheat sheet',
@@ -288,6 +431,7 @@ const ACTIVITY_SUBJECT_NOUNS = {
     capability_grant: 'Capability grant',
     cross_context_request: 'Request',
     reference_card: 'Reference card',
+    record: 'Record',
     cheat_sheet: 'Cheat sheet',
 };
 
@@ -557,6 +701,8 @@ const state = {
     },
     libraries: { items: [], page: 1, total: 0, openId: null },
     reference: emptyReferenceState(),
+    // Discussion and event records. `records` above already names the Project/Notebook lists.
+    timeline: emptyTimelineState(),
     collaboration: { resource: null, inbox: [], outbox: [] },
     // The invitation or reset link being redeemed. Held in memory only, never in storage.
     accountLink: null,
@@ -575,8 +721,21 @@ const state = {
         referenceCard: 0,
         cheatSheets: 0,
         cheatSheet: 0,
+        timeline: 0,
+        timelineRecord: 0,
     },
 };
+
+function emptyTimelineState() {
+    return {
+        page: 1,
+        total: 0,
+        filters: { query: '', kind: '', tagId: '', from: '', to: '' },
+        openId: null,
+        open: null,
+        editingId: null,
+    };
+}
 
 function emptyReferenceState() {
     return {
@@ -626,12 +785,13 @@ function showLogin(message = '', isError = false) {
     byId('request-inbox-empty').hidden = false;
     byId('request-outbox-empty').hidden = false;
     resetReferenceView();
+    resetTimelineView();
     for (const button of document.querySelectorAll('[data-view]')) {
         const current = button.dataset.view === 'dashboard';
         button.classList.toggle('is-current', current);
         button.setAttribute('aria-pressed', String(current));
     }
-    for (const name of ['dashboard', 'inbox', 'projects', 'notebooks', 'libraries', 'reference', 'review', 'activity', 'collaboration', 'account']) {
+    for (const name of ['dashboard', 'inbox', 'projects', 'notebooks', 'libraries', 'reference', 'records', 'review', 'activity', 'collaboration', 'account']) {
         byId(`${name}-view`).hidden = name !== 'dashboard';
     }
     byId('workspace').hidden = true;
@@ -942,7 +1102,7 @@ async function loadDashboard() {
 }
 
 function syncTagControls() {
-    for (const filter of [byId('tag-filter'), byId('reference-tag-filter')]) {
+    for (const filter of [byId('tag-filter'), byId('reference-tag-filter'), byId('records-tag-filter')]) {
         const selected = filter.value;
         filter.replaceChildren(new Option('Any tag', ''));
 
@@ -959,6 +1119,13 @@ function syncTagControls() {
     ) {
         state.reference.filters.tagId = '';
         state.reference.page = 1;
+    }
+    if (
+        state.timeline.filters.tagId !== ''
+        && !state.tags.some((tag) => isValidId(tag?.id) && String(Number(tag.id)) === state.timeline.filters.tagId)
+    ) {
+        state.timeline.filters.tagId = '';
+        state.timeline.page = 1;
     }
 
     const list = byId('tag-list');
@@ -2245,6 +2412,306 @@ function bindReferenceEvents() {
     });
 }
 
+function resetTimelineView() {
+    state.timeline = emptyTimelineState();
+    for (const id of ['records-list', 'record-fields', 'record-tags']) {
+        byId(id).replaceChildren();
+    }
+    hideReferenceDetail(byId('record-detail'), 'recordId');
+    byId('records-filter-form').reset();
+    resetTimelineForm();
+}
+
+function resetTimelineForm() {
+    state.timeline.editingId = null;
+    byId('record-form').reset();
+    byId('record-location-field').hidden = true;
+    setText(byId('record-form-title'), 'Create a record');
+    setText(byId('record-submit'), 'Create record');
+    byId('record-cancel').hidden = true;
+}
+
+function startEditingTimelineRecord(record) {
+    state.timeline.editingId = Number(record.id);
+    const form = byId('record-form');
+    form.elements.kind.value = Object.hasOwn(TIMELINE_KINDS, record.kind) ? record.kind : 'discussion';
+    for (const field of ['title', 'participants', 'location', 'summary', 'details']) {
+        form.elements[field].value = typeof record[field] === 'string' ? record[field] : '';
+    }
+    form.elements.occurred_at.value = isoToLocalDateTimeInput(record.occurred_at);
+    byId('record-location-field').hidden = form.elements.kind.value !== 'event';
+    setText(byId('record-form-title'), 'Edit record');
+    setText(byId('record-submit'), 'Save record');
+    byId('record-cancel').hidden = false;
+    form.elements.title.focus();
+}
+
+function timelineButton(label, action, dataset = {}, className = 'button button-quiet') {
+    const button = make('button', className, label);
+    button.type = 'button';
+    button.dataset.recordAction = action;
+    for (const [key, value] of Object.entries(dataset)) {
+        button.dataset[key] = value;
+    }
+
+    return button;
+}
+
+function renderTimelineItem(record) {
+    const item = make('li', 'record-item');
+    const title = typeof record?.title === 'string' ? record.title : 'Untitled record';
+    const heading = make('div', 'record-heading');
+    heading.append(make('h3', '', title), make('span', 'status-label', labelForTimelineKind(record?.kind)));
+    item.append(heading);
+    const when = formatTimelineTime(record?.occurred_at);
+    const place = record?.kind === 'event' && typeof record?.location === 'string' ? record.location : '';
+    const meta = [when, place].filter((part) => part !== '').join(' · ');
+    if (meta !== '') {
+        item.append(make('p', 'result-summary', meta));
+    }
+    if (typeof record?.summary === 'string' && record.summary !== '') {
+        item.append(make('p', 'record-description', record.summary));
+    }
+    if (isValidId(record?.id)) {
+        const actions = make('div', 'record-actions');
+        const open = timelineButton('Open', 'open-record', { recordId: String(Number(record.id)) }, 'button button-secondary');
+        open.setAttribute('aria-label', `Open ${title}`);
+        actions.append(open);
+        item.append(actions);
+    }
+
+    return item;
+}
+
+async function loadTimelineRecordDetail() {
+    const detail = byId('record-detail');
+    const token = ++state.requests.timelineRecord;
+    if (shownReferenceId(detail, 'recordId') !== state.timeline.openId) {
+        // Hide the previous record at once so its actions cannot run against the newly chosen one.
+        hideReferenceDetail(detail, 'recordId');
+    }
+    if (!isValidId(state.timeline.openId)) {
+        state.timeline.open = null;
+        return;
+    }
+
+    let record;
+    try {
+        record = (await requestApi(`/api/records/${Number(state.timeline.openId)}`))?.record;
+    } catch (error) {
+        if (error.status === 404 && token === state.requests.timelineRecord) {
+            state.timeline.openId = null;
+            state.timeline.open = null;
+            hideReferenceDetail(detail, 'recordId');
+            return;
+        }
+        throw error;
+    }
+    if (token !== state.requests.timelineRecord) {
+        return;
+    }
+    state.timeline.open = record ?? null;
+
+    setText(byId('record-kind'), labelForTimelineKind(record?.kind));
+    setText(byId('record-title'), typeof record?.title === 'string' ? record.title : 'Record');
+    const when = formatTimelineTime(record?.occurred_at);
+    setText(byId('record-when'), when === '' ? '' : `When: ${when}`);
+    const summary = byId('record-summary');
+    setText(summary, typeof record?.summary === 'string' ? record.summary : '');
+    summary.hidden = !summary.textContent;
+    const fields = byId('record-fields');
+    const blocks = [];
+    for (const [field, label] of [['participants', 'Participants'], ['location', 'Location']]) {
+        if (typeof record?.[field] === 'string' && record[field].trim() !== '') {
+            const entry = make('div', 'reference-field');
+            entry.append(make('dt', '', label), make('dd', '', record[field]));
+            blocks.push(entry);
+        }
+    }
+    fields.replaceChildren(...blocks);
+    fields.hidden = blocks.length === 0;
+    const details = byId('record-details');
+    setText(details, typeof record?.details === 'string' ? record.details : '');
+    details.hidden = !details.textContent;
+
+    const tags = validItems(record?.tags).filter((tag) => isValidId(tag?.id) && typeof tag?.name === 'string');
+    byId('record-tags').replaceChildren(...tags.map((tag) => {
+        const pill = make('span', 'tag-pill');
+        pill.append(make('span', '', tag.name));
+        const detach = timelineButton('×', 'detach-tag', { tagId: String(Number(tag.id)) }, 'tag-remove');
+        detach.setAttribute('aria-label', `Remove tag ${tag.name}`);
+        pill.append(detach);
+
+        return pill;
+    }));
+    const attached = new Set(tags.map((tag) => Number(tag.id)));
+    fillSelect(
+        byId('record-tag-picker'),
+        'Choose a tag',
+        state.tags
+            .filter((tag) => isValidId(tag?.id) && typeof tag?.name === 'string' && !attached.has(Number(tag.id)))
+            .map((tag) => [String(Number(tag.id)), tag.name]),
+    );
+    const remove = byId('record-delete');
+    delete remove.dataset.confirmed;
+    setText(remove, 'Delete record');
+    detail.dataset.recordId = String(Number(state.timeline.openId));
+    detail.hidden = false;
+}
+
+async function loadTimelineList() {
+    const token = ++state.requests.timeline;
+    const data = await requestApi(buildTimelineUrl({ ...state.timeline.filters, page: state.timeline.page }));
+    if (token !== state.requests.timeline) {
+        return;
+    }
+    const items = validItems(data?.items);
+    state.timeline.total = Number(data?.meta?.pagination?.total) || 0;
+    const pageCount = Math.max(1, Math.ceil(state.timeline.total / TIMELINE_PAGE_SIZE));
+    if (state.timeline.page > pageCount) {
+        state.timeline.page = pageCount;
+        await loadTimelineList();
+        return;
+    }
+    byId('records-list').replaceChildren(...items.map((record) => renderTimelineItem(record)));
+    byId('records-empty').hidden = items.length > 0;
+
+    setText(byId('records-summary'), `Showing ${items.length} of ${state.timeline.total} records`);
+    setText(byId('records-page-label'), `Records page ${state.timeline.page} of ${pageCount}`);
+    byId('previous-records-page').disabled = state.timeline.page <= 1;
+    byId('next-records-page').disabled = state.timeline.page >= pageCount;
+}
+
+async function loadTimeline() {
+    await Promise.all([loadTimelineList(), loadTimelineRecordDetail()]);
+}
+
+async function handleTimelineAction(button) {
+    const action = button.dataset.recordAction;
+    // Act on what is on screen, never on a selection whose detail has not rendered yet.
+    const recordId = shownReferenceId(byId('record-detail'), 'recordId');
+
+    if (action === 'open-record' && isValidId(button.dataset.recordId)) {
+        state.timeline.openId = Number(button.dataset.recordId);
+        await loadTimelineRecordDetail();
+        byId('record-title').scrollIntoView({ block: 'nearest' });
+        byId('record-title').focus?.();
+        return;
+    }
+    if (!isValidId(recordId)) {
+        return;
+    }
+    if (action === 'edit-record' && state.timeline.open) {
+        startEditingTimelineRecord(state.timeline.open);
+        return;
+    }
+    if (action === 'delete-record') {
+        if (!confirmReferenceAction(button, 'delete record')) {
+            return;
+        }
+        await requestApi(`/api/records/${Number(recordId)}`, { method: 'DELETE' });
+        state.timeline.openId = null;
+        if (state.timeline.editingId === Number(recordId)) {
+            resetTimelineForm();
+        }
+        setNotice('Record deleted.');
+        await loadTimeline();
+        return;
+    }
+    if (action === 'attach-tag' || action === 'detach-tag') {
+        const tagId = action === 'attach-tag' ? byId('record-tag-picker').value : button.dataset.tagId;
+        if (!isValidId(tagId)) {
+            setNotice('Choose a tag before adding it.', true);
+            return;
+        }
+        await requestApi(`/api/records/${Number(recordId)}/tags/${Number(tagId)}`, {
+            method: action === 'attach-tag' ? 'POST' : 'DELETE',
+            ...(action === 'attach-tag' ? { body: '{}' } : {}),
+        });
+        setNotice(action === 'attach-tag' ? 'Tag added to the record.' : 'Tag removed from the record.');
+        await loadTimeline();
+    }
+}
+
+function bindTimelineEvents() {
+    byId('records-filter-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        const filters = {
+            query: String(form.get('q') ?? ''),
+            kind: String(form.get('kind') ?? ''),
+            tagId: String(form.get('tag') ?? ''),
+            from: String(form.get('from') ?? ''),
+            to: String(form.get('to') ?? ''),
+        };
+        if (isReversedDateRange(filters.from, filters.to)) {
+            setNotice('The From date must not be after the To date.', true);
+            return;
+        }
+        state.timeline.filters = filters;
+        state.timeline.page = 1;
+        setNotice('');
+        await loadTimelineList().catch(displayError);
+    });
+
+    byId('previous-records-page').addEventListener('click', async () => {
+        if (state.timeline.page > 1) {
+            state.timeline.page--;
+            await loadTimelineList().catch(displayError);
+        }
+    });
+
+    byId('next-records-page').addEventListener('click', async () => {
+        if (state.timeline.page * TIMELINE_PAGE_SIZE < state.timeline.total) {
+            state.timeline.page++;
+            await loadTimelineList().catch(displayError);
+        }
+    });
+
+    byId('record-kind-input').addEventListener('change', (event) => {
+        byId('record-location-field').hidden = event.currentTarget.value !== 'event';
+    });
+
+    byId('record-cancel').addEventListener('click', () => {
+        resetTimelineForm();
+    });
+
+    byId('record-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const values = Object.fromEntries(new FormData(event.currentTarget));
+        const editingId = state.timeline.editingId;
+        try {
+            const data = await requestApi(
+                isValidId(editingId) ? `/api/records/${Number(editingId)}` : '/api/records',
+                {
+                    method: isValidId(editingId) ? 'PATCH' : 'POST',
+                    body: JSON.stringify(buildTimelineRecordBody(values)),
+                },
+            );
+            resetTimelineForm();
+            if (isValidId(data?.record?.id)) {
+                state.timeline.openId = Number(data.record.id);
+            }
+            setNotice(isValidId(editingId) ? 'Record saved.' : 'Record created.');
+            await loadTimeline();
+        } catch (error) {
+            displayError(error);
+        }
+    });
+
+    byId('records-view').addEventListener('click', async (event) => {
+        const button = event.target.closest('button[data-record-action]');
+        if (!button || button.disabled) {
+            return;
+        }
+        try {
+            await handleTimelineAction(button);
+        } catch (error) {
+            displayError(error);
+        }
+    });
+}
+
 const VIEW_LOADERS = {
     dashboard: loadDashboard,
     inbox: loadTodos,
@@ -2253,6 +2720,7 @@ const VIEW_LOADERS = {
     notebooks: () => loadRecords('notebook'),
     libraries: loadLibraries,
     reference: loadReference,
+    records: loadTimeline,
     activity: loadActivity,
     collaboration: loadCollaboration,
     // The Account view holds only forms; there is nothing to load.
@@ -2296,6 +2764,7 @@ async function initializeWorkspace(email, userId) {
 
 function bindEvents() {
     bindReferenceEvents();
+    bindTimelineEvents();
 
     byId('login-form').addEventListener('submit', async (event) => {
         event.preventDefault();

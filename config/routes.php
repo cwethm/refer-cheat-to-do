@@ -337,6 +337,39 @@ return function (RouteBuilder $routes): void {
             ['pass' => ['id', 'tagId'], 'id' => '\d+', 'tagId' => '\d+'],
         );
         $builder->connect(
+            '/records',
+            ['controller' => 'Records', 'action' => 'index', '_method' => 'GET'],
+        );
+        $builder->connect(
+            '/records',
+            ['controller' => 'Records', 'action' => 'add', '_method' => 'POST'],
+        );
+        $builder->connect(
+            '/records/{id}',
+            ['controller' => 'Records', 'action' => 'view', '_method' => 'GET'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/records/{id}',
+            ['controller' => 'Records', 'action' => 'edit', '_method' => 'PATCH'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/records/{id}',
+            ['controller' => 'Records', 'action' => 'delete', '_method' => 'DELETE'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/records/{id}/tags/{tagId}',
+            ['controller' => 'Records', 'action' => 'attachTag', '_method' => 'POST'],
+            ['pass' => ['id', 'tagId'], 'id' => '\d+', 'tagId' => '\d+'],
+        );
+        $builder->connect(
+            '/records/{id}/tags/{tagId}',
+            ['controller' => 'Records', 'action' => 'detachTag', '_method' => 'DELETE'],
+            ['pass' => ['id', 'tagId'], 'id' => '\d+', 'tagId' => '\d+'],
+        );
+        $builder->connect(
             '/cheat-sheets',
             ['controller' => 'CheatSheets', 'action' => 'index', '_method' => 'GET'],
         );

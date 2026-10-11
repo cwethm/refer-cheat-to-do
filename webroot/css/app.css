@@ -159,6 +159,10 @@ input::placeholder, textarea::placeholder { color: #8b958e; }
 .reference-filter { grid-template-columns: minmax(12rem, 2fr) repeat(3, minmax(8rem, 1fr)) auto; }
 .reference-detail, .reference-editor, .reference-sheets { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.8rem; margin-top: 1.25rem; }
 #reference-view select { max-width: 100%; }
+.timeline-filter { grid-template-columns: minmax(12rem, 2fr) repeat(4, minmax(7rem, 1fr)) auto; }
+#records-view select, #records-view input { max-width: 100%; min-width: 0; }
+#records-view .panel-title, #records-view .eyebrow, #records-view .result-summary { overflow-wrap: anywhere; }
+#record-location-field { margin: 0; }
 #reference-view .panel-title, #reference-view .eyebrow { overflow-wrap: anywhere; }
 .reference-detail .record-actions, .reference-sheets .tag-form, .reference-editor .form-stack { margin: 0; }
 .reference-summary { margin: 0; color: var(--muted); overflow-wrap: anywhere; white-space: pre-wrap; }

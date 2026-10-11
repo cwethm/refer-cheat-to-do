@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Model\Table\RecordsTable;
 use App\Model\Table\ReferenceCardsTable;
 use App\Model\Table\TodosTable;
 use Cake\Database\Connection;
@@ -24,7 +25,9 @@ class DataPortabilityService
     public const TEXT_CHUNK_CHARS = 16384;
 
     /** @var list<string> */
-    private const TEXT_FIELDS = ['notes', 'description', 'terminal_objective', 'result_summary', 'content', 'body'];
+    private const TEXT_FIELDS = [
+        'notes', 'description', 'terminal_objective', 'result_summary', 'content', 'body', 'details',
+    ];
 
     /**
      * Ordered dependencies and the complete portable field allowlist.
@@ -41,6 +44,7 @@ class DataPortabilityService
         'tags' => 'id,name,created,modified',
         'reference_cards' => 'id,card_type,title,summary,body,situation,aim,approach,avoid,rationale,created,modified',
         'cheat_sheets' => 'id,name,description,created,modified',
+        'records' => 'id,kind,title,occurred_at,participants,location,summary,details,created,modified',
         'todos' => 'id,title,notes,status,created,modified,project_section_id,notebook_section_id,'
             . 'archived_at,trashed_at,previous_status,last_reviewed_at,next_review_at,review_interval_days,'
             . 'parent_todo_id,terminal_objective,objective_satisfied_at,result_summary',
@@ -52,6 +56,7 @@ class DataPortabilityService
         'libraries_notebooks' => 'library_id,notebook_id,created',
         'reference_cards_tags' => 'reference_card_id,tag_id',
         'cheat_sheets_reference_cards' => 'cheat_sheet_id,reference_card_id,position,created',
+        'records_tags' => 'record_id,tag_id',
         'activity_records' => 'id,action,subject_type,subject_id,context_type,context_id,metadata,created',
     ];
 
@@ -69,6 +74,7 @@ class DataPortabilityService
         'research_collection_id' => 'research_collections',
         'reference_card_id' => 'reference_cards',
         'cheat_sheet_id' => 'cheat_sheets',
+        'record_id' => 'records',
     ];
 
     private Connection $connection;
@@ -264,6 +270,9 @@ class DataPortabilityService
             'cheat_sheets_reference_cards' => 'r.cheat_sheet_id IN (SELECT id FROM cheat_sheets WHERE user_id = ?) '
                 . 'AND r.reference_card_id IN (SELECT id FROM reference_cards WHERE user_id = '
                 . '(SELECT user_id FROM cheat_sheets WHERE id = r.cheat_sheet_id))',
+            'records_tags' => 'r.record_id IN (SELECT id FROM records WHERE user_id = ?) '
+                . 'AND r.tag_id IN (SELECT id FROM tags WHERE user_id = (SELECT user_id FROM records '
+                . 'WHERE id = r.record_id))',
             'research_collection_items' => 'r.research_collection_id IN '
                 . '(SELECT id FROM research_collections WHERE user_id = ?)',
             'activity_records' => 'r.actor_user_id = ?',
@@ -283,6 +292,7 @@ class DataPortabilityService
             'libraries_notebooks' => ['library_id', 'notebook_id'],
             'reference_cards_tags' => ['reference_card_id', 'tag_id'],
             'cheat_sheets_reference_cards' => ['cheat_sheet_id', 'reference_card_id'],
+            'records_tags' => ['record_id', 'tag_id'],
             default => ['id'],
         };
     }
@@ -440,6 +450,7 @@ class DataPortabilityService
             'research_collection_item' => 'research_collection_items',
             'reference_card' => 'reference_cards',
             'cheat_sheet' => 'cheat_sheets',
+            'record' => 'records',
             default => null,
         };
     }
@@ -472,6 +483,7 @@ class DataPortabilityService
                     'title', 'notes', 'status', 'project_section_id', 'notebook_section_id',
                     'name', 'description', 'card_type', 'summary', 'body',
                     'situation', 'aim', 'approach', 'avoid', 'rationale',
+                    'kind', 'occurred_at', 'participants', 'location', 'details',
                 ],
             ));
         }
@@ -712,7 +724,9 @@ class DataPortabilityService
                 ) {
                     throw new DomainException("Invalid integer $field.");
                 }
-            } elseif (in_array($column['type'], ['datetime', 'timestamp'], true)) {
+            } elseif (
+                in_array($column['type'], ['datetime', 'datetimefractional', 'timestamp', 'timestampfractional'], true)
+            ) {
                 $valid = is_string($value)
                     && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/D', $value);
                 $parts = $valid ? explode('.', $value, 2) : [];
@@ -783,6 +797,15 @@ class DataPortabilityService
                         throw new DomainException('Dialogue fields belong only to dialogue pattern cards.');
                     }
                 }
+            }
+        }
+        if ($type === 'records') {
+            if (
+                !in_array($data['kind'], RecordsTable::KINDS, true)
+                || (is_string($data['details']) && strlen($data['details']) > RecordsTable::MAX_DETAILS_BYTES)
+                || ($data['kind'] !== RecordsTable::KIND_EVENT && $data['location'] !== null)
+            ) {
+                throw new DomainException('Invalid record kind, details size or location.');
             }
         }
         if (
@@ -887,7 +910,7 @@ class DataPortabilityService
             $data['actor_user_id'] = $userId;
         } elseif (
             in_array($type, ['projects', 'notebooks', 'libraries', 'tags', 'todos'], true)
-            || in_array($type, ['reference_cards', 'cheat_sheets'], true)
+            || in_array($type, ['reference_cards', 'cheat_sheets', 'records'], true)
         ) {
             $data['user_id'] = $userId;
         } elseif ($type === 'research_collections') {

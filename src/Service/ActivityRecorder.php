@@ -37,6 +37,7 @@ class ActivityRecorder
         'research_collection',
         'research_collection_item',
         'reference_card',
+        'record',
         'cheat_sheet',
     ];
 

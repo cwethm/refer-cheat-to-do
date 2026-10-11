@@ -80,6 +80,7 @@ $this->disableAutoLayout();
                     <button class="view-button" type="button" data-view="notebooks" aria-pressed="false">Notebooks</button>
                     <button class="view-button" type="button" data-view="libraries" aria-pressed="false">Libraries</button>
                     <button class="view-button" type="button" data-view="reference" aria-pressed="false">Reference</button>
+                    <button class="view-button" type="button" data-view="records" aria-pressed="false">Records</button>
                     <button class="view-button" type="button" data-view="review" aria-pressed="false">Review</button>
                     <button class="view-button" type="button" data-view="activity" aria-pressed="false">Activity</button>
                     <button class="view-button" type="button" data-view="collaboration" aria-pressed="false">Collaboration</button>
@@ -401,6 +402,81 @@ $this->disableAutoLayout();
                     <div class="record-actions">
                         <button id="cheat-sheet-delete" class="button button-danger" type="button" data-reference-action="delete-sheet">Delete cheat sheet</button>
                     </div>
+                </section>
+            </section>
+            <section id="records-view" class="view-panel" aria-labelledby="records-title" hidden>
+                <div class="section-heading">
+                    <div><div class="eyebrow">What happened and what you learned</div><h2 id="records-title">Records</h2></div>
+                </div>
+                <p class="intro">Discussions and events, newest first. Records are private to you and never become ToDos. Describe people by role, initials or an alias, not by contact details.</p>
+                <form id="records-filter-form" class="filter-bar timeline-filter" role="search" aria-label="Search records">
+                    <label class="search-field" for="records-search">Search records<input id="records-search" name="q" type="search" maxlength="255" placeholder="Search titles, summaries, participants and details"></label>
+                    <label for="records-kind-filter">Kind
+                        <select id="records-kind-filter" name="kind">
+                            <option value="">Any kind</option><option value="discussion">Discussion</option><option value="event">Event</option>
+                        </select>
+                    </label>
+                    <label for="records-tag-filter">Tag
+                        <select id="records-tag-filter" name="tag"><option value="">Any tag</option></select>
+                    </label>
+                    <label for="records-from">From<input id="records-from" name="from" type="date"></label>
+                    <label for="records-to">To<input id="records-to" name="to" type="date"></label>
+                    <button class="button button-secondary" type="submit">Find records</button>
+                </form>
+                <p id="records-summary" class="result-summary"></p>
+                <ul id="records-list" class="record-list"></ul>
+                <p id="records-empty" class="empty-copy" hidden>No records match. Create one below.</p>
+                <div class="pagination">
+                    <button id="previous-records-page" class="button button-quiet" type="button" disabled>Newer records</button>
+                    <span id="records-page-label" aria-live="polite"></span>
+                    <button id="next-records-page" class="button button-quiet" type="button" disabled>Older records</button>
+                </div>
+                <section id="record-detail" class="surface reference-detail" aria-labelledby="record-title" hidden>
+                    <div class="section-heading">
+                        <div><div id="record-kind" class="eyebrow"></div><h3 id="record-title" class="panel-title" tabindex="-1"></h3></div>
+                    </div>
+                    <p id="record-when" class="result-summary"></p>
+                    <p id="record-summary" class="reference-summary"></p>
+                    <dl id="record-fields" class="reference-fields"></dl>
+                    <p id="record-details" class="reference-body"></p>
+                    <div id="record-tags" class="todo-meta"></div>
+                    <div class="record-actions">
+                        <label for="record-tag-picker">Add a tag
+                            <select id="record-tag-picker"><option value="">Choose a tag</option></select>
+                        </label>
+                        <button class="button button-quiet" type="button" data-record-action="attach-tag">Add tag</button>
+                    </div>
+                    <div class="record-actions">
+                        <button class="button button-secondary" type="button" data-record-action="edit-record">Edit record</button>
+                        <button id="record-delete" class="button button-danger" type="button" data-record-action="delete-record">Delete record</button>
+                    </div>
+                </section>
+                <section class="surface reference-editor" aria-labelledby="record-form-title">
+                    <div><div class="eyebrow">Note it while it is fresh</div><h3 id="record-form-title" class="panel-title">Create a record</h3></div>
+                    <form id="record-form" class="form-stack">
+                        <label for="record-title-input">Title</label>
+                        <input id="record-title-input" name="title" maxlength="255" required placeholder="e.g. Weekly check-in">
+                        <label for="record-kind-input">Kind</label>
+                        <select id="record-kind-input" name="kind">
+                            <option value="discussion">Discussion</option><option value="event">Event</option>
+                        </select>
+                        <label for="record-occurred-input">When <span class="optional">(leave blank for now)</span></label>
+                        <input id="record-occurred-input" name="occurred_at" type="datetime-local">
+                        <div id="record-location-field" class="form-stack" hidden>
+                            <label for="record-location-input">Location <span class="optional">(optional)</span></label>
+                            <input id="record-location-input" name="location" maxlength="255">
+                        </div>
+                        <label for="record-participants-input">Participants <span class="optional">(optional: roles, initials or aliases, no contact details)</span></label>
+                        <textarea id="record-participants-input" name="participants" rows="2" maxlength="2000"></textarea>
+                        <label for="record-summary-input">Summary <span class="optional">(one line)</span></label>
+                        <input id="record-summary-input" name="summary" maxlength="500">
+                        <label for="record-details-input">Details <span class="optional">(optional, plain text)</span></label>
+                        <textarea id="record-details-input" name="details" rows="5"></textarea>
+                        <div class="record-actions">
+                            <button id="record-submit" class="button button-primary" type="submit">Create record</button>
+                            <button id="record-cancel" class="button button-quiet" type="button" hidden>Cancel editing</button>
+                        </div>
+                    </form>
                 </section>
             </section>
             <section id="review-view" class="view-panel" aria-labelledby="review-title" hidden>

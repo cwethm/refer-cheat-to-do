@@ -48,7 +48,7 @@ class Application extends BaseApplication
         ]);
         $csrfMiddleware->skipCheckCallback(
             static fn(ServerRequestInterface $request): bool => preg_match(
-                '#^/api/(?:reference-cards|cheat-sheets|invitations|auth/password|auth/password-reset)(?:/|$)#',
+                '#^/api/(?:reference-cards|cheat-sheets|records|invitations|auth/password|auth/password-reset)(?:/|$)#',
                 $request->getUri()->getPath(),
             ) !== 1,
         );
