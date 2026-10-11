@@ -88,7 +88,6 @@ class CreateReferenceCardsAndCheatSheets extends BaseMigration
             ->addColumn('reference_card_id', 'integer', ['null' => false])
             ->addColumn('position', 'integer', ['null' => false])
             ->addColumn('created', 'datetime', ['null' => true, 'default' => null])
-            ->addIndex(['cheat_sheet_id', 'position'], ['name' => 'cheat_sheets_reference_cards_position_idx'])
             ->addIndex(['reference_card_id'], ['name' => 'cheat_sheets_reference_cards_card_idx'])
             ->addForeignKey('cheat_sheet_id', 'cheat_sheets', 'id', [
                 'delete' => 'CASCADE',
@@ -99,6 +98,11 @@ class CreateReferenceCardsAndCheatSheets extends BaseMigration
                 'update' => 'NO_ACTION',
             ])
             ->create();
+        $this->execute(
+            'ALTER TABLE cheat_sheets_reference_cards '
+            . 'ADD CONSTRAINT cheat_sheets_reference_cards_sheet_position_unique '
+            . 'UNIQUE (cheat_sheet_id, position) DEFERRABLE INITIALLY DEFERRED',
+        );
         $this->execute(
             'ALTER TABLE cheat_sheets_reference_cards ADD CONSTRAINT cheat_sheets_reference_cards_position_chk '
             . 'CHECK (position > 0)',

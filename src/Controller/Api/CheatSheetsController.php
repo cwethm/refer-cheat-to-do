@@ -7,6 +7,7 @@ use App\Http\Exception\ValidationException;
 use App\Model\Entity\CheatSheet;
 use App\Model\Entity\CheatSheetsReferenceCard;
 use App\Model\Entity\ReferenceCard;
+use App\Model\Table\CheatSheetsReferenceCardsTable;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\ConflictException;
 use Cake\Http\Exception\InternalErrorException;
@@ -181,10 +182,12 @@ class CheatSheetsController extends AppController
         $memberships = $this->fetchTable('CheatSheetsReferenceCards');
         $memberships->getConnection()->transactional(
             function () use ($memberships, $sheetId, $cardId, $position): void {
+                $this->lockSheetMemberships($memberships, $sheetId);
                 $next = $memberships->nextPosition($sheetId);
                 $inserted = $memberships->getConnection()->execute(
                     'INSERT INTO cheat_sheets_reference_cards (cheat_sheet_id, reference_card_id, position, created) '
-                    . 'VALUES (?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT DO NOTHING',
+                    . 'VALUES (?, ?, ?, CURRENT_TIMESTAMP) '
+                    . 'ON CONFLICT (cheat_sheet_id, reference_card_id) DO NOTHING',
                     [$sheetId, $cardId, $next],
                 )->rowCount();
                 if ($inserted < 1) {
@@ -219,7 +222,7 @@ class CheatSheetsController extends AppController
         $userId = $this->requireUserId();
         $sheet = $this->fetchOwnedSheetOrFail($id, $userId);
         $sheetId = (int)$sheet->id;
-        $membership = $this->fetchMembershipOrFail($sheetId, $this->parseRouteId($cardId, 'Card'));
+        $resolvedCardId = $this->parseRouteId($cardId, 'Card');
         $data = $this->readBody();
         if (!array_key_exists('position', $data)) {
             throw new BadRequestException('A position is required.');
@@ -228,12 +231,20 @@ class CheatSheetsController extends AppController
 
         /** @var \App\Model\Table\CheatSheetsReferenceCardsTable $memberships */
         $memberships = $this->fetchTable('CheatSheetsReferenceCards');
-        try {
-            $memberships->moveToPosition($membership, $position);
-        } catch (InvalidArgumentException $exception) {
-            throw new BadRequestException($exception->getMessage(), null, $exception);
-        }
-        $resolvedCardId = (int)$membership->reference_card_id;
+        $memberships->getConnection()->transactional(function () use (
+            $memberships,
+            $sheetId,
+            $resolvedCardId,
+            $position,
+        ): void {
+            $this->lockSheetMemberships($memberships, $sheetId);
+            $membership = $this->fetchMembershipOrFail($sheetId, $resolvedCardId);
+            try {
+                $memberships->moveToPosition($membership, $position);
+            } catch (InvalidArgumentException $exception) {
+                throw new BadRequestException($exception->getMessage(), null, $exception);
+            }
+        });
 
         $this->activity()->record($userId, 'cheat_sheet.card_moved', 'cheat_sheet', $sheetId, [
             'reference_card_id' => $resolvedCardId,
@@ -252,12 +263,17 @@ class CheatSheetsController extends AppController
         $userId = $this->requireUserId();
         $sheet = $this->fetchOwnedSheetOrFail($id, $userId);
         $sheetId = (int)$sheet->id;
-        $membership = $this->fetchMembershipOrFail($sheetId, $this->parseRouteId($cardId, 'Card'));
-        $resolvedCardId = (int)$membership->reference_card_id;
+        $resolvedCardId = $this->parseRouteId($cardId, 'Card');
 
         /** @var \App\Model\Table\CheatSheetsReferenceCardsTable $memberships */
         $memberships = $this->fetchTable('CheatSheetsReferenceCards');
-        $memberships->getConnection()->transactional(function () use ($memberships, $membership, $sheetId): void {
+        $memberships->getConnection()->transactional(function () use (
+            $memberships,
+            $sheetId,
+            $resolvedCardId,
+        ): void {
+            $this->lockSheetMemberships($memberships, $sheetId);
+            $membership = $this->fetchMembershipOrFail($sheetId, $resolvedCardId);
             if (!$memberships->delete($membership)) {
                 throw new InternalErrorException('Unable to remove card from cheat sheet.');
             }
@@ -286,6 +302,22 @@ class CheatSheetsController extends AppController
         }
 
         return $sheet;
+    }
+
+    /**
+     * Serialize membership writes for a sheet by locking its parent row.
+     */
+    private function lockSheetMemberships(
+        CheatSheetsReferenceCardsTable $memberships,
+        int $sheetId,
+    ): void {
+        $sheet = $memberships->getConnection()->execute(
+            'SELECT id FROM cheat_sheets WHERE id = ? FOR UPDATE',
+            [$sheetId],
+        )->fetch('assoc');
+        if ($sheet === false) {
+            throw new NotFoundException('Cheat sheet not found.');
+        }
     }
 
     /**

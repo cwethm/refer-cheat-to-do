@@ -200,6 +200,20 @@ class CheatSheetsControllerTest extends TestCase
         $this->assertSame(2, $this->payload()['meta']['pagination']['total']);
     }
 
+    public function testSheetPositionsHaveDeferredUniqueConstraint(): void
+    {
+        $constraint = TableRegistry::getTableLocator()->get('CheatSheetsReferenceCards')
+            ->getConnection()
+            ->execute(
+                'SELECT condeferrable::text AS deferrable, condeferred::text AS deferred '
+                . 'FROM pg_constraint WHERE conname = ?',
+                ['cheat_sheets_reference_cards_sheet_position_unique'],
+            )
+            ->fetch('assoc');
+
+        $this->assertSame(['deferrable' => 'true', 'deferred' => 'true'], $constraint);
+    }
+
     public function testAddCardAppendsOrInsertsAndAllowsMultipleSheets(): void
     {
         $this->authenticate();
