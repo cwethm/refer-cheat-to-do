@@ -30,7 +30,8 @@ class DataPortabilityServiceTest extends TestCase
         'app.Libraries', 'app.Tags', 'app.Todos', 'app.TodosTags', 'app.RelatedTodos',
         'app.LibrariesProjects', 'app.LibrariesNotebooks', 'app.CapabilityGrants',
         'app.CrossContextRequests', 'app.ActivityRecords', 'app.ResearchCollections',
-        'app.ResearchCollectionItems',
+        'app.ResearchCollectionItems', 'app.ReferenceCards', 'app.ReferenceCardsTags', 'app.CheatSheets',
+        'app.CheatSheetsReferenceCards',
     ];
 
     /**
@@ -62,6 +63,114 @@ class DataPortabilityServiceTest extends TestCase
             . 'JOIN research_collections c ON c.id=i.research_collection_id WHERE c.user_id=3',
         )->fetch('assoc');
         $this->assertSame($content, $restored['content']);
+    }
+
+    public function testReferenceCardJoinsAcrossOwnersAreNotExported(): void
+    {
+        $this->connection()->execute('INSERT INTO reference_cards_tags (reference_card_id, tag_id) VALUES (1000, 102)');
+        $this->connection()->execute(
+            'INSERT INTO cheat_sheets_reference_cards (cheat_sheet_id, reference_card_id, position) VALUES (1100, 1002, 3)',
+        );
+        $records = $this->exported();
+
+        $this->assertSame([1000, 1001], array_column($this->ofType($records, 'reference_cards'), 'id'));
+        $this->assertSame([['reference_card_id' => 1000, 'tag_id' => 100]], $this->ofType($records, 'reference_cards_tags'));
+        $this->assertSame(
+            [[1000, 2], [1001, 1]],
+            array_map(
+                static fn(array $row): array => [$row['reference_card_id'], $row['position']],
+                $this->ofType($records, 'cheat_sheets_reference_cards'),
+            ),
+        );
+        $this->assertSame([1002], array_column($this->ofType($this->exported(2), 'reference_cards'), 'id'));
+    }
+
+    public function testLargeReferenceCardBodyChunksAndRestores(): void
+    {
+        $body = str_repeat('é', 32768);
+        $this->connection()->execute('UPDATE reference_cards SET body=? WHERE id=1000', [$body]);
+        $records = $this->exported();
+        $this->assertSame(['chunks' => 32768], $this->ofType($records, 'reference_cards')[0]['body']);
+        $stream = $this->encoded($records);
+        try {
+            $this->service()->restore(3, $stream);
+        } finally {
+            fclose($stream);
+        }
+        $restored = $this->connection()->execute(
+            "SELECT body FROM reference_cards WHERE user_id=3 AND title='Active listening'",
+        )->fetch('assoc');
+        $this->assertSame($body, $restored['body']);
+    }
+
+    public function testCardActivityMetadataRoundTrips(): void
+    {
+        (new ActivityRecorder(TableRegistry::getTableLocator()))->record(
+            1,
+            'cheat_sheet.card_added',
+            'cheat_sheet',
+            1100,
+            ['reference_card_id' => 1000],
+        );
+        (new ActivityRecorder(TableRegistry::getTableLocator()))->record(
+            1,
+            'reference_card.updated',
+            'reference_card',
+            1001,
+            ['fields' => ['card_type', 'situation']],
+        );
+        $history = $this->ofType($this->exported(), 'activity_records');
+        $this->assertSame(['reference_card_id' => 1000], json_decode($history[0]['metadata'], true));
+        $this->assertSame(['fields' => ['card_type', 'situation']], json_decode($history[1]['metadata'], true));
+
+        $stream = $this->encoded($this->exported());
+        try {
+            $this->service()->restore(3, $stream);
+        } finally {
+            fclose($stream);
+        }
+        $card = $this->connection()->execute(
+            "SELECT id FROM reference_cards WHERE user_id=3 AND title='Active listening'",
+        )->fetch('assoc');
+        $sheet = $this->connection()->execute('SELECT id FROM cheat_sheets WHERE user_id=3')->fetch('assoc');
+        $restored = $this->connection()->execute(
+            "SELECT subject_id, metadata FROM activity_records WHERE actor_user_id=3 AND action='cheat_sheet.card_added'",
+        )->fetch('assoc');
+        $this->assertSame((int)$sheet['id'], (int)$restored['subject_id']);
+        $this->assertSame(['reference_card_id' => (int)$card['id']], json_decode($restored['metadata'], true));
+    }
+
+    public function testInvalidReferenceCardsAreRejected(): void
+    {
+        $original = $this->exported();
+        $mutations = [
+            static fn(array &$data) => $data['card_type'] = 'note',
+            static fn(array &$data) => $data['aim'] = 'Only for dialogue patterns',
+            static fn(array &$data) => $data['body'] = str_repeat('b', 65537),
+            static fn(array &$data) => $data['situation'] = str_repeat('s', 2001),
+            static fn(array &$data) => $data['user_id'] = 2,
+        ];
+        foreach ($mutations as $index => $mutate) {
+            $bad = $original;
+            foreach ($bad as &$row) {
+                if (($row['type'] ?? null) === 'reference_cards' && $row['data']['id'] === 1000) {
+                    $mutate($row['data']);
+                }
+            }
+            unset($row);
+            $stream = $this->encoded($bad);
+            try {
+                $this->service()->restore(3, $stream);
+                $this->fail("Invalid reference card case $index was accepted.");
+            } catch (DomainException) {
+                $this->assertSame(
+                    [['schema' => DataPortabilityService::SCHEMA], ['end' => true, 'records' => 0]],
+                    $this->exported(3),
+                );
+            } finally {
+                fclose($stream);
+            }
+        }
     }
 
     /**
@@ -200,6 +309,8 @@ class DataPortabilityServiceTest extends TestCase
             'libraries' => 2, 'research_collections' => 1, 'research_collection_items' => 1,
             'tags' => 2, 'todos' => 3, 'todos_tags' => 2, 'related_todos' => 1,
             'libraries_projects' => 1, 'libraries_notebooks' => 1, 'activity_records' => 4,
+            'reference_cards' => 2, 'cheat_sheets' => 1, 'reference_cards_tags' => 1,
+            'cheat_sheets_reference_cards' => 2,
         ];
         foreach ($expected as $type => $count) {
             $this->assertCount($count, $this->ofType($records, $type), $type);
@@ -290,6 +401,7 @@ class DataPortabilityServiceTest extends TestCase
             'todo_id' => 'todos', 'related_todo_id' => 'todos', 'tag_id' => 'tags',
             'project_section_id' => 'project_sections', 'notebook_section_id' => 'notebook_sections',
             'parent_todo_id' => 'todos', 'research_collection_id' => 'research_collections',
+            'reference_card_id' => 'reference_cards', 'cheat_sheet_id' => 'cheat_sheets',
         ];
         foreach ($source as $index => $row) {
             if (!isset($row['type'])) {
@@ -729,7 +841,7 @@ class DataPortabilityServiceTest extends TestCase
             'DELETE FROM research_collection_items WHERE research_collection_id IN '
             . '(SELECT id FROM research_collections WHERE user_id=3)',
         );
-        foreach (['projects', 'notebooks', 'libraries', 'tags'] as $type) {
+        foreach (['reference_cards', 'cheat_sheets', 'projects', 'notebooks', 'libraries', 'tags'] as $type) {
             $this->connection()->execute("DELETE FROM $type WHERE user_id=3");
         }
         $this->connection()->execute('DELETE FROM research_collections WHERE user_id=3');

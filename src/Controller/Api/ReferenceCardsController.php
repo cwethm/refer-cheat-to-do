@@ -101,15 +101,12 @@ class ReferenceCardsController extends AppController
     public function add(): Response
     {
         $userId = $this->requireUserId();
-        $data = $this->readBody();
+        $data = $this->readBody() + ['card_type' => ReferenceCardsTable::TYPE_CONCEPT];
         /** @var \App\Model\Table\ReferenceCardsTable $cards */
         $cards = $this->fetchTable('ReferenceCards');
         /** @var \App\Model\Entity\ReferenceCard $card */
         $card = $cards->newEntity($data, ['fields' => ReferenceCardsTable::WRITABLE_FIELDS]);
         $card->set('user_id', $userId);
-        if (!$card->has('card_type')) {
-            $card->set('card_type', ReferenceCardsTable::TYPE_CONCEPT);
-        }
         if ($card->hasErrors() || !$cards->save($card)) {
             throw new ValidationException('Invalid reference card payload.');
         }

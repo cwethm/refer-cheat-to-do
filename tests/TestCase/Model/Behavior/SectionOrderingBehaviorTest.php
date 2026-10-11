@@ -26,6 +26,9 @@ class SectionOrderingBehaviorTest extends TestCase
         'app.Notebooks',
         'app.NotebookSections',
         'app.Todos',
+        'app.ReferenceCards',
+        'app.CheatSheets',
+        'app.CheatSheetsReferenceCards',
     ];
 
     /**
@@ -154,5 +157,43 @@ class SectionOrderingBehaviorTest extends TestCase
         foreach ($otherParentSections as $section) {
             $this->assertSame(1, (int)$section->get('position'));
         }
+    }
+
+    /**
+     * Cheat-sheet memberships use a composite primary key (ADR 0004); rows are identified and
+     * tie-broken by that key rather than an `id` column.
+     */
+    public function testCompositeKeyMembershipsAreOrderedAndMoved(): void
+    {
+        $table = TableRegistry::getTableLocator()->get('CheatSheetsReferenceCards');
+        $table->getConnection()->execute(
+            'UPDATE cheat_sheets_reference_cards SET position = 1 WHERE cheat_sheet_id = 1100',
+        );
+        /** @var \App\Model\Behavior\SectionOrderingBehavior $behavior */
+        $behavior = $table->getBehavior('SectionOrdering');
+
+        $behavior->renumberPositions(1100);
+        $this->assertSame([[1000, 1], [1001, 2]], $this->membershipOrder(1100));
+
+        $behavior->moveToPosition($table->get([1100, 1001]), 1);
+        $this->assertSame([[1001, 1], [1000, 2]], $this->membershipOrder(1100));
+        $this->assertSame(3, $behavior->nextPosition(1100));
+        $this->assertSame([[1002, 1]], $this->membershipOrder(1101));
+    }
+
+    /**
+     * @return list<array{0: int, 1: int}>
+     */
+    private function membershipOrder(int $sheetId): array
+    {
+        $rows = [];
+        $query = TableRegistry::getTableLocator()->get('CheatSheetsReferenceCards')->find()
+            ->where(['cheat_sheet_id' => $sheetId])
+            ->orderBy(['position' => 'ASC', 'reference_card_id' => 'ASC']);
+        foreach ($query as $row) {
+            $rows[] = [(int)$row->get('reference_card_id'), (int)$row->get('position')];
+        }
+
+        return $rows;
     }
 }
