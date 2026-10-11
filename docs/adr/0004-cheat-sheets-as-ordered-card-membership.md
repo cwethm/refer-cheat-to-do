@@ -1,7 +1,7 @@
 # ADR 0004 — Cheat sheets are their own table with ordered card membership
 
 ## Status
-Accepted (Slice 26)
+Proposed (pending owner confirmation)
 
 ## Context
 Slice 26 introduces reference cards (concepts and dialogue patterns) and cheat sheets: a named,

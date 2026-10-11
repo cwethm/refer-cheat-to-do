@@ -24,8 +24,22 @@ async function apiClient() {
         data: { email: account.email, password: account.password },
     });
     expect(response.ok(), 'the fixture client could not sign in').toBeTruthy();
+    const shell = await context.get('/app');
+    const token = (await shell.text()).match(/<meta name="csrf-token" content="([^"]+)"/)?.[1];
+    expect(token, 'the fixture client could not read the CSRF token').toBeTruthy();
 
-    return context;
+    return {
+        get: (path, options) => context.get(path, options),
+        post: (path, options = {}) => context.post(path, {
+            ...options,
+            headers: { ...options.headers, 'X-CSRF-Token': token },
+        }),
+        delete: (path, options = {}) => context.delete(path, {
+            ...options,
+            headers: { ...options.headers, 'X-CSRF-Token': token },
+        }),
+        dispose: () => context.dispose(),
+    };
 }
 
 async function apiCreate(path, data) {
@@ -266,6 +280,110 @@ test('a cheat sheet keeps its cards in the order chosen and survives a reload', 
     created.sheets.clear();
 });
 
+test('Reference controls include sheets and sheet cards from every API page', async ({ page }) => {
+    const sheets = Array.from({ length: 101 }, (_, index) => ({
+        id: index + 1,
+        name: `Paged sheet ${index + 1}`,
+        card_count: 101,
+    }));
+    const memberships = Array.from({ length: 101 }, (_, index) => ({
+        reference_card_id: index + 1001,
+        position: index + 1,
+        card: {
+            id: index + 1001,
+            title: `Paged card ${index + 1}`,
+            card_type: 'concept',
+        },
+    }));
+
+    await signIn(page);
+    await page.route('**/api/cheat-sheets?*', async (route) => {
+        const url = new URL(route.request().url());
+        const currentPage = Number(url.searchParams.get('page'));
+        const start = (currentPage - 1) * 100;
+        const items = sheets.slice(start, start + 100);
+        await route.fulfill({
+            json: {
+                data: { items },
+                meta: { pagination: { page: currentPage, limit: 100, total: sheets.length } },
+            },
+        });
+    });
+    await page.route('**/api/cheat-sheets/101', async (route) => {
+        await route.fulfill({ json: { data: { cheat_sheet: { id: 101, name: 'Paged sheet 101' } } } });
+    });
+    await page.route('**/api/cheat-sheets/101/cards?*', async (route) => {
+        const url = new URL(route.request().url());
+        const currentPage = Number(url.searchParams.get('page'));
+        const start = (currentPage - 1) * 100;
+        await route.fulfill({
+            json: {
+                data: { items: memberships.slice(start, start + 100) },
+                meta: { pagination: { page: currentPage, limit: 100, total: memberships.length } },
+            },
+        });
+    });
+
+    await openReference(page);
+    await expect(page.locator('#cheat-sheet-list > li')).toHaveCount(101);
+    await expect(page.locator('#reference-sheet-filter option[value="101"]')).toHaveText('Paged sheet 101');
+    await expect(page.locator('#reference-sheet-picker option[value="101"]')).toHaveText('Paged sheet 101');
+    await page.getByRole('button', { name: 'Open cheat sheet Paged sheet 101' }).click();
+    await expect(page.locator('#cheat-sheet-cards > li')).toHaveCount(101);
+    await expect(page.getByRole('button', { name: 'Open Paged card 101' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove Paged card 101 from this sheet' })).toBeVisible();
+});
+
+test('deleting the only card on the last page clamps the Reference list', async ({ page }) => {
+    const cards = Array.from({ length: 21 }, (_, index) => ({
+        id: index + 1,
+        title: `Page boundary card ${index + 1}`,
+        card_type: 'concept',
+    }));
+    let removed = false;
+
+    await signIn(page);
+    await page.route('**/api/reference-cards**', async (route) => {
+        const { pathname, searchParams } = new URL(route.request().url());
+        if (route.request().method() === 'DELETE' && pathname === '/api/reference-cards/21') {
+            removed = true;
+            await route.fulfill({ json: { data: { message: 'Card deleted.' } } });
+            return;
+        }
+        if (route.request().method() === 'GET' && pathname === '/api/reference-cards') {
+            const currentPage = Number(searchParams.get('page'));
+            const total = removed ? 20 : cards.length;
+            const items = currentPage === 1
+                ? cards.slice(0, 20)
+                : removed ? [] : cards.slice(20);
+            await route.fulfill({
+                json: {
+                    data: { items },
+                    meta: { pagination: { page: currentPage, limit: 20, total } },
+                },
+            });
+            return;
+        }
+        if (route.request().method() === 'GET' && pathname === '/api/reference-cards/21') {
+            await route.fulfill({ json: { data: { card: cards[20] } } });
+            return;
+        }
+        await route.continue();
+    });
+
+    await openReference(page);
+    await page.getByRole('button', { name: 'Next cards' }).click();
+    await expect(page.locator('#reference-page-label')).toHaveText('Cards page 2 of 2');
+    await page.getByRole('button', { name: 'Open Page boundary card 21' }).click();
+    const remove = page.locator('#reference-delete-card');
+    await remove.click();
+    await remove.click();
+
+    await expect(page.locator('#reference-page-label')).toHaveText('Cards page 1 of 1');
+    await expect(page.locator('#reference-list > li')).toHaveCount(20);
+    await expect(page.getByRole('button', { name: 'Previous cards' })).toBeDisabled();
+});
+
 test('tags classify cards and deleting a card needs confirmation', async ({ page }) => {
     const tag = (await apiCreate('/api/tags', { name: 'reference-e2e' })).tag;
     created.tags.add(tag.id);
@@ -291,8 +409,20 @@ test('tags classify cards and deleting a card needs confirmation', async ({ page
     await expect(page.locator('#notice')).toHaveText('Tag removed from the card.');
     await expect(page.locator('#reference-empty')).toBeVisible();
 
-    await page.locator('#reference-tag-filter').selectOption('');
-    await page.getByRole('button', { name: 'Find cards' }).click();
+    const referenceCardRequests = [];
+    page.on('request', (request) => {
+        if (new URL(request.url()).pathname === '/api/reference-cards') {
+            referenceCardRequests.push(new URL(request.url()));
+        }
+    });
+    await page.getByRole('button', { name: 'ToDos', exact: true }).click();
+    await page.getByRole('button', { name: 'Delete tag reference-e2e' }).click();
+    created.tags.delete(tag.id);
+    await page.getByRole('button', { name: 'Reference', exact: true }).click();
+    await expect(page.locator('#reference-tag-filter')).toHaveValue('');
+    await expect(page.locator('#reference-list').getByRole('heading', { name: 'Tagged card', exact: true })).toBeVisible();
+    await expect(page.locator('#reference-list').getByRole('heading', { name: 'Untagged card', exact: true })).toBeVisible();
+    expect(referenceCardRequests.at(-1)?.searchParams.has('tag')).toBe(false);
     await page.getByRole('button', { name: 'Open Untagged card' }).click();
     const remove = page.locator('#reference-delete-card');
     await remove.click();

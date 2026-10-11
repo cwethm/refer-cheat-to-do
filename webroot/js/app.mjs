@@ -826,6 +826,9 @@ function syncTagControls() {
         }
         filter.value = state.tags.some((tag) => String(tag.id) === selected) ? selected : '';
     }
+    if (!state.tags.some((tag) => isValidId(tag?.id) && String(Number(tag.id)) === state.reference.filters.tagId)) {
+        state.reference.filters.tagId = '';
+    }
 
     const list = byId('tag-list');
     list.replaceChildren();
@@ -1615,6 +1618,23 @@ function syncCheatSheetControls() {
     fillSelect(byId('reference-sheet-picker'), 'Choose a cheat sheet', options);
 }
 
+async function requestAllPages(buildUrl, limit) {
+    const firstPage = await requestApi(buildUrl(1, limit));
+    const total = Number(firstPage?.meta?.pagination?.total) || 0;
+    const pageCount = Math.max(1, Math.ceil(total / limit));
+    const remainingPages = await Promise.all(
+        Array.from({ length: pageCount - 1 }, (_, index) => requestApi(buildUrl(index + 2, limit))),
+    );
+
+    return {
+        items: [
+            ...validItems(firstPage?.items),
+            ...remainingPages.flatMap((page) => validItems(page?.items)),
+        ],
+        total,
+    };
+}
+
 function resetReferenceView() {
     state.reference = emptyReferenceState();
     for (const id of ['reference-list', 'cheat-sheet-list', 'cheat-sheet-cards', 'reference-card-fields', 'reference-card-tags']) {
@@ -1736,10 +1756,15 @@ async function loadReferenceCards() {
     }
     const items = validItems(data?.items);
     state.reference.total = Number(data?.meta?.pagination?.total) || 0;
+    const pageCount = Math.max(1, Math.ceil(state.reference.total / REFERENCE_PAGE_SIZE));
+    if (state.reference.page > pageCount) {
+        state.reference.page = pageCount;
+        await loadReferenceCards();
+        return;
+    }
     byId('reference-list').replaceChildren(...items.map((card) => renderReferenceCardItem(card)));
     byId('reference-empty').hidden = items.length > 0;
 
-    const pageCount = Math.max(1, Math.ceil(state.reference.total / REFERENCE_PAGE_SIZE));
     setText(byId('reference-summary'), `Showing ${items.length} of ${state.reference.total} cards`);
     setText(byId('reference-page-label'), `Cards page ${state.reference.page} of ${pageCount}`);
     byId('previous-reference-page').disabled = state.reference.page <= 1;
@@ -1766,18 +1791,19 @@ function renderCheatSheetItem(sheet) {
 
 async function loadCheatSheets() {
     const token = ++state.requests.cheatSheets;
-    const data = await requestApi(`/api/cheat-sheets?page=1&limit=${CHEAT_SHEET_LIMIT}`);
+    const { items, total } = await requestAllPages(
+        (page, limit) => `/api/cheat-sheets?page=${page}&limit=${limit}`,
+        CHEAT_SHEET_LIMIT,
+    );
     if (token !== state.requests.cheatSheets) {
         return;
     }
-    const items = validItems(data?.items);
-    const total = Number(data?.meta?.pagination?.total) || 0;
     state.reference.sheets = items;
     byId('cheat-sheet-list').replaceChildren(...items.map((sheet) => renderCheatSheetItem(sheet)));
     byId('cheat-sheet-empty').hidden = items.length > 0;
     setText(
         byId('cheat-sheet-summary'),
-        total > items.length ? `Showing the first ${items.length} of ${total} cheat sheets` : '',
+        total > 0 ? `Showing all ${items.length} of ${total} cheat sheets` : '',
     );
     syncCheatSheetControls();
 }
@@ -1834,7 +1860,10 @@ async function loadCheatSheetDetail() {
     try {
         [sheet, cards] = await Promise.all([
             requestApi(`/api/cheat-sheets/${Number(sheetId)}`),
-            requestApi(`${buildCheatSheetCardUrl(sheetId)}?page=1&limit=${CHEAT_SHEET_LIMIT}`),
+            requestAllPages(
+                (page, limit) => `${buildCheatSheetCardUrl(sheetId)}?page=${page}&limit=${limit}`,
+                CHEAT_SHEET_LIMIT,
+            ),
         ]);
     } catch (error) {
         if (error.status === 404 && token === state.requests.cheatSheet) {
@@ -1854,13 +1883,13 @@ async function loadCheatSheetDetail() {
     setText(description, typeof record?.description === 'string' ? record.description : '');
     description.hidden = !description.textContent;
     const items = validItems(cards?.items).filter((item) => isValidId(item?.reference_card_id));
-    const total = Number(cards?.meta?.pagination?.total) || 0;
+    const total = cards?.total ?? 0;
     state.reference.sheetCardCount = total;
     byId('cheat-sheet-cards').replaceChildren(...items.map((item) => renderCheatSheetCard(item, total)));
     byId('cheat-sheet-cards-empty').hidden = items.length > 0;
     setText(
         byId('cheat-sheet-cards-summary'),
-        total > items.length ? `Showing the first ${items.length} of ${total} cards` : '',
+        total > 0 ? `Showing all ${items.length} cards` : '',
     );
     const remove = byId('cheat-sheet-delete');
     delete remove.dataset.confirmed;
