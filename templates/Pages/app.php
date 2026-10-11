@@ -40,6 +40,32 @@ $this->disableAutoLayout();
                 <input id="login-password" name="password" type="password" autocomplete="current-password" required>
                 <button class="button button-primary" type="submit">Sign in</button>
             </form>
+            <p class="login-aside"><button id="forgot-password-button" class="text-button" type="button">Forgot your password?</button></p>
+        </section>
+        <section id="reset-request-panel" class="login-panel" aria-labelledby="reset-request-title" hidden>
+            <div class="eyebrow">Locked out?</div>
+            <h1 id="reset-request-title">Reset your password.</h1>
+            <p class="intro">Enter the address you sign in with. If it has an account, we will email it a link that sets a new password. The link works once and expires within the hour.</p>
+            <form id="reset-request-form" class="form-stack">
+                <label for="reset-request-email">Email address</label>
+                <input id="reset-request-email" name="email" type="email" autocomplete="username" maxlength="191" required>
+                <button class="button button-primary" type="submit">Email me a reset link</button>
+            </form>
+            <p class="login-aside"><button class="text-button" type="button" data-account-back>Back to sign in</button></p>
+        </section>
+        <section id="account-link-panel" class="login-panel" aria-labelledby="account-link-title" hidden>
+            <div class="eyebrow">Almost there</div>
+            <h1 id="account-link-title">Choose a password.</h1>
+            <p id="account-link-intro" class="intro"></p>
+            <form id="account-link-form" class="form-stack" novalidate>
+                <label for="account-link-password">New password</label>
+                <input id="account-link-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="255" required aria-describedby="account-link-hint">
+                <label for="account-link-confirm">Repeat the new password</label>
+                <input id="account-link-confirm" name="confirm" type="password" autocomplete="new-password" minlength="8" maxlength="255" required>
+                <p id="account-link-hint" class="result-summary">Use at least 8 characters.</p>
+                <button id="account-link-submit" class="button button-primary" type="submit">Save password</button>
+            </form>
+            <p class="login-aside"><button class="text-button" type="button" data-account-back>Back to sign in</button></p>
         </section>
         <section id="workspace" hidden>
             <div class="welcome-row">
@@ -57,6 +83,7 @@ $this->disableAutoLayout();
                     <button class="view-button" type="button" data-view="review" aria-pressed="false">Review</button>
                     <button class="view-button" type="button" data-view="activity" aria-pressed="false">Activity</button>
                     <button class="view-button" type="button" data-view="collaboration" aria-pressed="false">Collaboration</button>
+                    <button class="view-button" type="button" data-view="account" aria-pressed="false">Account</button>
                 </nav>
             </div>
             <section id="dashboard-view" class="view-panel" aria-labelledby="dashboard-title">
@@ -460,6 +487,34 @@ $this->disableAutoLayout();
                     <h3 id="request-outbox-title" class="panel-title">Request outbox</h3>
                     <ul id="request-outbox-list" class="record-list"></ul>
                     <p id="request-outbox-empty" class="empty-copy" hidden>You have not sent any requests.</p>
+                </section>
+            </section>
+            <section id="account-view" class="view-panel" aria-labelledby="account-title" hidden>
+                <div class="section-heading">
+                    <div><div class="eyebrow">Keep it yours</div><h2 id="account-title">Account</h2></div>
+                </div>
+                <p class="intro">Changing your password signs out every other browser where you are signed in.</p>
+                <section class="surface account-surface" aria-labelledby="password-change-title">
+                    <h3 id="password-change-title" class="panel-title">Change your password</h3>
+                    <form id="password-change-form" class="form-stack" novalidate>
+                        <label for="current-password">Current password</label>
+                        <input id="current-password" name="current_password" type="password" autocomplete="current-password" maxlength="255" required>
+                        <label for="new-password">New password</label>
+                        <input id="new-password" name="new_password" type="password" autocomplete="new-password" minlength="8" maxlength="255" required aria-describedby="new-password-hint">
+                        <label for="new-password-confirm">Repeat the new password</label>
+                        <input id="new-password-confirm" name="confirm" type="password" autocomplete="new-password" minlength="8" maxlength="255" required>
+                        <p id="new-password-hint" class="result-summary">Use at least 8 characters, different from the current password.</p>
+                        <button class="button button-primary" type="submit">Change password</button>
+                    </form>
+                </section>
+                <section class="surface account-surface" aria-labelledby="invitation-title">
+                    <h3 id="invitation-title" class="panel-title">Invite someone</h3>
+                    <p class="result-summary">We email them a link to create their own account. The link works once and expires after a week. Nothing you own is shared with them.</p>
+                    <form id="invitation-form" class="form-stack">
+                        <label for="invitation-email">Their email address</label>
+                        <input id="invitation-email" name="email" type="email" autocomplete="off" maxlength="191" required>
+                        <button class="button button-secondary" type="submit">Send invitation</button>
+                    </form>
                 </section>
             </section>
         </section>

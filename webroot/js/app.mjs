@@ -434,6 +434,47 @@ export function labelForReviewReason(reason) {
     return labels[reason] ?? String(reason ?? '').replaceAll('_', ' ');
 }
 
+const ACCOUNT_LINK_PURPOSES = { invite: 'invitation', reset: 'password_reset' };
+const ACCOUNT_LINK_TOKEN = /^[A-Za-z0-9_-]{43}$/;
+export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_MAX_LENGTH = 255;
+
+/**
+ * Read an emailed invitation or reset link from the URL fragment. The fragment is never sent
+ * to the server, so the token stays out of access logs and Referer headers. A recognised link
+ * with a malformed token keeps its purpose but no token, so the person is told the link is bad.
+ */
+export function parseAccountLink(hash) {
+    const match = /^#(invite|reset)=(.*)$/s.exec(String(hash ?? ''));
+    if (!match) {
+        return null;
+    }
+
+    return {
+        purpose: ACCOUNT_LINK_PURPOSES[match[1]],
+        token: ACCOUNT_LINK_TOKEN.test(match[2]) ? match[2] : null,
+    };
+}
+
+/**
+ * Explain what is wrong with a chosen password and its confirmation, or return an empty string.
+ * The server applies the same length rule; this only spares a round trip and catches typos.
+ */
+export function newPasswordProblem(password, confirmation) {
+    const length = [...String(password ?? '')].length;
+    if (length < PASSWORD_MIN_LENGTH) {
+        return `Use at least ${PASSWORD_MIN_LENGTH} characters for the new password.`;
+    }
+    if (length > PASSWORD_MAX_LENGTH) {
+        return `Use at most ${PASSWORD_MAX_LENGTH} characters for the new password.`;
+    }
+    if (String(password) !== String(confirmation ?? '')) {
+        return 'The two new passwords do not match.';
+    }
+
+    return '';
+}
+
 export function setText(element, value) {
     element.textContent = value === null || value === undefined ? '' : String(value);
 }
@@ -517,6 +558,8 @@ const state = {
     libraries: { items: [], page: 1, total: 0, openId: null },
     reference: emptyReferenceState(),
     collaboration: { resource: null, inbox: [], outbox: [] },
+    // The invitation or reset link being redeemed. Held in memory only, never in storage.
+    accountLink: null,
     sectionOptions: [],
     // Monotonic tokens so a slow response cannot repaint a list that a newer
     // request has already replaced, which would silently discard a person's selection.
@@ -557,8 +600,20 @@ function setNotice(message, isError = false) {
     notice.setAttribute('aria-live', isError ? 'assertive' : 'polite');
 }
 
-function showLogin(message = '') {
+const ACCOUNT_FORMS = ['login-form', 'reset-request-form', 'account-link-form', 'password-change-form', 'invitation-form'];
+
+function hideEntryPanels() {
+    for (const id of ['login-panel', 'reset-request-panel', 'account-link-panel']) {
+        byId(id).hidden = true;
+    }
+}
+
+function showLogin(message = '', isError = false) {
     state.userId = null;
+    state.accountLink = null;
+    for (const id of ACCOUNT_FORMS) {
+        byId(id).reset();
+    }
     state.view = 'dashboard';
     state.collaboration = { resource: null, inbox: [], outbox: [] };
     byId('collaboration-resource-form').reset();
@@ -576,17 +631,77 @@ function showLogin(message = '') {
         button.classList.toggle('is-current', current);
         button.setAttribute('aria-pressed', String(current));
     }
-    for (const name of ['dashboard', 'inbox', 'projects', 'notebooks', 'libraries', 'reference', 'review', 'activity', 'collaboration']) {
+    for (const name of ['dashboard', 'inbox', 'projects', 'notebooks', 'libraries', 'reference', 'review', 'activity', 'collaboration', 'account']) {
         byId(`${name}-view`).hidden = name !== 'dashboard';
     }
     byId('workspace').hidden = true;
     byId('account-actions').hidden = true;
+    hideEntryPanels();
     byId('login-panel').hidden = false;
-    setNotice(message);
+    setNotice(message, isError);
+}
+
+function showResetRequest() {
+    const email = byId('login-email').value;
+    hideEntryPanels();
+    byId('reset-request-form').reset();
+    byId('reset-request-email').value = email;
+    byId('reset-request-panel').hidden = false;
+    setNotice('');
+    byId('reset-request-email').focus();
+}
+
+const ACCOUNT_LINK_COPY = {
+    invitation: {
+        title: 'Create your account.',
+        intro: 'You have been invited. Choose a password, then sign in with it and the address this invitation was sent to.',
+        submit: 'Create my account',
+        endpoint: '/api/invitations/accept',
+    },
+    password_reset: {
+        title: 'Choose a new password.',
+        intro: 'Saving a new password signs out every browser where your account is signed in.',
+        submit: 'Save new password',
+        endpoint: '/api/auth/password-reset/complete',
+    },
+};
+
+function showAccountLink(link) {
+    const copy = ACCOUNT_LINK_COPY[link.purpose];
+    state.accountLink = link;
+    hideEntryPanels();
+    byId('workspace').hidden = true;
+    byId('account-actions').hidden = true;
+    byId('account-link-form').reset();
+    setText(byId('account-link-title'), copy.title);
+    setText(byId('account-link-intro'), copy.intro);
+    setText(byId('account-link-submit'), copy.submit);
+    byId('account-link-panel').hidden = false;
+    setNotice('');
+    byId('account-link-password').focus();
+}
+
+/**
+ * Take an invitation or reset link out of the address bar and show the form that redeems it.
+ * Returns whether the address held such a link.
+ */
+function openAccountLinkFromLocation() {
+    const link = parseAccountLink(globalThis.location?.hash);
+    if (link === null) {
+        return false;
+    }
+    globalThis.history?.replaceState(null, '', `${globalThis.location.pathname}${globalThis.location.search}`);
+    if (link.token === null) {
+        showLogin('This link is invalid or has expired. Ask for a new one.', true);
+    } else {
+        showAccountLink(link);
+    }
+
+    return true;
 }
 
 function showWorkspace(email) {
-    byId('login-panel').hidden = true;
+    hideEntryPanels();
     byId('workspace').hidden = false;
     byId('account-actions').hidden = false;
     setText(byId('account-email'), email);
@@ -2140,6 +2255,8 @@ const VIEW_LOADERS = {
     reference: loadReference,
     activity: loadActivity,
     collaboration: loadCollaboration,
+    // The Account view holds only forms; there is nothing to load.
+    account: async () => {},
 };
 
 async function refreshWorkspace() {
@@ -2196,6 +2313,101 @@ function bindEvents() {
             formElement.reset();
         } catch (error) {
             setNotice(error.message, true);
+        }
+    });
+
+    byId('forgot-password-button').addEventListener('click', showResetRequest);
+
+    for (const button of document.querySelectorAll('[data-account-back]')) {
+        button.addEventListener('click', () => {
+            void resumeSession(true);
+        });
+    }
+
+    byId('reset-request-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const email = byId('reset-request-email').value.trim();
+        try {
+            const data = await requestApi('/api/auth/password-reset', {
+                method: 'POST',
+                body: JSON.stringify({ email }),
+            });
+            showLogin(data?.message ?? 'Check your email for a reset link.');
+            byId('login-email').value = email;
+        } catch (error) {
+            setNotice(error.message, true);
+        }
+    });
+
+    byId('account-link-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const link = state.accountLink;
+        if (link === null) {
+            showLogin();
+            return;
+        }
+        const password = byId('account-link-password').value;
+        const problem = newPasswordProblem(password, byId('account-link-confirm').value);
+        if (problem !== '') {
+            setNotice(problem, true);
+            return;
+        }
+        try {
+            const data = await requestApi(ACCOUNT_LINK_COPY[link.purpose].endpoint, {
+                method: 'POST',
+                body: JSON.stringify({ token: link.token, password }),
+            });
+            showLogin(data?.message ?? 'Your password is set. Sign in with it.');
+            if (typeof data?.user?.email === 'string') {
+                byId('login-email').value = data.user.email;
+            }
+        } catch (error) {
+            if (error.status === 400) {
+                showLogin(`${error.message} Ask for a new link.`, true);
+                return;
+            }
+            setNotice(error.message, true);
+        }
+    });
+
+    byId('password-change-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formElement = event.currentTarget;
+        const current = byId('current-password').value;
+        const replacement = byId('new-password').value;
+        if (current === '') {
+            setNotice('Enter your current password.', true);
+            return;
+        }
+        const problem = newPasswordProblem(replacement, byId('new-password-confirm').value);
+        if (problem !== '') {
+            setNotice(problem, true);
+            return;
+        }
+        try {
+            const data = await requestApi('/api/auth/password', {
+                method: 'POST',
+                body: JSON.stringify({ current_password: current, new_password: replacement }),
+            });
+            formElement.reset();
+            setNotice(data?.message ?? 'Your password has been changed.');
+        } catch (error) {
+            displayError(error);
+        }
+    });
+
+    byId('invitation-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formElement = event.currentTarget;
+        try {
+            const data = await requestApi('/api/invitations', {
+                method: 'POST',
+                body: JSON.stringify({ email: byId('invitation-email').value.trim() }),
+            });
+            formElement.reset();
+            setNotice(data?.message ?? 'Invitation sent.');
+        } catch (error) {
+            displayError(error);
         }
     });
 
@@ -2768,12 +2980,23 @@ function bindEvents() {
 
 async function start() {
     bindEvents();
+    globalThis.addEventListener('hashchange', openAccountLinkFromLocation);
+    if (openAccountLinkFromLocation()) {
+        return;
+    }
+    await resumeSession();
+}
+
+async function resumeSession(focusSignIn = false) {
     try {
         const data = await requestApi('/api/auth/me');
         await initializeWorkspace(data?.user?.email ?? '', data?.user?.id);
     } catch (error) {
         if (error.status === 401) {
             showLogin();
+            if (focusSignIn) {
+                byId('login-email').focus();
+            }
         } else {
             showLogin('Could not check your session. Please try again.');
         }

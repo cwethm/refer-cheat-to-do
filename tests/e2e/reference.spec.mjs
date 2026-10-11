@@ -100,8 +100,8 @@ test.afterEach(async () => {
 
 async function signIn(page) {
     await page.goto('/app');
-    await page.getByLabel('Email').fill(account.email);
-    await page.getByLabel('Password').fill(account.password);
+    await page.getByLabel('Email', { exact: true }).fill(account.email);
+    await page.getByLabel('Password', { exact: true }).fill(account.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page.locator('#workspace')).toBeVisible();
 }

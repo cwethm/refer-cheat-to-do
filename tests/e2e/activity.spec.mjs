@@ -41,8 +41,8 @@ test.afterAll(async () => {
 
 async function signIn(page, as = account) {
     await page.goto('/app');
-    await page.getByLabel('Email').fill(as.email);
-    await page.getByLabel('Password').fill(as.password);
+    await page.getByLabel('Email', { exact: true }).fill(as.email);
+    await page.getByLabel('Password', { exact: true }).fill(as.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page.locator('#workspace')).toBeVisible();
 }

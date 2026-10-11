@@ -173,6 +173,12 @@ input::placeholder, textarea::placeholder { color: #8b958e; }
 .login-panel { max-width: 34rem; margin: 7vh auto; padding: clamp(1.5rem, 5vw, 3rem); border: 1px solid var(--line); border-radius: 1.2rem; background: white; box-shadow: var(--shadow); }
 .login-panel .intro { margin-bottom: 1.5rem; }
 .login-panel .button { margin-top: 0.5rem; }
+.login-panel .login-aside { margin: 1rem 0 0; }
+.text-button { padding: 0.2rem 0; border: 0; background: none; color: var(--accent-dark); text-decoration: underline; text-underline-offset: 0.2em; }
+.text-button:hover { color: var(--ink); }
+.account-surface { display: grid; gap: 0.8rem; max-width: 40rem; margin-top: 1.25rem; }
+.account-surface .form-stack { margin: 0; }
+.account-surface input { min-width: 0; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 @media (max-width: 760px) {

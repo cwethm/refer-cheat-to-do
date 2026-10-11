@@ -8,8 +8,8 @@ const axeSource = readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
 
 async function signIn(page) {
     await page.goto('/app');
-    await page.getByLabel('Email').fill(account.email);
-    await page.getByLabel('Password').fill(account.password);
+    await page.getByLabel('Email', { exact: true }).fill(account.email);
+    await page.getByLabel('Password', { exact: true }).fill(account.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page.locator('#workspace')).toBeVisible();
 }
@@ -49,10 +49,29 @@ test.describe('accessibility', () => {
         expect(describeViolations(results), describeViolations(results)).toBe('');
     });
 
-    for (const view of ['Today', 'ToDos', 'Projects', 'Notebooks', 'Libraries', 'Reference', 'Review', 'Activity', 'Collaboration']) {
+    for (const view of ['Today', 'ToDos', 'Projects', 'Notebooks', 'Libraries', 'Reference', 'Review', 'Activity', 'Collaboration', 'Account']) {
         test(`the ${view} view has no WCAG A/AA violations`, async ({ page }) => {
             await signIn(page);
             await openView(page, view);
+
+            const results = await audit(page);
+            expect(describeViolations(results), describeViolations(results)).toBe('');
+        });
+    }
+
+    test('the password reset request view has no WCAG A/AA violations', async ({ page }) => {
+        await page.goto('/app');
+        await page.getByRole('button', { name: 'Forgot your password?' }).click();
+        await expect(page.locator('#reset-request-panel')).toBeVisible();
+
+        const results = await audit(page);
+        expect(describeViolations(results), describeViolations(results)).toBe('');
+    });
+
+    for (const kind of ['invite', 'reset']) {
+        test(`the ${kind} link view has no WCAG A/AA violations`, async ({ page }) => {
+            await page.goto(`/app#${kind}=${'a'.repeat(43)}`);
+            await expect(page.locator('#account-link-panel')).toBeVisible();
 
             const results = await audit(page);
             expect(describeViolations(results), describeViolations(results)).toBe('');
@@ -102,12 +121,26 @@ test.describe('responsive layout', () => {
             .toBeLessThanOrEqual(overflow.clientWidth);
     });
 
+    test('the account entry views do not overflow the narrowest viewport', async ({ page }) => {
+        await page.setViewportSize({ width: 320, height: 900 });
+        const overflowWidth = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+
+        await page.goto('/app');
+        await page.getByRole('button', { name: 'Forgot your password?' }).click();
+        await expect(page.locator('#reset-request-panel')).toBeVisible();
+        expect(await overflowWidth(), 'the reset request view overflows at 320px').toBeLessThanOrEqual(0);
+
+        await page.goto(`/app#invite=${'a'.repeat(43)}`);
+        await expect(page.locator('#account-link-panel')).toBeVisible();
+        expect(await overflowWidth(), 'the invitation view overflows at 320px').toBeLessThanOrEqual(0);
+    });
+
     for (const width of VIEWPORTS) {
         test(`the workspace has no horizontal overflow at ${width} CSS pixels`, async ({ page }) => {
             await page.setViewportSize({ width, height: 900 });
             await signIn(page);
 
-            for (const view of ['Today', 'ToDos', 'Projects', 'Notebooks', 'Libraries', 'Reference', 'Review', 'Activity', 'Collaboration']) {
+            for (const view of ['Today', 'ToDos', 'Projects', 'Notebooks', 'Libraries', 'Reference', 'Review', 'Activity', 'Collaboration', 'Account']) {
                 await openView(page, view);
                 const overflow = await page.evaluate(() => ({
                     scrollWidth: document.documentElement.scrollWidth,

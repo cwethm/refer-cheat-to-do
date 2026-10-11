@@ -5,8 +5,8 @@ import { account } from './environment.mjs';
 test('a signed-in user receives a downloadable workspace export', async ({ page }) => {
     await page.goto('/app');
     await expect(page.getByRole('link', { name: 'Export my data' })).toBeHidden();
-    await page.getByLabel('Email').fill(account.email);
-    await page.getByLabel('Password').fill(account.password);
+    await page.getByLabel('Email', { exact: true }).fill(account.email);
+    await page.getByLabel('Password', { exact: true }).fill(account.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page.locator('#workspace')).toBeVisible();
 

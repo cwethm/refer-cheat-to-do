@@ -28,8 +28,12 @@ import {
     labelForReviewReason,
     LIBRARY_PAGE_SIZE,
     NOTEBOOK_PAGE_SIZE,
+    newPasswordProblem,
     nudgedPosition,
+    parseAccountLink,
     parseSectionOptionValue,
+    PASSWORD_MAX_LENGTH,
+    PASSWORD_MIN_LENGTH,
     PROJECT_PAGE_SIZE,
     REFERENCE_PAGE_SIZE,
     REFERENCE_SEARCH_MAX_CHARS,
@@ -594,4 +598,36 @@ test('reference activity is presented as readable sentences and subjects', () =>
         created: null,
     }), { action: 'Added a card to a cheat sheet', subject: 'Cheat sheet #5', when: '' });
     assert.equal(formatActivityEntry({ action: 'reference_card.deleted', subject_type: 'reference_card', subject_id: 2 }).subject, 'Reference card #2');
+});
+
+test('emailed account links are read from the fragment only when the token is well formed', () => {
+    const token = 'A'.repeat(21) + '-_' + 'z9'.repeat(10);
+    assert.equal(token.length, 43);
+    assert.deepEqual(parseAccountLink(`#invite=${token}`), { purpose: 'invitation', token });
+    assert.deepEqual(parseAccountLink(`#reset=${token}`), { purpose: 'password_reset', token });
+    assert.deepEqual(parseAccountLink('#reset=short'), { purpose: 'password_reset', token: null });
+    assert.deepEqual(parseAccountLink(`#invite=${token}x`), { purpose: 'invitation', token: null });
+    assert.deepEqual(parseAccountLink(`#invite=${token}\n`), { purpose: 'invitation', token: null });
+    assert.deepEqual(parseAccountLink(`#invite=${token.slice(1)}+`), { purpose: 'invitation', token: null });
+    assert.deepEqual(parseAccountLink(`#invite=${token.slice(1)}<`), { purpose: 'invitation', token: null });
+    assert.equal(parseAccountLink(''), null);
+    assert.equal(parseAccountLink(undefined), null);
+    assert.equal(parseAccountLink('#main-content'), null);
+    assert.equal(parseAccountLink(`#other=${token}`), null);
+    assert.equal(parseAccountLink(`invite=${token}`), null);
+});
+
+test('a new password must meet the length rule and match its confirmation', () => {
+    assert.equal(PASSWORD_MIN_LENGTH, 8);
+    assert.equal(PASSWORD_MAX_LENGTH, 255);
+    assert.match(newPasswordProblem('', ''), /at least 8 characters/);
+    assert.match(newPasswordProblem('seven77', 'seven77'), /at least 8 characters/);
+    assert.match(newPasswordProblem('x'.repeat(256), 'x'.repeat(256)), /at most 255 characters/);
+    assert.match(newPasswordProblem('long enough', 'long enougH'), /do not match/);
+    assert.match(newPasswordProblem('long enough', undefined), /do not match/);
+    assert.equal(newPasswordProblem('long enough', 'long enough'), '');
+    assert.equal(newPasswordProblem('x'.repeat(255), 'x'.repeat(255)), '');
+    // Length counts characters, as the server does, not UTF-16 code units.
+    assert.equal(newPasswordProblem('🔑🔑🔑🔑🔑🔑🔑🔑', '🔑🔑🔑🔑🔑🔑🔑🔑'), '');
+    assert.match(newPasswordProblem('🔑🔑🔑🔑', '🔑🔑🔑🔑'), /at least 8 characters/);
 });
