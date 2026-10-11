@@ -12,6 +12,8 @@ use InvalidArgumentException;
  *
  * Extracted once ProjectSections and NotebookSections proved to need identical ordering
  * mechanics. Domain validation, ownership, and assignment rules stay in each table class.
+ * Cheat sheet card memberships reuse it (ADR 0004); siblings are tie-broken and identified by
+ * the table's primary key, so composite-key join rows are ordered by the same code.
  *
  * Configuration:
  * - `parentField`: the foreign key grouping siblings, e.g. `project_id` or `notebook_id`.
@@ -60,9 +62,10 @@ class SectionOrderingBehavior extends Behavior
                 throw new InvalidArgumentException('Invalid section position.');
             }
 
+            $key = $this->primaryKeyOf($section);
             $ordered = [];
             foreach ($siblings as $sibling) {
-                if ((int)$sibling->get('id') !== (int)$section->get('id')) {
+                if ($this->primaryKeyOf($sibling) !== $key) {
                     $ordered[] = $sibling;
                 }
             }
@@ -89,11 +92,15 @@ class SectionOrderingBehavior extends Behavior
     private function orderedSiblings(int $parentId): array
     {
         $positionField = (string)$this->getConfig('positionField');
+        $order = [$positionField => 'ASC'];
+        foreach ((array)$this->table()->getPrimaryKey() as $keyField) {
+            $order[$keyField] = 'ASC';
+        }
 
         /** @var list<\Cake\Datasource\EntityInterface> $siblings */
         $siblings = $this->table()->find()
             ->where([$this->parentField() => $parentId])
-            ->orderBy([$positionField => 'ASC', 'id' => 'ASC'])
+            ->orderBy($order)
             ->all()
             ->toList();
 
@@ -117,6 +124,21 @@ class SectionOrderingBehavior extends Behavior
             $sibling->set($positionField, $expected);
             $table->saveOrFail($sibling);
         }
+    }
+
+    /**
+     * Identify a row by its primary key values, single or composite.
+     *
+     * @return list<int>
+     */
+    private function primaryKeyOf(EntityInterface $entity): array
+    {
+        $values = [];
+        foreach ((array)$this->table()->getPrimaryKey() as $keyField) {
+            $values[] = (int)$entity->get($keyField);
+        }
+
+        return $values;
     }
 
     /**

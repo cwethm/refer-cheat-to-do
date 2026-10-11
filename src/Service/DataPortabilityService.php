@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Model\Table\ReferenceCardsTable;
 use App\Model\Table\TodosTable;
 use Cake\Database\Connection;
 use Cake\ORM\Locator\LocatorInterface;
@@ -23,7 +24,7 @@ class DataPortabilityService
     public const TEXT_CHUNK_CHARS = 16384;
 
     /** @var list<string> */
-    private const TEXT_FIELDS = ['notes', 'description', 'terminal_objective', 'result_summary', 'content'];
+    private const TEXT_FIELDS = ['notes', 'description', 'terminal_objective', 'result_summary', 'content', 'body'];
 
     /**
      * Ordered dependencies and the complete portable field allowlist.
@@ -38,6 +39,8 @@ class DataPortabilityService
         'libraries' => 'id,name,description,created,modified',
         'research_collections' => 'id,name,description,created,modified',
         'tags' => 'id,name,created,modified',
+        'reference_cards' => 'id,card_type,title,summary,body,situation,aim,approach,avoid,rationale,created,modified',
+        'cheat_sheets' => 'id,name,description,created,modified',
         'todos' => 'id,title,notes,status,created,modified,project_section_id,notebook_section_id,'
             . 'archived_at,trashed_at,previous_status,last_reviewed_at,next_review_at,review_interval_days,'
             . 'parent_todo_id,terminal_objective,objective_satisfied_at,result_summary',
@@ -47,6 +50,8 @@ class DataPortabilityService
         'related_todos' => 'todo_id,related_todo_id,created',
         'libraries_projects' => 'library_id,project_id,created',
         'libraries_notebooks' => 'library_id,notebook_id,created',
+        'reference_cards_tags' => 'reference_card_id,tag_id',
+        'cheat_sheets_reference_cards' => 'cheat_sheet_id,reference_card_id,position,created',
         'activity_records' => 'id,action,subject_type,subject_id,context_type,context_id,metadata,created',
     ];
 
@@ -62,6 +67,8 @@ class DataPortabilityService
         'notebook_section_id' => 'notebook_sections',
         'parent_todo_id' => 'todos',
         'research_collection_id' => 'research_collections',
+        'reference_card_id' => 'reference_cards',
+        'cheat_sheet_id' => 'cheat_sheets',
     ];
 
     private Connection $connection;
@@ -251,6 +258,12 @@ class DataPortabilityService
             'libraries_notebooks' => 'r.library_id IN (SELECT id FROM libraries WHERE user_id = ?) '
                 . 'AND r.notebook_id IN (SELECT id FROM notebooks WHERE user_id = '
                 . '(SELECT user_id FROM libraries WHERE id = r.library_id))',
+            'reference_cards_tags' => 'r.reference_card_id IN (SELECT id FROM reference_cards WHERE user_id = ?) '
+                . 'AND r.tag_id IN (SELECT id FROM tags WHERE user_id = (SELECT user_id FROM reference_cards '
+                . 'WHERE id = r.reference_card_id))',
+            'cheat_sheets_reference_cards' => 'r.cheat_sheet_id IN (SELECT id FROM cheat_sheets WHERE user_id = ?) '
+                . 'AND r.reference_card_id IN (SELECT id FROM reference_cards WHERE user_id = '
+                . '(SELECT user_id FROM cheat_sheets WHERE id = r.cheat_sheet_id))',
             'research_collection_items' => 'r.research_collection_id IN '
                 . '(SELECT id FROM research_collections WHERE user_id = ?)',
             'activity_records' => 'r.actor_user_id = ?',
@@ -268,6 +281,8 @@ class DataPortabilityService
             'related_todos' => ['todo_id', 'related_todo_id'],
             'libraries_projects' => ['library_id', 'project_id'],
             'libraries_notebooks' => ['library_id', 'notebook_id'],
+            'reference_cards_tags' => ['reference_card_id', 'tag_id'],
+            'cheat_sheets_reference_cards' => ['cheat_sheet_id', 'reference_card_id'],
             default => ['id'],
         };
     }
@@ -423,6 +438,8 @@ class DataPortabilityService
             'library' => 'libraries',
             'research_collection' => 'research_collections',
             'research_collection_item' => 'research_collection_items',
+            'reference_card' => 'reference_cards',
+            'cheat_sheet' => 'cheat_sheets',
             default => null,
         };
     }
@@ -451,7 +468,11 @@ class DataPortabilityService
         if (isset($metadata['fields']) && is_array($metadata['fields']) && array_is_list($metadata['fields'])) {
             $safe['fields'] = array_values(array_intersect(
                 array_filter($metadata['fields'], 'is_string'),
-                ['title', 'notes', 'status', 'project_section_id', 'notebook_section_id'],
+                [
+                    'title', 'notes', 'status', 'project_section_id', 'notebook_section_id',
+                    'name', 'description', 'card_type', 'summary', 'body',
+                    'situation', 'aim', 'approach', 'avoid', 'rationale',
+                ],
             ));
         }
         foreach (self::REFERENCES as $field => $target) {
@@ -749,6 +770,21 @@ class DataPortabilityService
         ) {
             throw new DomainException('Research collection resource type and id must be supplied together.');
         }
+        if ($type === 'reference_cards') {
+            if (
+                !in_array($data['card_type'], ReferenceCardsTable::CARD_TYPES, true)
+                || (is_string($data['body']) && strlen($data['body']) > ReferenceCardsTable::MAX_BODY_BYTES)
+            ) {
+                throw new DomainException('Invalid reference card type or body size.');
+            }
+            if ($data['card_type'] !== ReferenceCardsTable::TYPE_DIALOGUE_PATTERN) {
+                foreach (ReferenceCardsTable::DIALOGUE_FIELDS as $field) {
+                    if ($data[$field] !== null) {
+                        throw new DomainException('Dialogue fields belong only to dialogue pattern cards.');
+                    }
+                }
+            }
+        }
         if ($type === 'activity_records') {
             if (
                 !in_array($data['subject_type'], ActivityRecorder::SUBJECT_TYPES, true)
@@ -842,7 +878,10 @@ class DataPortabilityService
                 $data[$pointer . '_id'] = $this->mappedId($target, $id);
             }
             $data['actor_user_id'] = $userId;
-        } elseif (in_array($type, ['projects', 'notebooks', 'libraries', 'tags', 'todos'], true)) {
+        } elseif (
+            in_array($type, ['projects', 'notebooks', 'libraries', 'tags', 'todos'], true)
+            || in_array($type, ['reference_cards', 'cheat_sheets'], true)
+        ) {
             $data['user_id'] = $userId;
         } elseif ($type === 'research_collections') {
             $data['user_id'] = $userId;
