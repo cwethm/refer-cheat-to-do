@@ -84,9 +84,10 @@ poisoned through the `Host` header; reset and invitation links depend on that gu
   number in flight.
 - **Enumeration.** Sign-in failures are identical for unknown addresses and wrong passwords (an
   unknown address is still checked against a bcrypt hash). Reset requests and invitations answer
-  `202` with the same message whether or not an account uses the address. A reset delivery failure
-  is logged without detail, never reported. Sending mail only for known addresses leaves a timing
-  difference; the per-client and per-address limits bound what it can reveal.
+  `202` with the same message whether or not an account uses the address. Issuing the link and
+  sending the message are deferred until the response has been sent (`App\Service\AfterResponse`,
+  run on the `Server.terminate` event), so the response time does not depend on whether the
+  address has an account. A delivery failure is logged without detail, never reported.
 - **CSRF.** The new mutating endpoints are covered by the CSRF middleware. Sign-in stays outside
   it, as before.
 - **Activity.** Account events are not written to the activity history: its subject types describe
@@ -101,7 +102,8 @@ poisoned through the `Host` header; reset and invitation links depend on that gu
   expired token is `400` "This link is invalid or has expired."; an unacceptable password is `422`.
   The caller signs in afterwards.
 - `POST /api/invitations` — signed in; `email`; `202` with the same message whether or not the
-  address has an account; `503` if the message could not be sent.
+  address has an account. The message is sent after the response, so a delivery failure is logged
+  rather than reported.
 - `POST /api/invitations/accept` — `token`, `password`; `201` with the new account's email. The
   new user signs in afterwards.
 - `POST /api/auth/login` now answers `429` when a limit is full; `POST /api/auth/logout` destroys the
@@ -117,11 +119,11 @@ invitation forms.
 ### Completion
 - Migration `20261011090000_CreateAccountTokensAndRateLimitHits` applies, rolls back and reapplies
   on PostgreSQL.
-- PHPUnit: `AccountTokenServiceTest`, `RateLimiterTest` and `AccountLifecycleControllerTest` cover
-  issuance, single use, expiry, hashed storage, constant-time comparison, enumeration resistance,
+- PHPUnit: `AccountTokenServiceTest`, `RateLimiterTest`, `AfterResponseTest` and
+  `AccountLifecycleControllerTest` cover deferred mail, issuance, single use, expiry, hashed storage, constant-time comparison, enumeration resistance,
   every rate limit, session regeneration and destruction, stale-version and over-age session
   rejection, CSRF denial and the denied path of each new endpoint. Existing tests now sign in
-  through `SignedInSessionTrait`. The full suite passes (834 tests).
+  through `SignedInSessionTrait`. The full suite passes (841 tests).
 - PHPCS and PHPStan pass.
 - Client unit and security tests pass (`composer ui-test`).
 - `tests/e2e/account.spec.mjs` uses a local SMTP sink (`tests/e2e/mailbox.mjs`, started by global

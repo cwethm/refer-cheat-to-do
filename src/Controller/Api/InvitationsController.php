@@ -6,13 +6,12 @@ namespace App\Controller\Api;
 use App\Http\Exception\ValidationException;
 use App\Mailer\AccountMailer;
 use App\Service\AccountTokenService;
+use App\Service\AfterResponse;
 use Cake\Http\Exception\BadRequestException;
-use Cake\Http\Exception\ServiceUnavailableException;
 use Cake\Http\Response;
 use Cake\Validation\Validation;
 use DomainException;
 use InvalidArgumentException;
-use Throwable;
 
 /**
  * Invitation-based account creation (Slice 19).
@@ -44,19 +43,19 @@ class InvitationsController extends AppController
         $limiter->assertAvailable('invitation_issue_account', (string)$issuerId);
         $limiter->hit('invitation_issue_account', (string)$issuerId);
 
+        // Issued and mailed after the response, for addresses with and without an account alike,
+        // so neither the status nor the timing shows whether the address is already registered.
         $tokens = new AccountTokenService($this->getTableLocator());
-        $token = $tokens->issueInvitation($issuerId, $email);
-        if ($token !== null) {
-            try {
+        AfterResponse::defer(static function () use ($tokens, $issuerId, $email): void {
+            $token = $tokens->issueInvitation($issuerId, $email);
+            if ($token !== null) {
                 (new AccountMailer())->send('invitation', [
                     $email,
                     $token,
                     AccountTokenService::lifetime(AccountTokenService::PURPOSE_INVITATION),
                 ]);
-            } catch (Throwable) {
-                throw new ServiceUnavailableException('The invitation could not be sent. Please try again later.');
             }
-        }
+        });
 
         return $this->respond(['message' => self::INVITED_MESSAGE], [], 202);
     }

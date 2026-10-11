@@ -4,18 +4,16 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use App\Http\Exception\ValidationException;
-use App\Log\SafeLogEvent;
 use App\Mailer\AccountMailer;
 use App\Model\Entity\User;
 use App\Service\AccountTokenService;
+use App\Service\AfterResponse;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\InternalErrorException;
 use Cake\Http\Exception\UnauthorizedException;
 use Cake\Http\Response;
-use Cake\Log\Log;
 use DomainException;
 use InvalidArgumentException;
-use Throwable;
 
 class AuthController extends AppController
 {
@@ -146,9 +144,10 @@ class AuthController extends AppController
     /**
      * Send a reset link to an address if an account uses it.
      *
-     * The response is identical for known and unknown addresses, and a delivery failure is
-     * logged without detail rather than reported, so the endpoint cannot be used to discover
-     * which addresses have accounts.
+     * The response is identical, in content and timing, for known and unknown addresses: the
+     * link is issued and sent after the response, and a delivery failure is logged without
+     * detail rather than reported, so the endpoint cannot be used to discover which addresses
+     * have accounts.
      */
     public function requestPasswordReset(): Response
     {
@@ -164,18 +163,19 @@ class AuthController extends AppController
         $limiter->hit('password_reset_client', $client);
         $limiter->hit('password_reset_account', $email);
 
-        $token = $this->accountTokens()->issuePasswordReset($email);
-        if ($token !== null) {
-            try {
+        // Issuing and mailing happen only for a known address, so they run after the response
+        // has been sent: the response time is then the same whether or not an account exists.
+        $tokens = $this->accountTokens();
+        AfterResponse::defer(static function () use ($tokens, $email): void {
+            $token = $tokens->issuePasswordReset($email);
+            if ($token !== null) {
                 (new AccountMailer())->send('passwordReset', [
                     $email,
                     $token,
                     AccountTokenService::lifetime(AccountTokenService::PURPOSE_PASSWORD_RESET),
                 ]);
-            } catch (Throwable $exception) {
-                Log::write('error', '', ['safeEvent' => SafeLogEvent::exception($exception)]);
             }
-        }
+        });
 
         return $this->respond(['message' => self::RESET_REQUESTED_MESSAGE], [], 202);
     }

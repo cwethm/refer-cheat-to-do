@@ -4,7 +4,9 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Controller\Api;
 
 use App\Controller\Api\AuthController;
+use App\Controller\Api\InvitationsController;
 use App\Service\AccountTokenService;
+use App\Service\AfterResponse;
 use App\Test\TestCase\SignedInSessionTrait;
 use Cake\Chronos\Chronos;
 use Cake\Core\Configure;
@@ -56,6 +58,7 @@ class AccountLifecycleControllerTest extends TestCase
 
     protected function tearDown(): void
     {
+        AfterResponse::clear();
         Chronos::setTestNow(Chronos::now());
         parent::tearDown();
     }
@@ -71,6 +74,8 @@ class AccountLifecycleControllerTest extends TestCase
         }
         $this->configRequest(['headers' => $headers]);
         $this->post($url, (string)json_encode($body));
+        // Stand in for the end of the request, when deferred account mail is sent.
+        AfterResponse::flush();
     }
 
     /**
@@ -637,7 +642,7 @@ class AccountLifecycleControllerTest extends TestCase
         $this->assertResponseCode(202);
     }
 
-    public function testAnInvitationThatCannotBeSentIsReported(): void
+    public function testAnInvitationThatCannotBeSentLooksTheSameAsAnyOther(): void
     {
         TransportFactory::drop('default');
         TransportFactory::setConfig('default', ['className' => new class extends DebugTransport {
@@ -650,8 +655,49 @@ class AccountLifecycleControllerTest extends TestCase
         $this->signIn(1);
         $this->postJson('/api/invitations', ['email' => 'new@example.com']);
 
-        $this->assertResponseCode(503);
-        $this->assertResponseContains('The invitation could not be sent.');
+        $this->assertResponseCode(202);
+        $this->assertResponseContains(InvitationsController::INVITED_MESSAGE);
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: array<string, string>, 2: bool}>
+     */
+    public static function deferredMailRequests(): array
+    {
+        return [
+            'reset for an account' => ['/api/auth/password-reset', ['email' => 'owner@example.com'], false],
+            'reset for no account' => ['/api/auth/password-reset', ['email' => 'nobody@example.com'], false],
+            'invitation for a new address' => ['/api/invitations', ['email' => 'new@example.com'], true],
+            'invitation for an account' => ['/api/invitations', ['email' => 'owner@example.com'], true],
+        ];
+    }
+
+    /**
+     * Whether an address has an account decides whether a link is issued and mailed. That work
+     * waits until the response has been sent, so it cannot show in the response time.
+     *
+     * @param array<string, string> $body
+     */
+    #[DataProvider('deferredMailRequests')]
+    public function testAccountMailIsIssuedAndSentOnlyAfterTheResponse(string $url, array $body, bool $signedIn): void
+    {
+        if ($signedIn) {
+            $this->signIn(1);
+        }
+        $this->configRequest(['headers' => [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'X-CSRF-Token' => $this->csrfToken,
+        ]]);
+        $this->post($url, (string)json_encode($body));
+
+        $this->assertResponseCode(202);
+        $this->assertSame(1, AfterResponse::pending());
+        $this->assertSame(0, $this->getTableLocator()->get('AccountTokens')->find()->count());
+        $this->assertNoMailSent();
+
+        AfterResponse::flush();
+        $this->assertSame(0, AfterResponse::pending());
     }
 
     public function testAcceptingAnInvitationCreatesAnAccountThatCanSignIn(): void
