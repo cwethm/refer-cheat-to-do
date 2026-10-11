@@ -133,6 +133,7 @@ class ActivityRecorder
                 && (string)(int)$subjectId === $subjectId
             ) {
                 $conditions['ActivityRecords.subject_id'] = (int)$subjectId;
+            
             } else {
                 throw new DomainException('Invalid activity subject id.');
             }
