@@ -191,6 +191,17 @@ class LibrariesControllerTest extends TestCase
         $this->assertSame(100, $payload['meta']['pagination']['limit']);
     }
 
+    public function testMembersRejectOversizedPagination(): void
+    {
+        $this->authenticate();
+
+        $this->get('/api/libraries/600/members?page=99999999999999999999999');
+        $this->assertResponseCode(400);
+
+        $this->get('/api/libraries/600/members?limit=99999999999999999999999');
+        $this->assertResponseCode(400);
+    }
+
     public function testDuplicateMemberAdditionConflicts(): void
     {
         $this->authenticate();
