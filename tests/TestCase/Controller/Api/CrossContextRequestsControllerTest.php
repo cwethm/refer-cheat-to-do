@@ -61,7 +61,9 @@ class CrossContextRequestsControllerTest extends TestCase
 
     private function sendRequest(): int
     {
-        $this->capabilities()->grant(2, 1, CapabilityService::CAP_SEND_TASK, 'notebook', 401);
+        if (!$this->capabilities()->allows(1, CapabilityService::CAP_SEND_TASK, 'notebook', 401)) {
+            $this->capabilities()->grant(2, 1, CapabilityService::CAP_SEND_TASK, 'notebook', 401);
+        }
         $this->authenticate();
         $this->post('/api/cross-context-requests', $this->payload());
         $this->assertResponseCode(201);

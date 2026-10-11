@@ -68,6 +68,18 @@ export function buildLibrariesUrl(options = {}) {
     return buildRecordListUrl('/api/libraries', { limit: LIBRARY_PAGE_SIZE, ...options });
 }
 
+/**
+ * Library members are listed by their own paged endpoint. The browsing view reads one page at
+ * the API's 100-row cap, so it shows at most the first 100 Projects and 100 Notebooks.
+ */
+export function buildLibraryMembersUrl(libraryId) {
+    if (!isValidId(libraryId)) {
+        return '';
+    }
+
+    return buildRecordListUrl(`/api/libraries/${Number(libraryId)}/members`, { limit: SECTION_SOURCE_LIMIT });
+}
+
 export function buildActivityUrl(options = {}) {
     return buildRecordListUrl('/api/activity', { limit: ACTIVITY_PAGE_SIZE, ...options });
 }
@@ -1388,14 +1400,15 @@ async function loadLibraryDetail() {
     }
 
     const data = await requestApi(`/api/libraries/${Number(state.libraries.openId)}`);
+    const members = await requestApi(buildLibraryMembersUrl(state.libraries.openId));
     const library = data?.library;
     setText(byId('library-detail-title'), typeof library?.name === 'string' ? library.name : 'Library');
     const description = byId('library-detail-description');
     setText(description, typeof library?.description === 'string' ? library.description : '');
     description.hidden = !description.textContent;
 
-    const projects = validItems(library?.projects);
-    const notebooks = validItems(library?.notebooks);
+    const projects = validItems(members?.projects);
+    const notebooks = validItems(members?.notebooks);
     byId('library-projects').replaceChildren(...projects.map((member) => renderLibraryMember(member)));
     byId('library-notebooks').replaceChildren(...notebooks.map((member) => renderLibraryMember(member)));
     byId('library-members-empty').hidden = projects.length + notebooks.length > 0;

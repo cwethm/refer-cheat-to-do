@@ -280,7 +280,8 @@ class CapabilityServiceTest extends TestCase
     public function testDeletedResourceDoesNotHonorOrphanedGrant(): void
     {
         $projects = TableRegistry::getTableLocator()->get('Projects');
-        $project = $projects->newEntity(['user_id' => 1, 'name' => 'Temporary project']);
+        $project = $projects->newEntity(['name' => 'Temporary project']);
+        $project->set('user_id', 1);
         $projects->saveOrFail($project);
 
         $this->service->grant(1, 2, CapabilityService::CAP_READ, CapabilityService::RESOURCE_PROJECT, (int)$project->id);

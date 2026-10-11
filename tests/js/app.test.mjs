@@ -6,6 +6,7 @@ import {
     buildActivityUrl,
     buildCheatSheetCardUrl,
     buildLibrariesUrl,
+    buildLibraryMembersUrl,
     buildNotebooksUrl,
     buildProjectsUrl,
     buildReferenceCardBody,
@@ -308,6 +309,17 @@ test('Notebook and Library listings page at their client page sizes', () => {
     assert.equal(libraries.pathname, '/api/libraries');
     assert.equal(libraries.searchParams.get('page'), '3');
     assert.equal(libraries.searchParams.get('limit'), String(LIBRARY_PAGE_SIZE));
+});
+
+test('Library members are read from their own endpoint at the API page cap', () => {
+    const members = new URL(buildLibraryMembersUrl('7'), 'https://example.test');
+    assert.equal(members.pathname, '/api/libraries/7/members');
+    assert.equal(members.searchParams.get('page'), '1');
+    assert.equal(members.searchParams.get('limit'), String(SECTION_SOURCE_LIMIT));
+
+    for (const invalid of [0, -1, '1/../2', 'abc', null, undefined, 1.5]) {
+        assert.equal(buildLibraryMembersUrl(invalid), '');
+    }
 });
 
 test('Notebook and Library listings clamp pages and limits like Projects do', () => {

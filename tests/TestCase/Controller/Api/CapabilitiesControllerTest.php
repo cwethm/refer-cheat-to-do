@@ -88,7 +88,10 @@ class CapabilitiesControllerTest extends TestCase
     public function testListSupportsPagination(): void
     {
         $users = TableRegistry::getTableLocator()->get('Users');
-        $extra = $users->newEntity(['email' => 'fourth@example.com', 'password' => 'pw']);
+        $users->getConnection()->execute(
+            "SELECT setval(pg_get_serial_sequence('users', 'id'), COALESCE((SELECT MAX(id) FROM users), 1))",
+        );
+        $extra = $users->newEntity(['email' => 'fourth@example.com', 'password' => 'fourth-password']);
         $users->saveOrFail($extra);
 
         $this->service()->grant(1, 2, 'read', 'project', 200);

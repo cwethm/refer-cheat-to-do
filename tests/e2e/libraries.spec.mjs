@@ -27,10 +27,10 @@ async function cleanUp() {
     try {
         for (const libraryId of created.libraries) {
             // A Library with members is refused, so its members are removed first.
-            const response = await api.get(`/api/libraries/${libraryId}`);
+            const response = await api.get(`/api/libraries/${libraryId}/members?limit=100`);
             if (response.ok()) {
                 const { data } = await response.json();
-                for (const [type, members] of [['project', data.library.projects], ['notebook', data.library.notebooks]]) {
+                for (const [type, members] of [['project', data.projects], ['notebook', data.notebooks]]) {
                     for (const member of members ?? []) {
                         await api.delete(`/api/libraries/${libraryId}/members/${type}/${member.id}`);
                     }

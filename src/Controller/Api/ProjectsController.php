@@ -151,7 +151,8 @@ class ProjectsController extends AppController
         /** @var \App\Model\Entity\ProjectSection $section */
         $section = $sections->newEntity($data, ['fields' => ['name']]);
         $section->set('project_id', (int)$project->id);
-        if ($section->hasErrors()) {
+        // `position` is allocated under the parent lock below; only the client-supplied name can fail here.
+        if ($section->getError('name') !== []) {
             throw new ValidationException('Invalid section payload.');
         }
         $section = $sections->getConnection()->transactional(
