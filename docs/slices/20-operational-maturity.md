@@ -3,7 +3,7 @@
 ## Slice Contract
 
 ### Status
-PROPOSED
+IMPLEMENTED
 
 ### Goal
 Make the running system diagnosable and keep the dashboard fast as a user's data grows, without

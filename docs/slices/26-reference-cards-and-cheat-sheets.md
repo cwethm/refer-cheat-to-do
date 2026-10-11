@@ -139,3 +139,13 @@ through the API only.
   view and checks overflow at 320, 375, 768 and 1280 CSS pixels. Every browser spec passes except
   the pre-existing `collaboration.spec.mjs` "stale capability lookups" test, which fails in the
   same way without this slice's changes.
+
+The three baseline failures recorded above are resolved; see the verification and follow-up in
+[PR #32](https://github.com/cwethm/refer-cheat-to-do/pull/32). The existing PHPStan exclusion is
+scoped to `src/Console/Installer.php`, which remains used by Composer's `post-install-cmd`;
+Composer-runtime types need not become application dependencies. The debug bootstrap test now
+asserts that DebugKit is not loaded, matching the application and its dependencies. The stale
+capability test asserts the grant-description rows rather than the entire list (which also
+contains the Revoke button); the client's request-token guard already ignores older responses.
+PR #32 also scopes the Reference tag-picker test to its region so the Records tag picker cannot
+make its label ambiguous. No domain or authorization changes are required.

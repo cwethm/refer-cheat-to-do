@@ -396,7 +396,8 @@ test('tags classify cards and deleting a card needs confirmation', async ({ page
     await openReference(page);
 
     await page.getByRole('button', { name: 'Open Tagged card' }).click();
-    await page.getByLabel('Add a tag').selectOption({ label: 'reference-e2e' });
+    await page.getByRole('region', { name: 'Reference', exact: true })
+        .getByLabel('Add a tag').selectOption({ label: 'reference-e2e' });
     await page.getByRole('button', { name: 'Add tag' }).click();
     await expect(page.locator('#notice')).toHaveText('Tag added to the card.');
     await expect(page.locator('#reference-card-tags')).toContainText('reference-e2e');
