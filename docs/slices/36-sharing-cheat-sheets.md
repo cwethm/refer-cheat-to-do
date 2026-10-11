@@ -4,8 +4,9 @@
 
 ### Status
 PROPOSED — Phase F (`docs/intended-use.md`). The owner has confirmed that cheat sheets should be
-shareable with named people. This is the first slice in which one user's content is shown to another,
-so it **requires Slice 19 (accounts) and an ADR** before any implementation.
+shareable with named people. This is the first publication and card-sharing path; Slice 10 already
+allows cross-user Project and Notebook reads through grants. This slice **requires Slice 19 (accounts)
+and an ADR** before any implementation.
 
 ### Goal
 Let the owner give named people, who have accounts on the same installation, read-only access to a
@@ -27,7 +28,9 @@ The shape below is the leaning of the ADR (see Required decision), not a settled
 - **Sharing.** The owner shares a publication with a named user, chosen by the exact account
   identifier. A share is a flat capability grant (ADR 0002): `read`, on exactly that publication, for
   exactly that user. The owner sees who a publication is shared with and can revoke any share.
-  Self-sharing is rejected, in the application and by the database check from Slice 10.
+  Self-sharing is rejected, in the application and by the database check from Slice 10. Share lookup
+  rate limiting is designed and tested by this slice, not inherited from Slice 19's authentication
+  attempt limiter.
 - **Recipient view.** A **Shared with me** list and a read-only detail view showing the sheet, its
   cards, the version and date, and the owner's display name. Recipients cannot edit, copy into their
   own account, comment, suggest or re-share.
@@ -54,9 +57,9 @@ The shape below is the leaning of the ADR (see Required decision), not a settled
 
 ### Dependencies
 Slice 19 (accounts, invitation, password and session security: a named recipient must be able to have
-an account, and its rate limiting protects the share lookup), Slice 26 (cheat sheets), Slices 10 and 11
-(the capability model and `CapabilityService`, ADR 0002), 12 (activity), 21 (export), 17 (confirmation
-pattern). Slice 23 is a later consumer, not a dependency.
+an account), Slice 26 (cheat sheets), Slices 10 and 11 (the capability model and `CapabilityService`,
+ADR 0002), 12 (activity), 21 (export), 17 (confirmation pattern). This slice owns its separate
+share-lookup limiter and its tests. Slice 23 is a later consumer, not a dependency.
 
 ### Required decision (ADR)
 How a share reaches the cards on a sheet without breaking ADR 0002, which is flat and infers nothing.
@@ -81,15 +84,16 @@ one return an identical response (the leaning is yes, to avoid account enumerati
 - Publishing, sharing and revoking are owner-only. Reading is a `read` decision by
   `CapabilityService`, the single evaluation path, default deny. A non-grantee, a revoked grantee and a
   nonexistent publication all return `404`. No other capability is allowed by the grant.
-- **First cross-user rendering.** Every field of a publication is the owner's untrusted text shown to a
-  different user. It is returned as text and inserted with `textContent`, with hostile-content tests,
-  and it is the reason the no-HTML-sink rule matters more here than anywhere before.
+- **Publication and card-field surface.** Slice 10 already allows cross-user Project and Notebook
+  reads through explicit grants. This is the first publication snapshot of selected cheat-sheet/card
+  fields shown to another user. They remain untrusted text, returned as text and inserted with
+  `textContent`, with hostile-content tests.
 - **What is exposed is what the owner publishes.** Card text can mention third parties, and dialogue
   pattern fields (`avoid`, `rationale`) are the likeliest place for it. The preview, per-card
   exclusion and a plain warning are the controls. Parties, records, needs, decisions, links and
   backlinks are never included, and a test must show a publication contains none of them.
 - **Account enumeration and abuse.** The share lookup uses an exact identifier, returns identical
-  responses for unknown and unavailable accounts, and is rate limited (Slice 19).
+  responses for unknown and unavailable accounts, and is rate limited by this slice.
 - **Revocation and deletion.** Revoking takes effect on the next read. Deleting or unpublishing a sheet
   removes the publication and its grants in the same operation (cascade or `BEFORE DELETE` trigger), so
   no orphan grant can attach to a later row; the owner confirms that this removes shared copies.
@@ -110,7 +114,8 @@ one return an identical response (the leaning is yes, to avoid account enumerati
   - republish shows the grantee the new version and leaves the share valid; unpublish and sheet
     deletion remove the shares; excluded cards are absent;
   - a publication contains no link, backlink, tag, hub, bundle, party, record, need or decision data;
-  - unknown and unavailable identifiers produce identical responses, and the rate limit applies;
+  - unknown and unavailable identifiers produce identical responses, and this slice's separate share
+    lookup rate limit applies;
   - hostile content in every published field is returned as inert text;
   - activity entries for the owner; no recipient read events; export contains the owner's publications
     and shares and none of another user's.
@@ -121,8 +126,9 @@ one return an identical response (the leaning is yes, to avoid account enumerati
   `tests/js/client-security.test.mjs` passing.
 
 ### Risks
-- It is the first time one person's text is shown to another. Stored cross-user script injection and
-  mis-sharing are the two failures that matter, and the controls above are aimed at them.
+- The new cross-user exposure is the published snapshot of selected card fields, not cross-user
+  rendering itself: Slice 10 already permits granted Project and Notebook reads. Stored script
+  injection and mis-sharing remain the key failures, and the controls above address them.
 - A copy cannot be recalled. The client's honesty about that is the mitigation, not a guarantee.
 - Sharing invites a request for comments, editing and groups. Each is a different authority question and
   needs its own contract; none should be added here to satisfy a single use.

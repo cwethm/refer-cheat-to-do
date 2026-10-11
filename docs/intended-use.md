@@ -2,7 +2,7 @@
 
 ## Status
 
-**Product direction — governs post-MVP slices 26 onward.** Slices 1–25 were planned around a ToDo
+**Product direction — governs Phase F and all later phases.** Earlier slices were planned around a ToDo
 and information-continuity system. This document records how the owner actually intends to use the
 application day to day, and is the basis for the revisions in `docs/roadmap.md`.
 
@@ -15,7 +15,7 @@ rather than silently built.
 
 The owner takes part in conversations, events and community work on social issues and
 community solidarity. The application is the place to keep what that work depends on, so that
-the owner is **not straining to recall** it. It is used in five ways.
+the owner is **not straining to recall** it. It is used in six ways.
 
 ### 1. Look up: reference cards and cheat sheets
 
@@ -214,13 +214,17 @@ no outbound requests) is the right baseline. For the slices in this direction it
   the database were ever disclosed. Prefer a role or alias, and keep the detail in your head or on
   paper.
 - **Sharing is limited to published cheat sheets (Slice 36).** The owner wants cheat sheets shareable
-  with named people. That is the one exception to "private by default", it is read-only, it is for
-  people with accounts, and it comes with an ADR, a migration and denied-path tests under ADR 0002.
-  No other new record type receives a capability resource type, and nothing can be made public. A
-  published cheat sheet never contains links, people and organisations, records, needs or decisions.
-  It is the first time one user's text is shown to another, so hostile-content tests apply.
-- **No agent access by default.** Slice 24 must not give agents access to records, needs, or people
-  and organisations unless the owner grants it explicitly per resource, and must treat their content as untrusted input.
+  with named people. This is the one person-to-person sharing exception to "private by default": it is
+  read-only, for people with accounts, and requires an ADR, a migration and denied-path tests under
+  ADR 0002. No other new record type receives a person-to-person capability resource type, and nothing
+  can be made public. A publication contains only the selected cheat-sheet/card fields; Slice 10
+  already permits cross-user Project and Notebook reads through grants, so hostile-content tests cover
+  this new publication and card-field surface.
+- **No agent access by default.** Slice 24 uses individual resource grants: its ADR and migration must
+  represent an agent as a grant subject distinct from a user and add the needed resource kinds to ADR
+  0002's closed set. An agent may read a record, need, decision or party only when a `read` grant names
+  that exact resource. Neither a type-wide grant nor bundle membership authorizes those reads; content
+  remains untrusted input.
 - **Bundles are a disclosure unit.** A bundle exposes content to a device or file, so people and
   organisations, needs and records are excluded from an offline copy or package unless the owner
   explicitly allows it for that bundle (Slice 34).
@@ -289,8 +293,9 @@ with the single, reviewed exception of read-only reads by named grantees):
 
 ### Implications of the ordering choice (question 4)
 
-Slice 29 (recall practice) needs only Slice 26. Slices 30 and 31 (issues and needs) need Slice 28's
-links as well. Whichever comes first, the dependency chain 28 → 30 → 31 is unchanged.
+Slice 29 (recall practice) needs Slice 26 for its core; its optional issue-scoped sessions also need
+Slice 30. Slices 30 and 31 (issues and needs) need Slice 28's links as well. Whichever comes first,
+the dependency chain 28 → 30 → 31 is unchanged.
 
 **Recall practice first (29 before 30 and 31)**
 - Delivers earlier: the lookup-and-retain use is complete soon after the cards exist, and the
@@ -313,7 +318,8 @@ links as well. Whichever comes first, the dependency chain 28 → 30 → 31 is u
 
 The owner's aim is to enrich recommendations and contributions with broader perspective and detail,
 which fits the second order, so it is the one applied. It is reversible: slice numbers do not encode
-order, and moving Slice 29 earlier changes no dependency.
+order, but moving Slice 29 ahead of Slice 30 requires deferring its optional issue-scoped sessions
+until Slice 30 is available.
 
 ### What the needs reframing involves
 

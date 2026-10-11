@@ -30,7 +30,11 @@ broader perspective. Secondarily, make sure a need that is being acted on is not
   factors and how recently it was confirmed, newest-confirmed first, filterable by status, issue and
   tag. `met` and `closed` needs stay visible here, because what happened is also perspective.
 - A **Needs attention** list for needs with `open` or `in_progress` status, with deterministic,
-  explainable reason codes, ordered most urgent first:
+  explainable reason codes, ordered by this tuple:
+  `(highest-priority reason rank ASC, needed_by ASC NULLS LAST, last_confirmed_on ASC NULLS FIRST,
+  updated_at ASC, id ASC)`. A need's rank is the highest-priority (lowest-numbered) emitted reason,
+  with fixed precedence `needed_by_passed`, `needed_by_soon`, `not_confirmed_recently`, `no_movement`,
+  `no_follow_up`; all emitted codes are returned in that same precedence order:
   - `needed_by_soon` and `needed_by_passed`, against `needed_by`;
   - `not_confirmed_recently`, when `last_confirmed_on` is older than a documented number of days (or
     missing), because a need used as perspective must be current;

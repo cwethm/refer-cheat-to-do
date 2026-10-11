@@ -4,8 +4,9 @@
 
 ### Status
 PROPOSED — still not needed for single-owner use, but now a **prerequisite for Slice 36** (sharing
-cheat sheets with named people): a recipient must be able to have an account, and the rate limiting
-here protects the share lookup. It is scheduled immediately before Slice 36 in `docs/roadmap.md`.
+cheat sheets with named people): a recipient must be able to have an account. Its rate limiting covers
+authentication attempts; Slice 36 separately defines and tests rate limiting for share lookups. It is
+scheduled immediately before Slice 36 in `docs/roadmap.md`.
 
 ### Goal
 Replace operator-only account creation with a controlled account lifecycle, so the product can be
