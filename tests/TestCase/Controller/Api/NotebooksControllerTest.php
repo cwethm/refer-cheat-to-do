@@ -174,6 +174,18 @@ class NotebooksControllerTest extends TestCase
         $this->assertSame(400, (int)$section->notebook_id);
     }
 
+    public function testCreateSectionAcceptsNameOnlyPayload(): void
+    {
+        $this->authenticate();
+
+        $this->post('/api/notebooks/400/sections', ['name' => 'Later']);
+
+        $this->assertResponseCode(201);
+        $this->assertResponseContains('"position": 4');
+        $section = TableRegistry::getTableLocator()->get('NotebookSections')->find()->where(['name' => 'Later'])->firstOrFail();
+        $this->assertSame(400, (int)$section->notebook_id);
+    }
+
     public function testCreateSectionRejectsBlankName(): void
     {
         $this->authenticate();

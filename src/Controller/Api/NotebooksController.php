@@ -154,7 +154,8 @@ class NotebooksController extends AppController
         /** @var \App\Model\Entity\NotebookSection $section */
         $section = $sections->newEntity($data, ['fields' => ['name']]);
         $section->set('notebook_id', (int)$notebook->id);
-        if ($section->hasErrors()) {
+        // `position` is allocated under the parent lock below; only the client-supplied name can fail here.
+        if ($section->getError('name') !== []) {
             throw new ValidationException('Invalid section payload.');
         }
         $section = $sections->getConnection()->transactional(

@@ -174,6 +174,18 @@ class ProjectsControllerTest extends TestCase
         $this->assertSame(200, (int)$section->project_id);
     }
 
+    public function testCreateSectionAcceptsNameOnlyPayload(): void
+    {
+        $this->authenticate();
+
+        $this->post('/api/projects/200/sections', ['name' => 'Later']);
+
+        $this->assertResponseCode(201);
+        $this->assertResponseContains('"position": 4');
+        $section = TableRegistry::getTableLocator()->get('ProjectSections')->find()->where(['name' => 'Later'])->firstOrFail();
+        $this->assertSame(200, (int)$section->project_id);
+    }
+
     public function testCreateSectionRejectsBlankName(): void
     {
         $this->authenticate();
