@@ -69,8 +69,8 @@ test('the workspace supports capture, tagging, filtering, paging and review', as
     await expect(workspace).toBeHidden();
 
     // 2. Signing in reveals the workspace with real dashboard counts.
-    await page.getByLabel('Email').fill(account.email);
-    await page.getByLabel('Password').fill(account.password);
+    await page.getByLabel('Email', { exact: true }).fill(account.email);
+    await page.getByLabel('Password', { exact: true }).fill(account.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     await expect(workspace).toBeVisible();

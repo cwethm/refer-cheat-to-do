@@ -4,12 +4,14 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Controller\Api;
 
 use App\Service\DataPortabilityService;
+use App\Test\TestCase\SignedInSessionTrait;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 
 class ExportsControllerTest extends TestCase
 {
     use IntegrationTestTrait;
+    use SignedInSessionTrait;
 
     /**
      * @var list<string>
@@ -42,7 +44,7 @@ class ExportsControllerTest extends TestCase
 
     public function testDownloadIsPrivateAndCannotSelectAnotherUser(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->get('/api/export?user_id=2');
 
         $this->assertResponseOk();

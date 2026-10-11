@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Controller\Api;
 
+use App\Test\TestCase\SignedInSessionTrait;
 use Cake\Database\Exception\QueryException;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
@@ -12,6 +13,7 @@ use Cake\TestSuite\TestCase;
 class TodosControllerTest extends TestCase
 {
     use IntegrationTestTrait;
+    use SignedInSessionTrait;
 
     /**
      * @var list<string>
@@ -31,7 +33,7 @@ class TodosControllerTest extends TestCase
 
     public function testListReturnsOnlyCurrentUserTodos(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -47,7 +49,7 @@ class TodosControllerTest extends TestCase
 
     public function testInboxFilterReturnsOnlyInboxTodos(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -61,7 +63,7 @@ class TodosControllerTest extends TestCase
 
     public function testTextSearchReturnsMatchingTodos(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -75,7 +77,7 @@ class TodosControllerTest extends TestCase
 
     public function testTagFilterReturnsMatchingOwnedTodos(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -89,7 +91,7 @@ class TodosControllerTest extends TestCase
 
     public function testListRejectsInvalidStatusFilter(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -102,7 +104,7 @@ class TodosControllerTest extends TestCase
 
     public function testListRejectsInvalidTagFilter(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -115,7 +117,7 @@ class TodosControllerTest extends TestCase
 
     public function testCreateTodoAssignsCurrentUser(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -138,7 +140,7 @@ class TodosControllerTest extends TestCase
 
     public function testCreateRejectsMissingTitle(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -154,7 +156,7 @@ class TodosControllerTest extends TestCase
 
     public function testViewRejectsCrossUserAccess(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -167,7 +169,7 @@ class TodosControllerTest extends TestCase
 
     public function testViewIncludesAttachedTagsInTodoPayload(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -182,7 +184,7 @@ class TodosControllerTest extends TestCase
 
     public function testEditUpdatesAllowedFields(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -204,7 +206,7 @@ class TodosControllerTest extends TestCase
 
     public function testEditUnknownTodoReturnsNotFound(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -219,7 +221,7 @@ class TodosControllerTest extends TestCase
 
     public function testAttachTagCreatesTodoTagRelationship(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -235,7 +237,7 @@ class TodosControllerTest extends TestCase
 
     public function testListIncludesAttachedTagsInTodoPayload(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -268,7 +270,7 @@ class TodosControllerTest extends TestCase
 
     public function testAttachTagRejectsDuplicateRelationship(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -281,7 +283,7 @@ class TodosControllerTest extends TestCase
 
     public function testAttachTagRejectsSecondAttachAttempt(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -296,7 +298,7 @@ class TodosControllerTest extends TestCase
 
     public function testAttachTagRejectsCrossUserTag(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -309,7 +311,7 @@ class TodosControllerTest extends TestCase
 
     public function testDetachTagDeletesTodoTagRelationship(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -325,7 +327,7 @@ class TodosControllerTest extends TestCase
 
     public function testCreateResponseIncludesTagsCollection(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -338,7 +340,7 @@ class TodosControllerTest extends TestCase
 
     public function testEditResponseIncludesAttachedTags(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -353,7 +355,7 @@ class TodosControllerTest extends TestCase
 
     public function testWhitespaceOnlySearchAppliesNoTextFilter(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -368,7 +370,7 @@ class TodosControllerTest extends TestCase
 
     public function testEmptySearchAppliesNoTextFilter(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -382,7 +384,7 @@ class TodosControllerTest extends TestCase
 
     public function testSearchEscapesWildcardCharacters(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -396,7 +398,7 @@ class TodosControllerTest extends TestCase
 
     public function testCombinedTagAndStatusAndTextFilters(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -410,7 +412,7 @@ class TodosControllerTest extends TestCase
 
     public function testCrossUserTagFilterReturnsNoResults(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -424,7 +426,7 @@ class TodosControllerTest extends TestCase
 
     public function testNotesSearchReturnsMatchingTodos(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -438,7 +440,7 @@ class TodosControllerTest extends TestCase
 
     public function testListRejectsInvalidPagination(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -451,7 +453,7 @@ class TodosControllerTest extends TestCase
 
     public function testListOrderingIsDeterministicallyDescendingById(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -468,7 +470,7 @@ class TodosControllerTest extends TestCase
 
     public function testViewRejectsMalformedId(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -481,7 +483,7 @@ class TodosControllerTest extends TestCase
 
     public function testAttachTagRejectsUnknownTag(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -493,7 +495,7 @@ class TodosControllerTest extends TestCase
 
     public function testAttachTagRejectsCrossUserTodo(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -505,7 +507,7 @@ class TodosControllerTest extends TestCase
 
     public function testDeletingTagRemovesOnlyTheRelationship(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -522,7 +524,7 @@ class TodosControllerTest extends TestCase
 
     public function testCreateRejectsMalformedJsonBody(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => [
                 'Accept' => 'application/json',
@@ -538,7 +540,7 @@ class TodosControllerTest extends TestCase
 
     public function testAssignTodoToOwnedSection(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -559,7 +561,7 @@ class TodosControllerTest extends TestCase
         $todo->set('project_section_id', 300);
         $todos->saveOrFail($todo);
 
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -577,7 +579,7 @@ class TodosControllerTest extends TestCase
         $todo->set('project_section_id', 300);
         $todos->saveOrFail($todo);
 
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -591,7 +593,7 @@ class TodosControllerTest extends TestCase
 
     public function testAssignRejectsCrossUserSection(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -606,7 +608,7 @@ class TodosControllerTest extends TestCase
 
     public function testAssignRejectsInvalidSectionValue(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -623,7 +625,7 @@ class TodosControllerTest extends TestCase
         $todo->set('project_section_id', 300);
         $todos->saveOrFail($todo);
 
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -644,7 +646,7 @@ class TodosControllerTest extends TestCase
             $todos->saveOrFail($todo);
         }
 
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -658,7 +660,7 @@ class TodosControllerTest extends TestCase
 
     public function testCrossUserProjectFilterReturnsNoResults(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -671,7 +673,7 @@ class TodosControllerTest extends TestCase
 
     public function testListRejectsInvalidProjectFilter(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -683,7 +685,7 @@ class TodosControllerTest extends TestCase
 
     public function testUnassignedTodosRemainListedWithoutProjectFilter(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -696,7 +698,7 @@ class TodosControllerTest extends TestCase
 
     public function testAssignTodoToOwnedNotebookSection(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -712,7 +714,7 @@ class TodosControllerTest extends TestCase
 
     public function testAssignRejectsCrossUserNotebookSection(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -729,7 +731,7 @@ class TodosControllerTest extends TestCase
         $todo->set('project_section_id', 300);
         $todos->saveOrFail($todo);
 
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -749,7 +751,7 @@ class TodosControllerTest extends TestCase
         $todo->set('project_section_id', 300);
         $todos->saveOrFail($todo);
 
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -783,7 +785,7 @@ class TodosControllerTest extends TestCase
         $todo->set('notebook_section_id', 500);
         $todos->saveOrFail($todo);
 
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -802,7 +804,7 @@ class TodosControllerTest extends TestCase
         $todo->set('notebook_section_id', 500);
         $todos->saveOrFail($todo);
 
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -815,7 +817,7 @@ class TodosControllerTest extends TestCase
 
     public function testCrossUserNotebookFilterReturnsNoResults(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -828,7 +830,7 @@ class TodosControllerTest extends TestCase
 
     private function authenticatedJsonRequest(int $userId = 1): void
     {
-        $this->session(['Auth.user_id' => $userId]);
+        $this->signIn($userId);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json', 'Content-Type' => 'application/json'],
         ]);

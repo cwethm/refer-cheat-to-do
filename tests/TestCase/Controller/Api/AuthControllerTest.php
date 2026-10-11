@@ -3,12 +3,14 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Controller\Api;
 
+use App\Test\TestCase\SignedInSessionTrait;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 
 class AuthControllerTest extends TestCase
 {
     use IntegrationTestTrait;
+    use SignedInSessionTrait;
 
     /**
      * @var list<string>
@@ -16,6 +18,7 @@ class AuthControllerTest extends TestCase
     protected array $fixtures = [
         'app.Users',
         'app.ActivityRecords',
+        'app.RateLimitHits',
     ];
 
     public function testLoginSucceedsWithValidCredentials(): void
@@ -67,7 +70,7 @@ class AuthControllerTest extends TestCase
 
     public function testMeReturnsCurrentAuthenticatedUser(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -93,7 +96,7 @@ class AuthControllerTest extends TestCase
 
     public function testLogoutInvalidatesSession(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);

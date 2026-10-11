@@ -1,8 +1,8 @@
 /**
  * One-time preparation for the browser-level smoke test.
  *
- * Resets the dedicated end-to-end database, creates the account with the same console
- * command operators use, and seeds more ToDos than fit on a single client page so the
+ * Starts the local mailbox, resets the dedicated end-to-end database, creates the account with
+ * the same console command operators use, and seeds more ToDos than fit on a single client page so the
  * pagination step of the smoke test has something to page through.
  */
 import { execFile } from 'node:child_process';
@@ -18,6 +18,7 @@ import {
     seededTodoCount,
     soloAccount,
 } from './environment.mjs';
+import { startMailbox } from './mailbox.mjs';
 
 const run = promisify(execFile);
 
@@ -31,7 +32,7 @@ export function seededTitle(index) {
     return `${SEEDED_TITLE_PREFIX} ${String(index).padStart(3, '0')}`;
 }
 
-async function psql(databaseName, statement) {
+export async function psql(databaseName, statement) {
     await run('psql', [
         '-h', database.host,
         '-p', String(database.port),
@@ -42,7 +43,7 @@ async function psql(databaseName, statement) {
     ], { env: { ...process.env, PGPASSWORD: database.password } });
 }
 
-async function cake(args) {
+export async function cake(args) {
     await run('bin/cake', args, { cwd: repositoryRoot, env: applicationEnv() });
 }
 
@@ -122,6 +123,8 @@ async function seedTodos() {
 }
 
 export default async function globalSetup() {
+    // Invitation and reset messages are delivered here; the returned function stops it.
+    const stopMailbox = await startMailbox();
     await resetDatabase();
     await cake(['set_user_password', account.email, '--create', '--password', account.password]);
     // Created but never acted as, so the activity history has an observable empty state.
@@ -149,4 +152,6 @@ export default async function globalSetup() {
     ]);
     await waitForServer();
     await seedTodos();
+
+    return stopMailbox;
 }

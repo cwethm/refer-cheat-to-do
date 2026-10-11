@@ -108,3 +108,18 @@ Deployment verification must change asset bytes while preserving timestamps, the
 new bytes reach a browser with a warm cache, including imported modules. For hashed releases,
 verify that changed bytes yield new URLs, unchanged assets remain reusable, and rollback restores
 a matching manifest and asset graph.
+
+## Sessions and account links (Slice 19)
+
+A session is valid only while it carries the account's current `credential_version` and was
+created less than `Accounts.sessionLifetime` ago; otherwise `AppController::requireUserId()`
+destroys it and answers `401`. Sign-in and password change regenerate the session id through
+`AppController::startAuthenticatedSession()`; any password change advances the version, which
+ends every other session. Tests sign in with `SignedInSessionTrait::signIn()` rather than writing
+`Auth.user_id` alone.
+
+Invitation and reset tokens are stored only as SHA-256 hashes in `account_tokens` and delivered in
+the URL fragment of a link built from `App.fullBaseUrl`. Rate limits are counted in
+`rate_limit_hits` under HMAC-hashed keys and configured in `RateLimit.*`; a full bucket answers
+`429` with `Retry-After` and the error code `TOO_MANY_REQUESTS`. See
+`docs/slices/19-account-lifecycle-and-session-security.md` for the full contract and decisions.

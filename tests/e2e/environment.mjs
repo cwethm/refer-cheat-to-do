@@ -5,6 +5,8 @@
  * drop and reseed freely. It must never point at the `default` or PHPUnit `test`
  * connection, because fixture teardown there would race with a running browser.
  */
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url));
@@ -51,6 +53,16 @@ export const collaboratorAccount = {
  */
 export const seededTodoCount = Number(process.env.E2E_SEED_TODOS ?? 55);
 
+/**
+ * The local SMTP sink that receives invitation and reset messages during the browser run.
+ * It must be known before Playwright starts the web server, so its port is fixed.
+ */
+export const mailbox = {
+    host: '127.0.0.1',
+    port: Number(process.env.E2E_SMTP_PORT ?? 8766),
+    directory: process.env.E2E_MAILBOX_DIR ?? join(tmpdir(), 'refer-cheat-to-do-e2e-mailbox'),
+};
+
 export const database = {
     host: process.env.E2E_DB_HOST ?? process.env.DB_HOST ?? '127.0.0.1',
     port: process.env.E2E_DB_PORT ?? process.env.DB_PORT ?? '5432',
@@ -79,5 +91,7 @@ export function applicationEnv() {
         DB_DATABASE: database.name,
         DB_USERNAME: database.username,
         DB_PASSWORD: database.password,
+        EMAIL_TRANSPORT_DEFAULT_URL: `smtp://${mailbox.host}:${mailbox.port}`,
+        EMAIL_FROM: 'noreply@example.test',
     };
 }

@@ -31,7 +31,7 @@ class DataPortabilityServiceTest extends TestCase
         'app.LibrariesProjects', 'app.LibrariesNotebooks', 'app.CapabilityGrants',
         'app.CrossContextRequests', 'app.ActivityRecords', 'app.ResearchCollections',
         'app.ResearchCollectionItems', 'app.ReferenceCards', 'app.ReferenceCardsTags', 'app.CheatSheets',
-        'app.CheatSheetsReferenceCards',
+        'app.CheatSheetsReferenceCards', 'app.Records', 'app.RecordsTags',
     ];
 
     /**
@@ -162,6 +162,117 @@ class DataPortabilityServiceTest extends TestCase
             try {
                 $this->service()->restore(3, $stream);
                 $this->fail("Invalid reference card case $index was accepted.");
+            } catch (DomainException) {
+                $this->assertSame(
+                    [['schema' => DataPortabilityService::SCHEMA], ['end' => true, 'records' => 0]],
+                    $this->exported(3),
+                );
+            } finally {
+                fclose($stream);
+            }
+        }
+    }
+
+    public function testRecordsAndTheirOwnTagJoinsAreExportedAndRestored(): void
+    {
+        $this->connection()->execute('INSERT INTO records_tags (record_id, tag_id) VALUES (1200, 102)');
+        (new ActivityRecorder(TableRegistry::getTableLocator()))->record(
+            1,
+            'record.updated',
+            'record',
+            1201,
+            ['fields' => ['kind', 'occurred_at', 'participants', 'location', 'details']],
+        );
+        (new ActivityRecorder(TableRegistry::getTableLocator()))->record(
+            1,
+            'record.tag_attached',
+            'record',
+            1200,
+            ['tag_id' => 100],
+        );
+        $records = $this->exported();
+
+        $this->assertSame([1200, 1201], array_column($this->ofType($records, 'records'), 'id'));
+        $this->assertSame([['record_id' => 1200, 'tag_id' => 100]], $this->ofType($records, 'records_tags'));
+        $this->assertSame('2026-03-02 18:30:00', $this->ofType($records, 'records')[1]['occurred_at']);
+        $this->assertSame('Community hall', $this->ofType($records, 'records')[1]['location']);
+        $this->assertSame([1202], array_column($this->ofType($this->exported(2), 'records'), 'id'));
+        $this->assertStringNotContainsString('Private to user two', json_encode($records, JSON_THROW_ON_ERROR));
+        $history = $this->ofType($records, 'activity_records');
+        $this->assertSame(
+            ['fields' => ['kind', 'occurred_at', 'participants', 'location', 'details']],
+            json_decode($history[0]['metadata'], true),
+        );
+        $this->assertSame(1201, $history[0]['subject_id']);
+
+        $stream = $this->encoded($records);
+        try {
+            $this->service()->restore(3, $stream);
+        } finally {
+            fclose($stream);
+        }
+        $restored = $this->connection()->execute(
+            'SELECT id, kind, title, occurred_at, participants, location, summary, details '
+            . 'FROM records WHERE user_id=3 ORDER BY occurred_at',
+        )->fetchAll('assoc');
+        $this->assertSame(['Roadmap check-in', 'Accessibility meetup'], array_column($restored, 'title'));
+        $this->assertSame(['discussion', 'event'], array_column($restored, 'kind'));
+        $this->assertSame('2026-03-02 18:30:00', $restored[1]['occurred_at']);
+        $this->assertSame('Team lead (TL), me', $restored[0]['participants']);
+        $tags = $this->connection()->execute(
+            'SELECT t.name FROM records_tags rt JOIN tags t ON t.id = rt.tag_id WHERE rt.record_id = ?',
+            [$restored[0]['id']],
+        )->fetchAll('assoc');
+        $this->assertSame([['name' => 'Important']], $tags);
+        $subjects = $this->connection()->execute(
+            "SELECT subject_id FROM activity_records WHERE actor_user_id=3 AND subject_type='record' ORDER BY id",
+        )->fetchAll('assoc');
+        $this->assertSame([(int)$restored[1]['id'], (int)$restored[0]['id']], array_map('intval', array_column($subjects, 'subject_id')));
+    }
+
+    public function testLargeRecordDetailsChunkAndRestore(): void
+    {
+        $details = str_repeat('é', 32768);
+        $this->connection()->execute('UPDATE records SET details=? WHERE id=1200', [$details]);
+        $records = $this->exported();
+        $this->assertSame(['chunks' => 32768], $this->ofType($records, 'records')[0]['details']);
+        $stream = $this->encoded($records);
+        try {
+            $this->service()->restore(3, $stream);
+        } finally {
+            fclose($stream);
+        }
+        $restored = $this->connection()->execute(
+            "SELECT details FROM records WHERE user_id=3 AND title='Roadmap check-in'",
+        )->fetch('assoc');
+        $this->assertSame($details, $restored['details']);
+    }
+
+    public function testInvalidRecordsAreRejected(): void
+    {
+        $original = $this->exported();
+        $mutations = [
+            static fn(array &$data) => $data['kind'] = 'decision',
+            static fn(array &$data) => $data['location'] = 'Only for events',
+            static fn(array &$data) => $data['details'] = str_repeat('d', 65537),
+            static fn(array &$data) => $data['participants'] = str_repeat('p', 2001),
+            static fn(array &$data) => $data['occurred_at'] = '2026-02-30 10:00:00',
+            static fn(array &$data) => $data['occurred_at'] = null,
+            static fn(array &$data) => $data['title'] = '   ',
+            static fn(array &$data) => $data['user_id'] = 2,
+        ];
+        foreach ($mutations as $index => $mutate) {
+            $bad = $original;
+            foreach ($bad as &$row) {
+                if (($row['type'] ?? null) === 'records' && $row['data']['id'] === 1200) {
+                    $mutate($row['data']);
+                }
+            }
+            unset($row);
+            $stream = $this->encoded($bad);
+            try {
+                $this->service()->restore(3, $stream);
+                $this->fail("Invalid record case $index was accepted.");
             } catch (DomainException) {
                 $this->assertSame(
                     [['schema' => DataPortabilityService::SCHEMA], ['end' => true, 'records' => 0]],
@@ -333,7 +444,7 @@ class DataPortabilityServiceTest extends TestCase
             'tags' => 2, 'todos' => 3, 'todos_tags' => 2, 'related_todos' => 1,
             'libraries_projects' => 1, 'libraries_notebooks' => 1, 'activity_records' => 4,
             'reference_cards' => 2, 'cheat_sheets' => 1, 'reference_cards_tags' => 1,
-            'cheat_sheets_reference_cards' => 2,
+            'cheat_sheets_reference_cards' => 2, 'records' => 2, 'records_tags' => 1,
         ];
         foreach ($expected as $type => $count) {
             $this->assertCount($count, $this->ofType($records, $type), $type);
@@ -425,6 +536,7 @@ class DataPortabilityServiceTest extends TestCase
             'project_section_id' => 'project_sections', 'notebook_section_id' => 'notebook_sections',
             'parent_todo_id' => 'todos', 'research_collection_id' => 'research_collections',
             'reference_card_id' => 'reference_cards', 'cheat_sheet_id' => 'cheat_sheets',
+            'record_id' => 'records',
         ];
         foreach ($source as $index => $row) {
             if (!isset($row['type'])) {
@@ -864,7 +976,7 @@ class DataPortabilityServiceTest extends TestCase
             'DELETE FROM research_collection_items WHERE research_collection_id IN '
             . '(SELECT id FROM research_collections WHERE user_id=3)',
         );
-        foreach (['reference_cards', 'cheat_sheets', 'projects', 'notebooks', 'libraries', 'tags'] as $type) {
+        foreach (['reference_cards', 'cheat_sheets', 'records', 'projects', 'notebooks', 'libraries', 'tags'] as $type) {
             $this->connection()->execute("DELETE FROM $type WHERE user_id=3");
         }
         $this->connection()->execute('DELETE FROM research_collections WHERE user_id=3');

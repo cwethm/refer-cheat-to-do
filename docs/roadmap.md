@@ -25,8 +25,8 @@ The first post-MVP slice, **14 — Client-facing daily workflow**, is **APPROVED
 same-origin client at `/app` for the completed API without adding domain features or changing API
 authorization; see `docs/slices/14-client-facing-daily-workflow.md`.
 
-Slices 14–18 and 20–22 are delivered; Slice 19 (account lifecycle) is still PROPOSED; it is not needed
-for single-owner use but is a prerequisite of sharing cheat sheets (Slice 36). The owner's description of how the application will actually be used —
+Slices 14–22 are delivered. Slice 19 (account lifecycle) was built ahead of its Phase F position
+because it is a prerequisite of sharing cheat sheets (Slice 36). The owner's description of how the application will actually be used —
 reference cards and cheat sheets, records of discussions and events, planning and strategic thinking,
 and organising material around social issues and community solidarity needs — is recorded in
 `docs/intended-use.md`. It shows that the system so far covers tasks, projects and gathered source
@@ -76,9 +76,9 @@ Each follows the Slice 14 rule: no new domain rules, no new endpoints, no new au
 ### Phase D — Account and operations maturity
 
 19. Account lifecycle and session security (invitation, password change and reset, rate limiting) —
-    **PROPOSED**, not started. Accounts are still created with `bin/cake set_user_password`. The owner
-    wants cheat sheets shared with named people, so it is now a prerequisite of Slice 36 and is
-    scheduled inside Phase F, immediately before it (see `docs/intended-use.md`).
+    **IMPLEMENTED**; see `docs/slices/19-account-lifecycle-and-session-security.md`. Accounts can be
+    created by invitation; `bin/cake set_user_password` remains the operator recovery path. It is
+    the prerequisite of Slice 36.
 20. Operational maturity (dashboard query performance, structured logging, observability) —
     **IMPLEMENTED**; see `docs/application-design.md` (the contract's status line still reads
     PROPOSED)
@@ -120,8 +120,8 @@ after the list.
     `docs/slices/35-offline-access.md`
 29. Recall practice for reference cards — **PROPOSED**; see
     `docs/slices/29-recall-practice-for-reference-cards.md`
-19. Account lifecycle and session security — the Phase D slice above, built here as the prerequisite
-    of Slice 36; see `docs/slices/19-account-lifecycle-and-session-security.md`
+19. Account lifecycle and session security — the Phase D slice above, the prerequisite of Slice 36 —
+    **IMPLEMENTED**; see `docs/slices/19-account-lifecycle-and-session-security.md`
 36. Sharing cheat sheets with named people — **PROPOSED**; needs Slice 19 and an ADR first; see
     `docs/slices/36-sharing-cheat-sheets.md`
 

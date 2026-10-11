@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Controller\Api;
 
+use App\Test\TestCase\SignedInSessionTrait;
 use Cake\Database\Exception\QueryException;
 use Cake\Http\Middleware\CsrfProtectionMiddleware;
 use Cake\ORM\TableRegistry;
@@ -12,6 +13,7 @@ use Cake\TestSuite\TestCase;
 class ReferenceCardsControllerTest extends TestCase
 {
     use IntegrationTestTrait;
+    use SignedInSessionTrait;
 
     private string $csrfToken;
 
@@ -51,7 +53,7 @@ class ReferenceCardsControllerTest extends TestCase
 
     private function authenticate(int $userId = 1): void
     {
-        $this->session(['Auth.user_id' => $userId]);
+        $this->signIn($userId);
         $this->configRequest(['headers' => $this->csrfHeaders()]);
     }
 

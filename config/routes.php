@@ -17,6 +17,23 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/auth/login', ['controller' => 'Auth', 'action' => 'login', '_method' => 'POST']);
         $builder->connect('/auth/logout', ['controller' => 'Auth', 'action' => 'logout', '_method' => 'POST']);
         $builder->connect('/auth/me', ['controller' => 'Auth', 'action' => 'me', '_method' => 'GET']);
+        $builder->connect(
+            '/auth/password',
+            ['controller' => 'Auth', 'action' => 'changePassword', '_method' => 'POST'],
+        );
+        $builder->connect(
+            '/auth/password-reset',
+            ['controller' => 'Auth', 'action' => 'requestPasswordReset', '_method' => 'POST'],
+        );
+        $builder->connect(
+            '/auth/password-reset/complete',
+            ['controller' => 'Auth', 'action' => 'completePasswordReset', '_method' => 'POST'],
+        );
+        $builder->connect('/invitations', ['controller' => 'Invitations', 'action' => 'add', '_method' => 'POST']);
+        $builder->connect(
+            '/invitations/accept',
+            ['controller' => 'Invitations', 'action' => 'accept', '_method' => 'POST'],
+        );
         $builder->connect('/export', ['controller' => 'Exports', 'action' => 'download', '_method' => 'GET']);
 
         $builder->connect('/todos', ['controller' => 'Todos', 'action' => 'index', '_method' => 'GET']);
@@ -317,6 +334,39 @@ return function (RouteBuilder $routes): void {
         $builder->connect(
             '/reference-cards/{id}/tags/{tagId}',
             ['controller' => 'ReferenceCards', 'action' => 'detachTag', '_method' => 'DELETE'],
+            ['pass' => ['id', 'tagId'], 'id' => '\d+', 'tagId' => '\d+'],
+        );
+        $builder->connect(
+            '/records',
+            ['controller' => 'Records', 'action' => 'index', '_method' => 'GET'],
+        );
+        $builder->connect(
+            '/records',
+            ['controller' => 'Records', 'action' => 'add', '_method' => 'POST'],
+        );
+        $builder->connect(
+            '/records/{id}',
+            ['controller' => 'Records', 'action' => 'view', '_method' => 'GET'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/records/{id}',
+            ['controller' => 'Records', 'action' => 'edit', '_method' => 'PATCH'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/records/{id}',
+            ['controller' => 'Records', 'action' => 'delete', '_method' => 'DELETE'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/records/{id}/tags/{tagId}',
+            ['controller' => 'Records', 'action' => 'attachTag', '_method' => 'POST'],
+            ['pass' => ['id', 'tagId'], 'id' => '\d+', 'tagId' => '\d+'],
+        );
+        $builder->connect(
+            '/records/{id}/tags/{tagId}',
+            ['controller' => 'Records', 'action' => 'detachTag', '_method' => 'DELETE'],
             ['pass' => ['id', 'tagId'], 'id' => '\d+', 'tagId' => '\d+'],
         );
         $builder->connect(

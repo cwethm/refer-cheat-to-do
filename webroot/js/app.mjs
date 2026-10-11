@@ -151,6 +151,144 @@ export function labelForCardType(type) {
         : 'Reference card';
 }
 
+export const TIMELINE_PAGE_SIZE = 20;
+
+/**
+ * Kinds of discussion and event record, mirroring the closed set the server enforces.
+ */
+export const TIMELINE_KINDS = {
+    discussion: 'Discussion',
+    event: 'Event',
+};
+
+export function labelForTimelineKind(kind) {
+    return typeof kind === 'string' && Object.hasOwn(TIMELINE_KINDS, kind) ? TIMELINE_KINDS[kind] : 'Record';
+}
+
+const pad = (value, length = 2) => String(value).padStart(length, '0');
+
+/**
+ * Convert a `datetime-local` value, read in the reader's own timezone, to an ISO 8601 UTC
+ * timestamp the API accepts. Anything that is not such a value yields `null`.
+ */
+export function localDateTimeToIso(value) {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/.test(value)) {
+        return null;
+    }
+    const moment = new Date(value);
+
+    return Number.isNaN(moment.getTime()) ? null : moment.toISOString();
+}
+
+/**
+ * Show a stored timestamp in a `datetime-local` field, in the reader's own timezone.
+ */
+export function isoToLocalDateTimeInput(value) {
+    const moment = typeof value === 'string' && value !== '' ? new Date(value) : null;
+    if (moment === null || Number.isNaN(moment.getTime())) {
+        return '';
+    }
+
+    return `${pad(moment.getFullYear(), 4)}-${pad(moment.getMonth() + 1)}-${pad(moment.getDate())}`
+        + `T${pad(moment.getHours())}:${pad(moment.getMinutes())}`;
+}
+
+/**
+ * When a record happened, in the reader's own timezone, without depending on their locale.
+ */
+export function formatTimelineTime(value) {
+    const local = isoToLocalDateTimeInput(value);
+
+    return local === '' ? '' : local.replace('T', ' ');
+}
+
+/**
+ * The first or last moment of a calendar day in the reader's own timezone, as an ISO timestamp,
+ * so a date-range filter matches the days the timeline displays.
+ */
+export function localDayBoundIso(value, endOfDay = false) {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return null;
+    }
+    const [year, month, day] = value.split('-').map(Number);
+    const moment = endOfDay
+        ? new Date(year, month - 1, day, 23, 59, 59)
+        : new Date(year, month - 1, day, 0, 0, 0);
+    if (Number.isNaN(moment.getTime()) || moment.getDate() !== day || moment.getMonth() !== month - 1) {
+        return null;
+    }
+    moment.setFullYear(year);
+
+    return moment.toISOString().replace('.000Z', 'Z');
+}
+
+/**
+ * Build the timeline URL. Unknown kinds, malformed ids and dates are dropped rather than sent,
+ * and the search text is trimmed and bounded to what the API accepts.
+ */
+export function buildTimelineUrl({ query = '', kind = '', tagId = '', from = '', to = '', page = 1 } = {}) {
+    const requestedPage = Number(page);
+    const safePage = Number.isFinite(requestedPage) ? Math.max(1, Math.trunc(requestedPage)) : 1;
+    const params = new URLSearchParams({ page: String(safePage), limit: String(TIMELINE_PAGE_SIZE) });
+    const cleanQuery = Array.from(String(query ?? '').trim()).slice(0, REFERENCE_SEARCH_MAX_CHARS).join('').trim();
+
+    if (cleanQuery) {
+        params.set('q', cleanQuery);
+    }
+    if (typeof kind === 'string' && Object.hasOwn(TIMELINE_KINDS, kind)) {
+        params.set('kind', kind);
+    }
+    if (isValidId(tagId)) {
+        params.set('tag', String(Number(tagId)));
+    }
+    const fromIso = localDayBoundIso(from);
+    if (fromIso !== null) {
+        params.set('from', fromIso);
+    }
+    const toIso = localDayBoundIso(to, true);
+    if (toIso !== null) {
+        params.set('to', toIso);
+    }
+
+    return `/api/records?${params.toString()}`;
+}
+
+/**
+ * Whether a chosen date range runs backwards; such a range would match nothing.
+ */
+export function isReversedDateRange(from, to) {
+    const start = localDayBoundIso(from);
+    const end = localDayBoundIso(to, true);
+
+    return start !== null && end !== null && start > end;
+}
+
+/**
+ * Build a create or update payload from the record form. Blank optional text is sent as `null`,
+ * only an event keeps a location, and a blank time is left out so the server keeps the stored
+ * time on an edit and uses now on a create.
+ */
+export function buildTimelineRecordBody(values = {}) {
+    const kind = typeof values.kind === 'string' && Object.hasOwn(TIMELINE_KINDS, values.kind)
+        ? values.kind
+        : 'discussion';
+    const optional = (value) => (typeof value === 'string' && value.trim() !== '' ? value : null);
+    const body = {
+        kind,
+        title: typeof values.title === 'string' ? values.title.trim() : '',
+        participants: optional(values.participants),
+        location: kind === 'event' ? optional(values.location) : null,
+        summary: optional(values.summary),
+        details: optional(values.details),
+    };
+    const occurredAt = localDateTimeToIso(values.occurred_at);
+    if (occurredAt !== null) {
+        body.occurred_at = occurredAt;
+    }
+
+    return body;
+}
+
 /**
  * Build a cheat sheet's card-membership URL; malformed ids yield no URL at all.
  */
@@ -266,6 +404,11 @@ const ACTIVITY_ACTION_LABELS = {
     'reference_card.deleted': 'Deleted a reference card',
     'reference_card.tag_attached': 'Added a tag to a reference card',
     'reference_card.tag_detached': 'Removed a tag from a reference card',
+    'record.created': 'Created a record',
+    'record.updated': 'Updated a record',
+    'record.deleted': 'Deleted a record',
+    'record.tag_attached': 'Added a tag to a record',
+    'record.tag_detached': 'Removed a tag from a record',
     'cheat_sheet.created': 'Created a cheat sheet',
     'cheat_sheet.updated': 'Updated a cheat sheet',
     'cheat_sheet.deleted': 'Deleted a cheat sheet',
@@ -288,6 +431,7 @@ const ACTIVITY_SUBJECT_NOUNS = {
     capability_grant: 'Capability grant',
     cross_context_request: 'Request',
     reference_card: 'Reference card',
+    record: 'Record',
     cheat_sheet: 'Cheat sheet',
 };
 
@@ -434,6 +578,47 @@ export function labelForReviewReason(reason) {
     return labels[reason] ?? String(reason ?? '').replaceAll('_', ' ');
 }
 
+const ACCOUNT_LINK_PURPOSES = { invite: 'invitation', reset: 'password_reset' };
+const ACCOUNT_LINK_TOKEN = /^[A-Za-z0-9_-]{43}$/;
+export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_MAX_LENGTH = 255;
+
+/**
+ * Read an emailed invitation or reset link from the URL fragment. The fragment is never sent
+ * to the server, so the token stays out of access logs and Referer headers. A recognised link
+ * with a malformed token keeps its purpose but no token, so the person is told the link is bad.
+ */
+export function parseAccountLink(hash) {
+    const match = /^#(invite|reset)=(.*)$/s.exec(String(hash ?? ''));
+    if (!match) {
+        return null;
+    }
+
+    return {
+        purpose: ACCOUNT_LINK_PURPOSES[match[1]],
+        token: ACCOUNT_LINK_TOKEN.test(match[2]) ? match[2] : null,
+    };
+}
+
+/**
+ * Explain what is wrong with a chosen password and its confirmation, or return an empty string.
+ * The server applies the same length rule; this only spares a round trip and catches typos.
+ */
+export function newPasswordProblem(password, confirmation) {
+    const length = [...String(password ?? '')].length;
+    if (length < PASSWORD_MIN_LENGTH) {
+        return `Use at least ${PASSWORD_MIN_LENGTH} characters for the new password.`;
+    }
+    if (length > PASSWORD_MAX_LENGTH) {
+        return `Use at most ${PASSWORD_MAX_LENGTH} characters for the new password.`;
+    }
+    if (String(password) !== String(confirmation ?? '')) {
+        return 'The two new passwords do not match.';
+    }
+
+    return '';
+}
+
 export function setText(element, value) {
     element.textContent = value === null || value === undefined ? '' : String(value);
 }
@@ -516,7 +701,11 @@ const state = {
     },
     libraries: { items: [], page: 1, total: 0, openId: null },
     reference: emptyReferenceState(),
+    // Discussion and event records. `records` above already names the Project/Notebook lists.
+    timeline: emptyTimelineState(),
     collaboration: { resource: null, inbox: [], outbox: [] },
+    // The invitation or reset link being redeemed. Held in memory only, never in storage.
+    accountLink: null,
     sectionOptions: [],
     // Monotonic tokens so a slow response cannot repaint a list that a newer
     // request has already replaced, which would silently discard a person's selection.
@@ -532,8 +721,21 @@ const state = {
         referenceCard: 0,
         cheatSheets: 0,
         cheatSheet: 0,
+        timeline: 0,
+        timelineRecord: 0,
     },
 };
+
+function emptyTimelineState() {
+    return {
+        page: 1,
+        total: 0,
+        filters: { query: '', kind: '', tagId: '', from: '', to: '' },
+        openId: null,
+        open: null,
+        editingId: null,
+    };
+}
 
 function emptyReferenceState() {
     return {
@@ -557,8 +759,20 @@ function setNotice(message, isError = false) {
     notice.setAttribute('aria-live', isError ? 'assertive' : 'polite');
 }
 
-function showLogin(message = '') {
+const ACCOUNT_FORMS = ['login-form', 'reset-request-form', 'account-link-form', 'password-change-form', 'invitation-form'];
+
+function hideEntryPanels() {
+    for (const id of ['login-panel', 'reset-request-panel', 'account-link-panel']) {
+        byId(id).hidden = true;
+    }
+}
+
+function showLogin(message = '', isError = false) {
     state.userId = null;
+    state.accountLink = null;
+    for (const id of ACCOUNT_FORMS) {
+        byId(id).reset();
+    }
     state.view = 'dashboard';
     state.collaboration = { resource: null, inbox: [], outbox: [] };
     byId('collaboration-resource-form').reset();
@@ -571,22 +785,83 @@ function showLogin(message = '') {
     byId('request-inbox-empty').hidden = false;
     byId('request-outbox-empty').hidden = false;
     resetReferenceView();
+    resetTimelineView();
     for (const button of document.querySelectorAll('[data-view]')) {
         const current = button.dataset.view === 'dashboard';
         button.classList.toggle('is-current', current);
         button.setAttribute('aria-pressed', String(current));
     }
-    for (const name of ['dashboard', 'inbox', 'projects', 'notebooks', 'libraries', 'reference', 'review', 'activity', 'collaboration']) {
+    for (const name of ['dashboard', 'inbox', 'projects', 'notebooks', 'libraries', 'reference', 'records', 'review', 'activity', 'collaboration', 'account']) {
         byId(`${name}-view`).hidden = name !== 'dashboard';
     }
     byId('workspace').hidden = true;
     byId('account-actions').hidden = true;
+    hideEntryPanels();
     byId('login-panel').hidden = false;
-    setNotice(message);
+    setNotice(message, isError);
+}
+
+function showResetRequest() {
+    const email = byId('login-email').value;
+    hideEntryPanels();
+    byId('reset-request-form').reset();
+    byId('reset-request-email').value = email;
+    byId('reset-request-panel').hidden = false;
+    setNotice('');
+    byId('reset-request-email').focus();
+}
+
+const ACCOUNT_LINK_COPY = {
+    invitation: {
+        title: 'Create your account.',
+        intro: 'You have been invited. Choose a password, then sign in with it and the address this invitation was sent to.',
+        submit: 'Create my account',
+        endpoint: '/api/invitations/accept',
+    },
+    password_reset: {
+        title: 'Choose a new password.',
+        intro: 'Saving a new password signs out every browser where your account is signed in.',
+        submit: 'Save new password',
+        endpoint: '/api/auth/password-reset/complete',
+    },
+};
+
+function showAccountLink(link) {
+    const copy = ACCOUNT_LINK_COPY[link.purpose];
+    state.accountLink = link;
+    hideEntryPanels();
+    byId('workspace').hidden = true;
+    byId('account-actions').hidden = true;
+    byId('account-link-form').reset();
+    setText(byId('account-link-title'), copy.title);
+    setText(byId('account-link-intro'), copy.intro);
+    setText(byId('account-link-submit'), copy.submit);
+    byId('account-link-panel').hidden = false;
+    setNotice('');
+    byId('account-link-password').focus();
+}
+
+/**
+ * Take an invitation or reset link out of the address bar and show the form that redeems it.
+ * Returns whether the address held such a link.
+ */
+function openAccountLinkFromLocation() {
+    const link = parseAccountLink(globalThis.location?.hash);
+    if (link === null) {
+        return false;
+    }
+    globalThis.history?.replaceState(null, '', `${globalThis.location.pathname}${globalThis.location.search}`);
+    if (link.token === null) {
+        showLogin('This link is invalid or has expired. Ask for a new one.', true);
+    } else {
+        showAccountLink(link);
+    }
+
+    return true;
 }
 
 function showWorkspace(email) {
-    byId('login-panel').hidden = true;
+    hideEntryPanels();
     byId('workspace').hidden = false;
     byId('account-actions').hidden = false;
     setText(byId('account-email'), email);
@@ -827,7 +1102,7 @@ async function loadDashboard() {
 }
 
 function syncTagControls() {
-    for (const filter of [byId('tag-filter'), byId('reference-tag-filter')]) {
+    for (const filter of [byId('tag-filter'), byId('reference-tag-filter'), byId('records-tag-filter')]) {
         const selected = filter.value;
         filter.replaceChildren(new Option('Any tag', ''));
 
@@ -844,6 +1119,13 @@ function syncTagControls() {
     ) {
         state.reference.filters.tagId = '';
         state.reference.page = 1;
+    }
+    if (
+        state.timeline.filters.tagId !== ''
+        && !state.tags.some((tag) => isValidId(tag?.id) && String(Number(tag.id)) === state.timeline.filters.tagId)
+    ) {
+        state.timeline.filters.tagId = '';
+        state.timeline.page = 1;
     }
 
     const list = byId('tag-list');
@@ -2130,6 +2412,306 @@ function bindReferenceEvents() {
     });
 }
 
+function resetTimelineView() {
+    state.timeline = emptyTimelineState();
+    for (const id of ['records-list', 'record-fields', 'record-tags']) {
+        byId(id).replaceChildren();
+    }
+    hideReferenceDetail(byId('record-detail'), 'recordId');
+    byId('records-filter-form').reset();
+    resetTimelineForm();
+}
+
+function resetTimelineForm() {
+    state.timeline.editingId = null;
+    byId('record-form').reset();
+    byId('record-location-field').hidden = true;
+    setText(byId('record-form-title'), 'Create a record');
+    setText(byId('record-submit'), 'Create record');
+    byId('record-cancel').hidden = true;
+}
+
+function startEditingTimelineRecord(record) {
+    state.timeline.editingId = Number(record.id);
+    const form = byId('record-form');
+    form.elements.kind.value = Object.hasOwn(TIMELINE_KINDS, record.kind) ? record.kind : 'discussion';
+    for (const field of ['title', 'participants', 'location', 'summary', 'details']) {
+        form.elements[field].value = typeof record[field] === 'string' ? record[field] : '';
+    }
+    form.elements.occurred_at.value = isoToLocalDateTimeInput(record.occurred_at);
+    byId('record-location-field').hidden = form.elements.kind.value !== 'event';
+    setText(byId('record-form-title'), 'Edit record');
+    setText(byId('record-submit'), 'Save record');
+    byId('record-cancel').hidden = false;
+    form.elements.title.focus();
+}
+
+function timelineButton(label, action, dataset = {}, className = 'button button-quiet') {
+    const button = make('button', className, label);
+    button.type = 'button';
+    button.dataset.recordAction = action;
+    for (const [key, value] of Object.entries(dataset)) {
+        button.dataset[key] = value;
+    }
+
+    return button;
+}
+
+function renderTimelineItem(record) {
+    const item = make('li', 'record-item');
+    const title = typeof record?.title === 'string' ? record.title : 'Untitled record';
+    const heading = make('div', 'record-heading');
+    heading.append(make('h3', '', title), make('span', 'status-label', labelForTimelineKind(record?.kind)));
+    item.append(heading);
+    const when = formatTimelineTime(record?.occurred_at);
+    const place = record?.kind === 'event' && typeof record?.location === 'string' ? record.location : '';
+    const meta = [when, place].filter((part) => part !== '').join(' · ');
+    if (meta !== '') {
+        item.append(make('p', 'result-summary', meta));
+    }
+    if (typeof record?.summary === 'string' && record.summary !== '') {
+        item.append(make('p', 'record-description', record.summary));
+    }
+    if (isValidId(record?.id)) {
+        const actions = make('div', 'record-actions');
+        const open = timelineButton('Open', 'open-record', { recordId: String(Number(record.id)) }, 'button button-secondary');
+        open.setAttribute('aria-label', `Open ${title}`);
+        actions.append(open);
+        item.append(actions);
+    }
+
+    return item;
+}
+
+async function loadTimelineRecordDetail() {
+    const detail = byId('record-detail');
+    const token = ++state.requests.timelineRecord;
+    if (shownReferenceId(detail, 'recordId') !== state.timeline.openId) {
+        // Hide the previous record at once so its actions cannot run against the newly chosen one.
+        hideReferenceDetail(detail, 'recordId');
+    }
+    if (!isValidId(state.timeline.openId)) {
+        state.timeline.open = null;
+        return;
+    }
+
+    let record;
+    try {
+        record = (await requestApi(`/api/records/${Number(state.timeline.openId)}`))?.record;
+    } catch (error) {
+        if (error.status === 404 && token === state.requests.timelineRecord) {
+            state.timeline.openId = null;
+            state.timeline.open = null;
+            hideReferenceDetail(detail, 'recordId');
+            return;
+        }
+        throw error;
+    }
+    if (token !== state.requests.timelineRecord) {
+        return;
+    }
+    state.timeline.open = record ?? null;
+
+    setText(byId('record-kind'), labelForTimelineKind(record?.kind));
+    setText(byId('record-title'), typeof record?.title === 'string' ? record.title : 'Record');
+    const when = formatTimelineTime(record?.occurred_at);
+    setText(byId('record-when'), when === '' ? '' : `When: ${when}`);
+    const summary = byId('record-summary');
+    setText(summary, typeof record?.summary === 'string' ? record.summary : '');
+    summary.hidden = !summary.textContent;
+    const fields = byId('record-fields');
+    const blocks = [];
+    for (const [field, label] of [['participants', 'Participants'], ['location', 'Location']]) {
+        if (typeof record?.[field] === 'string' && record[field].trim() !== '') {
+            const entry = make('div', 'reference-field');
+            entry.append(make('dt', '', label), make('dd', '', record[field]));
+            blocks.push(entry);
+        }
+    }
+    fields.replaceChildren(...blocks);
+    fields.hidden = blocks.length === 0;
+    const details = byId('record-details');
+    setText(details, typeof record?.details === 'string' ? record.details : '');
+    details.hidden = !details.textContent;
+
+    const tags = validItems(record?.tags).filter((tag) => isValidId(tag?.id) && typeof tag?.name === 'string');
+    byId('record-tags').replaceChildren(...tags.map((tag) => {
+        const pill = make('span', 'tag-pill');
+        pill.append(make('span', '', tag.name));
+        const detach = timelineButton('×', 'detach-tag', { tagId: String(Number(tag.id)) }, 'tag-remove');
+        detach.setAttribute('aria-label', `Remove tag ${tag.name}`);
+        pill.append(detach);
+
+        return pill;
+    }));
+    const attached = new Set(tags.map((tag) => Number(tag.id)));
+    fillSelect(
+        byId('record-tag-picker'),
+        'Choose a tag',
+        state.tags
+            .filter((tag) => isValidId(tag?.id) && typeof tag?.name === 'string' && !attached.has(Number(tag.id)))
+            .map((tag) => [String(Number(tag.id)), tag.name]),
+    );
+    const remove = byId('record-delete');
+    delete remove.dataset.confirmed;
+    setText(remove, 'Delete record');
+    detail.dataset.recordId = String(Number(state.timeline.openId));
+    detail.hidden = false;
+}
+
+async function loadTimelineList() {
+    const token = ++state.requests.timeline;
+    const data = await requestApi(buildTimelineUrl({ ...state.timeline.filters, page: state.timeline.page }));
+    if (token !== state.requests.timeline) {
+        return;
+    }
+    const items = validItems(data?.items);
+    state.timeline.total = Number(data?.meta?.pagination?.total) || 0;
+    const pageCount = Math.max(1, Math.ceil(state.timeline.total / TIMELINE_PAGE_SIZE));
+    if (state.timeline.page > pageCount) {
+        state.timeline.page = pageCount;
+        await loadTimelineList();
+        return;
+    }
+    byId('records-list').replaceChildren(...items.map((record) => renderTimelineItem(record)));
+    byId('records-empty').hidden = items.length > 0;
+
+    setText(byId('records-summary'), `Showing ${items.length} of ${state.timeline.total} records`);
+    setText(byId('records-page-label'), `Records page ${state.timeline.page} of ${pageCount}`);
+    byId('previous-records-page').disabled = state.timeline.page <= 1;
+    byId('next-records-page').disabled = state.timeline.page >= pageCount;
+}
+
+async function loadTimeline() {
+    await Promise.all([loadTimelineList(), loadTimelineRecordDetail()]);
+}
+
+async function handleTimelineAction(button) {
+    const action = button.dataset.recordAction;
+    // Act on what is on screen, never on a selection whose detail has not rendered yet.
+    const recordId = shownReferenceId(byId('record-detail'), 'recordId');
+
+    if (action === 'open-record' && isValidId(button.dataset.recordId)) {
+        state.timeline.openId = Number(button.dataset.recordId);
+        await loadTimelineRecordDetail();
+        byId('record-title').scrollIntoView({ block: 'nearest' });
+        byId('record-title').focus?.();
+        return;
+    }
+    if (!isValidId(recordId)) {
+        return;
+    }
+    if (action === 'edit-record' && state.timeline.open) {
+        startEditingTimelineRecord(state.timeline.open);
+        return;
+    }
+    if (action === 'delete-record') {
+        if (!confirmReferenceAction(button, 'delete record')) {
+            return;
+        }
+        await requestApi(`/api/records/${Number(recordId)}`, { method: 'DELETE' });
+        state.timeline.openId = null;
+        if (state.timeline.editingId === Number(recordId)) {
+            resetTimelineForm();
+        }
+        setNotice('Record deleted.');
+        await loadTimeline();
+        return;
+    }
+    if (action === 'attach-tag' || action === 'detach-tag') {
+        const tagId = action === 'attach-tag' ? byId('record-tag-picker').value : button.dataset.tagId;
+        if (!isValidId(tagId)) {
+            setNotice('Choose a tag before adding it.', true);
+            return;
+        }
+        await requestApi(`/api/records/${Number(recordId)}/tags/${Number(tagId)}`, {
+            method: action === 'attach-tag' ? 'POST' : 'DELETE',
+            ...(action === 'attach-tag' ? { body: '{}' } : {}),
+        });
+        setNotice(action === 'attach-tag' ? 'Tag added to the record.' : 'Tag removed from the record.');
+        await loadTimeline();
+    }
+}
+
+function bindTimelineEvents() {
+    byId('records-filter-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        const filters = {
+            query: String(form.get('q') ?? ''),
+            kind: String(form.get('kind') ?? ''),
+            tagId: String(form.get('tag') ?? ''),
+            from: String(form.get('from') ?? ''),
+            to: String(form.get('to') ?? ''),
+        };
+        if (isReversedDateRange(filters.from, filters.to)) {
+            setNotice('The From date must not be after the To date.', true);
+            return;
+        }
+        state.timeline.filters = filters;
+        state.timeline.page = 1;
+        setNotice('');
+        await loadTimelineList().catch(displayError);
+    });
+
+    byId('previous-records-page').addEventListener('click', async () => {
+        if (state.timeline.page > 1) {
+            state.timeline.page--;
+            await loadTimelineList().catch(displayError);
+        }
+    });
+
+    byId('next-records-page').addEventListener('click', async () => {
+        if (state.timeline.page * TIMELINE_PAGE_SIZE < state.timeline.total) {
+            state.timeline.page++;
+            await loadTimelineList().catch(displayError);
+        }
+    });
+
+    byId('record-kind-input').addEventListener('change', (event) => {
+        byId('record-location-field').hidden = event.currentTarget.value !== 'event';
+    });
+
+    byId('record-cancel').addEventListener('click', () => {
+        resetTimelineForm();
+    });
+
+    byId('record-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const values = Object.fromEntries(new FormData(event.currentTarget));
+        const editingId = state.timeline.editingId;
+        try {
+            const data = await requestApi(
+                isValidId(editingId) ? `/api/records/${Number(editingId)}` : '/api/records',
+                {
+                    method: isValidId(editingId) ? 'PATCH' : 'POST',
+                    body: JSON.stringify(buildTimelineRecordBody(values)),
+                },
+            );
+            resetTimelineForm();
+            if (isValidId(data?.record?.id)) {
+                state.timeline.openId = Number(data.record.id);
+            }
+            setNotice(isValidId(editingId) ? 'Record saved.' : 'Record created.');
+            await loadTimeline();
+        } catch (error) {
+            displayError(error);
+        }
+    });
+
+    byId('records-view').addEventListener('click', async (event) => {
+        const button = event.target.closest('button[data-record-action]');
+        if (!button || button.disabled) {
+            return;
+        }
+        try {
+            await handleTimelineAction(button);
+        } catch (error) {
+            displayError(error);
+        }
+    });
+}
+
 const VIEW_LOADERS = {
     dashboard: loadDashboard,
     inbox: loadTodos,
@@ -2138,8 +2720,11 @@ const VIEW_LOADERS = {
     notebooks: () => loadRecords('notebook'),
     libraries: loadLibraries,
     reference: loadReference,
+    records: loadTimeline,
     activity: loadActivity,
     collaboration: loadCollaboration,
+    // The Account view holds only forms; there is nothing to load.
+    account: async () => {},
 };
 
 async function refreshWorkspace() {
@@ -2179,6 +2764,7 @@ async function initializeWorkspace(email, userId) {
 
 function bindEvents() {
     bindReferenceEvents();
+    bindTimelineEvents();
 
     byId('login-form').addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -2196,6 +2782,101 @@ function bindEvents() {
             formElement.reset();
         } catch (error) {
             setNotice(error.message, true);
+        }
+    });
+
+    byId('forgot-password-button').addEventListener('click', showResetRequest);
+
+    for (const button of document.querySelectorAll('[data-account-back]')) {
+        button.addEventListener('click', () => {
+            void resumeSession(true);
+        });
+    }
+
+    byId('reset-request-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const email = byId('reset-request-email').value.trim();
+        try {
+            const data = await requestApi('/api/auth/password-reset', {
+                method: 'POST',
+                body: JSON.stringify({ email }),
+            });
+            showLogin(data?.message ?? 'Check your email for a reset link.');
+            byId('login-email').value = email;
+        } catch (error) {
+            setNotice(error.message, true);
+        }
+    });
+
+    byId('account-link-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const link = state.accountLink;
+        if (link === null) {
+            showLogin();
+            return;
+        }
+        const password = byId('account-link-password').value;
+        const problem = newPasswordProblem(password, byId('account-link-confirm').value);
+        if (problem !== '') {
+            setNotice(problem, true);
+            return;
+        }
+        try {
+            const data = await requestApi(ACCOUNT_LINK_COPY[link.purpose].endpoint, {
+                method: 'POST',
+                body: JSON.stringify({ token: link.token, password }),
+            });
+            showLogin(data?.message ?? 'Your password is set. Sign in with it.');
+            if (typeof data?.user?.email === 'string') {
+                byId('login-email').value = data.user.email;
+            }
+        } catch (error) {
+            if (error.status === 400) {
+                showLogin(`${error.message} Ask for a new link.`, true);
+                return;
+            }
+            setNotice(error.message, true);
+        }
+    });
+
+    byId('password-change-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formElement = event.currentTarget;
+        const current = byId('current-password').value;
+        const replacement = byId('new-password').value;
+        if (current === '') {
+            setNotice('Enter your current password.', true);
+            return;
+        }
+        const problem = newPasswordProblem(replacement, byId('new-password-confirm').value);
+        if (problem !== '') {
+            setNotice(problem, true);
+            return;
+        }
+        try {
+            const data = await requestApi('/api/auth/password', {
+                method: 'POST',
+                body: JSON.stringify({ current_password: current, new_password: replacement }),
+            });
+            formElement.reset();
+            setNotice(data?.message ?? 'Your password has been changed.');
+        } catch (error) {
+            displayError(error);
+        }
+    });
+
+    byId('invitation-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formElement = event.currentTarget;
+        try {
+            const data = await requestApi('/api/invitations', {
+                method: 'POST',
+                body: JSON.stringify({ email: byId('invitation-email').value.trim() }),
+            });
+            formElement.reset();
+            setNotice(data?.message ?? 'Invitation sent.');
+        } catch (error) {
+            displayError(error);
         }
     });
 
@@ -2768,12 +3449,23 @@ function bindEvents() {
 
 async function start() {
     bindEvents();
+    globalThis.addEventListener('hashchange', openAccountLinkFromLocation);
+    if (openAccountLinkFromLocation()) {
+        return;
+    }
+    await resumeSession();
+}
+
+async function resumeSession(focusSignIn = false) {
     try {
         const data = await requestApi('/api/auth/me');
         await initializeWorkspace(data?.user?.email ?? '', data?.user?.id);
     } catch (error) {
         if (error.status === 401) {
             showLogin();
+            if (focusSignIn) {
+                byId('login-email').focus();
+            }
         } else {
             showLogin('Could not check your session. Please try again.');
         }

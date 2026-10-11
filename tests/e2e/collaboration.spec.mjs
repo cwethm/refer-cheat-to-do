@@ -33,8 +33,8 @@ async function createContext(api, type, name) {
 
 async function signIn(page, credentials) {
     await page.goto('/app');
-    await page.getByLabel('Email').fill(credentials.email);
-    await page.getByLabel('Password').fill(credentials.password);
+    await page.getByLabel('Email', { exact: true }).fill(credentials.email);
+    await page.getByLabel('Password', { exact: true }).fill(credentials.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page.locator('#workspace')).toBeVisible();
 }

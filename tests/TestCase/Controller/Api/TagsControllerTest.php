@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Controller\Api;
 
+use App\Test\TestCase\SignedInSessionTrait;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
@@ -10,6 +11,7 @@ use Cake\TestSuite\TestCase;
 class TagsControllerTest extends TestCase
 {
     use IntegrationTestTrait;
+    use SignedInSessionTrait;
 
     /**
      * @var list<string>
@@ -24,7 +26,7 @@ class TagsControllerTest extends TestCase
 
     public function testListReturnsOnlyCurrentUserTags(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -39,7 +41,7 @@ class TagsControllerTest extends TestCase
 
     public function testCreateTagNormalizesNameAndAssignsOwner(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -59,7 +61,7 @@ class TagsControllerTest extends TestCase
 
     public function testCreateRejectsDuplicateNormalizedNameForUser(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -74,7 +76,7 @@ class TagsControllerTest extends TestCase
 
     public function testEditRejectsCrossUserAccess(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -87,7 +89,7 @@ class TagsControllerTest extends TestCase
 
     public function testDeleteRemovesOwnedTag(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -115,7 +117,7 @@ class TagsControllerTest extends TestCase
 
     public function testEditCannotReassignTagOwnership(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -135,7 +137,7 @@ class TagsControllerTest extends TestCase
 
     public function testCreateRejectsBlankName(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -148,7 +150,7 @@ class TagsControllerTest extends TestCase
 
     public function testCreateRejectsWhitespaceVariantOfExistingName(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -162,7 +164,7 @@ class TagsControllerTest extends TestCase
 
     public function testListRejectsInvalidPagination(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
@@ -175,7 +177,7 @@ class TagsControllerTest extends TestCase
 
     public function testDeleteRejectsCrossUserTag(): void
     {
-        $this->session(['Auth.user_id' => 1]);
+        $this->signIn(1);
         $this->configRequest([
             'headers' => ['Accept' => 'application/json'],
         ]);
