@@ -786,7 +786,9 @@ class DataPortabilityService
             }
         }
         if (
-            $type === 'cheat_sheets' && $data['description'] !== null && mb_strlen($data['description']) > 5000
+            $type === 'cheat_sheets'
+            && is_string($data['description'])
+            && mb_strlen($data['description']) > 5000
         ) {
             throw new DomainException('Cheat sheet description exceeds its stored character limit.');
         }

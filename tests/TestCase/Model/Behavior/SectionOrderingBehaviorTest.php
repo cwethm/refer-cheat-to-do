@@ -166,13 +166,15 @@ class SectionOrderingBehaviorTest extends TestCase
     public function testCompositeKeyMembershipsAreOrderedAndMoved(): void
     {
         $table = TableRegistry::getTableLocator()->get('CheatSheetsReferenceCards');
-        $table->getConnection()->execute(
-            'UPDATE cheat_sheets_reference_cards SET position = 1 WHERE cheat_sheet_id = 1100',
-        );
         /** @var \App\Model\Behavior\SectionOrderingBehavior $behavior */
         $behavior = $table->getBehavior('SectionOrdering');
 
-        $behavior->renumberPositions(1100);
+        $table->getConnection()->transactional(function () use ($table, $behavior): void {
+            $table->getConnection()->execute(
+                'UPDATE cheat_sheets_reference_cards SET position = 1 WHERE cheat_sheet_id = 1100',
+            );
+            $behavior->renumberPositions(1100);
+        });
         $this->assertSame([[1000, 1], [1001, 2]], $this->membershipOrder(1100));
 
         $behavior->moveToPosition($table->get([1100, 1001]), 1);
