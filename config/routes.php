@@ -287,6 +287,82 @@ return function (RouteBuilder $routes): void {
             ['pass' => ['id', 'itemId'], 'id' => '\d+', 'itemId' => '\d+'],
         );
         $builder->connect(
+            '/reference-cards',
+            ['controller' => 'ReferenceCards', 'action' => 'index', '_method' => 'GET'],
+        );
+        $builder->connect(
+            '/reference-cards',
+            ['controller' => 'ReferenceCards', 'action' => 'add', '_method' => 'POST'],
+        );
+        $builder->connect(
+            '/reference-cards/{id}',
+            ['controller' => 'ReferenceCards', 'action' => 'view', '_method' => 'GET'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/reference-cards/{id}',
+            ['controller' => 'ReferenceCards', 'action' => 'edit', '_method' => 'PATCH'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/reference-cards/{id}',
+            ['controller' => 'ReferenceCards', 'action' => 'delete', '_method' => 'DELETE'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/reference-cards/{id}/tags/{tagId}',
+            ['controller' => 'ReferenceCards', 'action' => 'attachTag', '_method' => 'POST'],
+            ['pass' => ['id', 'tagId'], 'id' => '\d+', 'tagId' => '\d+'],
+        );
+        $builder->connect(
+            '/reference-cards/{id}/tags/{tagId}',
+            ['controller' => 'ReferenceCards', 'action' => 'detachTag', '_method' => 'DELETE'],
+            ['pass' => ['id', 'tagId'], 'id' => '\d+', 'tagId' => '\d+'],
+        );
+        $builder->connect(
+            '/cheat-sheets',
+            ['controller' => 'CheatSheets', 'action' => 'index', '_method' => 'GET'],
+        );
+        $builder->connect(
+            '/cheat-sheets',
+            ['controller' => 'CheatSheets', 'action' => 'add', '_method' => 'POST'],
+        );
+        $builder->connect(
+            '/cheat-sheets/{id}',
+            ['controller' => 'CheatSheets', 'action' => 'view', '_method' => 'GET'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/cheat-sheets/{id}',
+            ['controller' => 'CheatSheets', 'action' => 'edit', '_method' => 'PATCH'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/cheat-sheets/{id}',
+            ['controller' => 'CheatSheets', 'action' => 'delete', '_method' => 'DELETE'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/cheat-sheets/{id}/cards',
+            ['controller' => 'CheatSheets', 'action' => 'cards', '_method' => 'GET'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/cheat-sheets/{id}/cards',
+            ['controller' => 'CheatSheets', 'action' => 'addCard', '_method' => 'POST'],
+            ['pass' => ['id'], 'id' => '\d+'],
+        );
+        $builder->connect(
+            '/cheat-sheets/{id}/cards/{cardId}',
+            ['controller' => 'CheatSheets', 'action' => 'moveCard', '_method' => 'PATCH'],
+            ['pass' => ['id', 'cardId'], 'id' => '\d+', 'cardId' => '\d+'],
+        );
+        $builder->connect(
+            '/cheat-sheets/{id}/cards/{cardId}',
+            ['controller' => 'CheatSheets', 'action' => 'removeCard', '_method' => 'DELETE'],
+            ['pass' => ['id', 'cardId'], 'id' => '\d+', 'cardId' => '\d+'],
+        );
+        $builder->connect(
             '/cross-context-requests',
             ['controller' => 'CrossContextRequests', 'action' => 'add', '_method' => 'POST'],
         );

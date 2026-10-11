@@ -3,6 +3,33 @@ export const PROJECT_PAGE_SIZE = 20;
 export const NOTEBOOK_PAGE_SIZE = 20;
 export const LIBRARY_PAGE_SIZE = 20;
 export const ACTIVITY_PAGE_SIZE = 20;
+export const REFERENCE_PAGE_SIZE = 20;
+
+/**
+ * Most cheat sheets, and most cards on one sheet, fetched in a single request (the API cap).
+ */
+export const CHEAT_SHEET_LIMIT = 100;
+
+/**
+ * Longest search text the reference API accepts, in characters.
+ */
+export const REFERENCE_SEARCH_MAX_CHARS = 255;
+
+export const REFERENCE_CARD_TYPES = {
+    concept: 'Concept',
+    dialogue_pattern: 'Dialogue pattern',
+};
+
+/**
+ * Structured dialogue-pattern fields, in reading order, with the label each block is shown under.
+ */
+export const DIALOGUE_FIELDS = [
+    ['situation', 'Situation'],
+    ['aim', 'Aim'],
+    ['approach', 'Approach'],
+    ['avoid', 'Avoid'],
+    ['rationale', 'Rationale'],
+];
 
 /**
  * Highest number of Projects or Notebooks whose sections are offered in a ToDo's section picker.
@@ -43,6 +70,103 @@ export function buildLibrariesUrl(options = {}) {
 
 export function buildActivityUrl(options = {}) {
     return buildRecordListUrl('/api/activity', { limit: ACTIVITY_PAGE_SIZE, ...options });
+}
+
+/**
+ * Build the reference-card search URL. Unknown types and malformed ids are dropped rather than
+ * sent, and the search text is trimmed and bounded to what the API accepts.
+ */
+export function buildReferenceCardsUrl({ query = '', cardType = '', tagId = '', cheatSheetId = '', page = 1 } = {}) {
+    const requestedPage = Number(page);
+    const safePage = Number.isFinite(requestedPage) ? Math.max(1, Math.trunc(requestedPage)) : 1;
+    const params = new URLSearchParams({ page: String(safePage), limit: String(REFERENCE_PAGE_SIZE) });
+    const cleanQuery = Array.from(String(query ?? '').trim()).slice(0, REFERENCE_SEARCH_MAX_CHARS).join('').trim();
+
+    if (cleanQuery) {
+        params.set('q', cleanQuery);
+    }
+    if (typeof cardType === 'string' && Object.hasOwn(REFERENCE_CARD_TYPES, cardType)) {
+        params.set('card_type', cardType);
+    }
+    if (isValidId(tagId)) {
+        params.set('tag', String(Number(tagId)));
+    }
+    if (isValidId(cheatSheetId)) {
+        params.set('cheat_sheet', String(Number(cheatSheetId)));
+    }
+
+    return `/api/reference-cards?${params.toString()}`;
+}
+
+/**
+ * Build a create or update payload from the card form. Blank optional text is sent as `null`,
+ * and a concept card always clears the dialogue-pattern fields the server reserves for patterns.
+ */
+export function buildReferenceCardBody(values = {}) {
+    const cardType = typeof values.card_type === 'string' && Object.hasOwn(REFERENCE_CARD_TYPES, values.card_type)
+        ? values.card_type
+        : 'concept';
+    const optional = (value) => (typeof value === 'string' && value.trim() !== '' ? value : null);
+    const body = {
+        card_type: cardType,
+        title: typeof values.title === 'string' ? values.title.trim() : '',
+        summary: optional(values.summary),
+        body: optional(values.body),
+    };
+    for (const [field] of DIALOGUE_FIELDS) {
+        body[field] = cardType === 'dialogue_pattern' ? optional(values[field]) : null;
+    }
+
+    return body;
+}
+
+/**
+ * The populated dialogue-pattern fields of a card as labelled blocks; empty fields are hidden.
+ */
+export function dialogueBlocks(card) {
+    if (card?.card_type !== 'dialogue_pattern') {
+        return [];
+    }
+
+    return DIALOGUE_FIELDS
+        .filter(([field]) => typeof card[field] === 'string' && card[field].trim() !== '')
+        .map(([field, label]) => ({ field, label, text: card[field] }));
+}
+
+export function labelForCardType(type) {
+    return typeof type === 'string' && Object.hasOwn(REFERENCE_CARD_TYPES, type)
+        ? REFERENCE_CARD_TYPES[type]
+        : 'Reference card';
+}
+
+/**
+ * Build a cheat sheet's card-membership URL; malformed ids yield no URL at all.
+ */
+export function buildCheatSheetCardUrl(sheetId, cardId) {
+    if (!isValidId(sheetId)) {
+        return '';
+    }
+    const base = `/api/cheat-sheets/${Number(sheetId)}/cards`;
+    if (cardId === undefined) {
+        return base;
+    }
+
+    return isValidId(cardId) ? `${base}/${Number(cardId)}` : '';
+}
+
+/**
+ * The position a card moves to when nudged up or down a sheet of `count` cards, or `null`
+ * when the move would leave the sheet.
+ */
+export function nudgedPosition(position, direction, count) {
+    const current = Number(position);
+    const size = Number(count);
+    if (!Number.isSafeInteger(current) || !Number.isSafeInteger(size) || current < 1 || current > size) {
+        return null;
+    }
+    const target = direction === 'up' ? current - 1 : direction === 'down' ? current + 1 : current;
+
+    return target !== current && target >= 1 && target <= size ? target : null;
 }
 
 /**
@@ -125,6 +249,17 @@ const ACTIVITY_ACTION_LABELS = {
     'request.rejected': 'Rejected a request',
     'request.modified': 'Changed a request',
     'request.callback': 'Reported back on a request',
+    'reference_card.created': 'Created a reference card',
+    'reference_card.updated': 'Updated a reference card',
+    'reference_card.deleted': 'Deleted a reference card',
+    'reference_card.tag_attached': 'Added a tag to a reference card',
+    'reference_card.tag_detached': 'Removed a tag from a reference card',
+    'cheat_sheet.created': 'Created a cheat sheet',
+    'cheat_sheet.updated': 'Updated a cheat sheet',
+    'cheat_sheet.deleted': 'Deleted a cheat sheet',
+    'cheat_sheet.card_added': 'Added a card to a cheat sheet',
+    'cheat_sheet.card_moved': 'Moved a card on a cheat sheet',
+    'cheat_sheet.card_removed': 'Removed a card from a cheat sheet',
 };
 
 export function labelForActivityAction(action) {
@@ -140,6 +275,8 @@ const ACTIVITY_SUBJECT_NOUNS = {
     library: 'Library',
     capability_grant: 'Capability grant',
     cross_context_request: 'Request',
+    reference_card: 'Reference card',
+    cheat_sheet: 'Cheat sheet',
 };
 
 /**
@@ -291,6 +428,13 @@ export function setText(element, value) {
 
 export async function requestApi(path, options = {}) {
     const headers = { Accept: 'application/json', ...options.headers };
+    const method = String(options.method ?? 'GET').toUpperCase();
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+        const csrfToken = globalThis.document?.querySelector('meta[name="csrf-token"]')?.content;
+        if (typeof csrfToken === 'string' && csrfToken !== '') {
+            headers['X-CSRF-Token'] = csrfToken;
+        }
+    }
     const requestOptions = {
         ...options,
         credentials: 'same-origin',
@@ -359,12 +503,39 @@ const state = {
         notebook: { items: [], page: 1, total: 0, openId: null },
     },
     libraries: { items: [], page: 1, total: 0, openId: null },
+    reference: emptyReferenceState(),
     collaboration: { resource: null, inbox: [], outbox: [] },
     sectionOptions: [],
     // Monotonic tokens so a slow response cannot repaint a list that a newer
     // request has already replaced, which would silently discard a person's selection.
-    requests: { todos: 0, review: 0, projects: 0, notebooks: 0, libraries: 0, activity: 0, capabilities: 0 },
+    requests: {
+        todos: 0,
+        review: 0,
+        projects: 0,
+        notebooks: 0,
+        libraries: 0,
+        activity: 0,
+        capabilities: 0,
+        referenceCards: 0,
+        referenceCard: 0,
+        cheatSheets: 0,
+        cheatSheet: 0,
+    },
 };
+
+function emptyReferenceState() {
+    return {
+        page: 1,
+        total: 0,
+        filters: { query: '', cardType: '', tagId: '', cheatSheetId: '' },
+        openCardId: null,
+        openCard: null,
+        editingCardId: null,
+        sheets: [],
+        openSheetId: null,
+        sheetCardCount: 0,
+    };
+}
 
 function setNotice(message, isError = false) {
     const notice = byId('notice');
@@ -387,12 +558,13 @@ function showLogin(message = '') {
     byId('request-outbox-list').replaceChildren();
     byId('request-inbox-empty').hidden = false;
     byId('request-outbox-empty').hidden = false;
+    resetReferenceView();
     for (const button of document.querySelectorAll('[data-view]')) {
         const current = button.dataset.view === 'dashboard';
         button.classList.toggle('is-current', current);
         button.setAttribute('aria-pressed', String(current));
     }
-    for (const name of ['dashboard', 'inbox', 'projects', 'notebooks', 'libraries', 'review', 'activity', 'collaboration']) {
+    for (const name of ['dashboard', 'inbox', 'projects', 'notebooks', 'libraries', 'reference', 'review', 'activity', 'collaboration']) {
         byId(`${name}-view`).hidden = name !== 'dashboard';
     }
     byId('workspace').hidden = true;
@@ -643,16 +815,24 @@ async function loadDashboard() {
 }
 
 function syncTagControls() {
-    const filter = byId('tag-filter');
-    const selected = filter.value;
-    filter.replaceChildren(new Option('Any tag', ''));
+    for (const filter of [byId('tag-filter'), byId('reference-tag-filter')]) {
+        const selected = filter.value;
+        filter.replaceChildren(new Option('Any tag', ''));
 
-    for (const tag of state.tags) {
-        if (isValidId(tag?.id) && typeof tag?.name === 'string') {
-            filter.append(new Option(tag.name, String(tag.id)));
+        for (const tag of state.tags) {
+            if (isValidId(tag?.id) && typeof tag?.name === 'string') {
+                filter.append(new Option(tag.name, String(tag.id)));
+            }
         }
+        filter.value = state.tags.some((tag) => String(tag.id) === selected) ? selected : '';
     }
-    filter.value = state.tags.some((tag) => String(tag.id) === selected) ? selected : '';
+    if (
+        state.reference.filters.tagId !== ''
+        && !state.tags.some((tag) => isValidId(tag?.id) && String(Number(tag.id)) === state.reference.filters.tagId)
+    ) {
+        state.reference.filters.tagId = '';
+        state.reference.page = 1;
+    }
 
     const list = byId('tag-list');
     list.replaceChildren();
@@ -1380,6 +1560,563 @@ function showCollaborationError(error) {
     displayError(error);
 }
 
+/**
+ * Labelled blocks for the populated dialogue-pattern fields of a card.
+ */
+function renderDialogueBlocks(card) {
+    const list = make('dl', 'reference-fields');
+    for (const block of dialogueBlocks(card)) {
+        const entry = make('div', 'reference-field');
+        entry.append(make('dt', '', block.label), make('dd', '', block.text));
+        list.append(entry);
+    }
+
+    return list;
+}
+
+function referenceButton(label, action, dataset = {}, className = 'button button-quiet') {
+    const button = make('button', className, label);
+    button.type = 'button';
+    button.dataset.referenceAction = action;
+    for (const [key, value] of Object.entries(dataset)) {
+        button.dataset[key] = value;
+    }
+
+    return button;
+}
+
+function renderReferenceCardItem(card) {
+    const item = make('li', 'record-item');
+    const title = typeof card?.title === 'string' ? card.title : 'Untitled card';
+    const heading = make('div', 'record-heading');
+    heading.append(make('h3', '', title), make('span', 'status-label', labelForCardType(card?.card_type)));
+    item.append(heading);
+    if (typeof card?.summary === 'string' && card.summary !== '') {
+        item.append(make('p', 'record-description', card.summary));
+    }
+    if (isValidId(card?.id)) {
+        const actions = make('div', 'record-actions');
+        const open = referenceButton('Open', 'open-card', { cardId: String(Number(card.id)) }, 'button button-secondary');
+        open.setAttribute('aria-label', `Open ${title}`);
+        actions.append(open);
+        item.append(actions);
+    }
+
+    return item;
+}
+
+function fillSelect(select, placeholder, options) {
+    const selected = select.value;
+    select.replaceChildren(new Option(placeholder, ''));
+    for (const [value, label] of options) {
+        select.append(new Option(label, value));
+    }
+    select.value = options.some(([value]) => value === selected) ? selected : '';
+}
+
+function syncCheatSheetControls() {
+    const options = state.reference.sheets
+        .filter((sheet) => isValidId(sheet?.id) && typeof sheet?.name === 'string')
+        .map((sheet) => [String(Number(sheet.id)), sheet.name]);
+    fillSelect(byId('reference-sheet-filter'), 'Any sheet', options);
+    fillSelect(byId('reference-sheet-picker'), 'Choose a cheat sheet', options);
+}
+
+export async function requestAllPages(buildUrl, limit) {
+    const firstPage = await requestApi(buildUrl(1, limit));
+    const total = Number(firstPage?.meta?.pagination?.total) || 0;
+    const pageCount = Math.max(1, Math.ceil(total / limit));
+    const items = validItems(firstPage?.items);
+    for (let page = 2; page <= pageCount; page++) {
+        const data = await requestApi(buildUrl(page, limit));
+        items.push(...validItems(data?.items));
+    }
+
+    return {
+        items,
+        total,
+    };
+}
+
+function resetReferenceView() {
+    state.reference = emptyReferenceState();
+    for (const id of ['reference-list', 'cheat-sheet-list', 'cheat-sheet-cards', 'reference-card-fields', 'reference-card-tags']) {
+        byId(id).replaceChildren();
+    }
+    hideReferenceDetail(byId('reference-card-detail'), 'cardId');
+    hideReferenceDetail(byId('cheat-sheet-detail'), 'sheetId');
+    byId('reference-search-form').reset();
+    syncCheatSheetControls();
+    resetReferenceCardForm();
+}
+
+function resetReferenceCardForm() {
+    state.reference.editingCardId = null;
+    byId('reference-card-form').reset();
+    byId('reference-dialogue-fieldset').hidden = true;
+    setText(byId('reference-form-title'), 'Create a card');
+    setText(byId('reference-card-submit'), 'Create card');
+    byId('reference-card-cancel').hidden = true;
+}
+
+function startEditingReferenceCard(card) {
+    state.reference.editingCardId = Number(card.id);
+    const form = byId('reference-card-form');
+    form.elements.card_type.value = Object.hasOwn(REFERENCE_CARD_TYPES, card.card_type) ? card.card_type : 'concept';
+    for (const field of ['title', 'summary', 'body', ...DIALOGUE_FIELDS.map(([name]) => name)]) {
+        form.elements[field].value = typeof card[field] === 'string' ? card[field] : '';
+    }
+    byId('reference-dialogue-fieldset').hidden = form.elements.card_type.value !== 'dialogue_pattern';
+    setText(byId('reference-form-title'), 'Edit card');
+    setText(byId('reference-card-submit'), 'Save card');
+    byId('reference-card-cancel').hidden = false;
+    form.elements.title.focus();
+}
+
+/**
+ * The id of the record a detail panel is currently showing, or `null` when it shows none.
+ */
+function shownReferenceId(detail, key) {
+    return !detail.hidden && isValidId(detail.dataset[key]) ? Number(detail.dataset[key]) : null;
+}
+
+function hideReferenceDetail(detail, key) {
+    detail.hidden = true;
+    delete detail.dataset[key];
+}
+
+async function loadReferenceCardDetail() {
+    const detail = byId('reference-card-detail');
+    const token = ++state.requests.referenceCard;
+    if (shownReferenceId(detail, 'cardId') !== state.reference.openCardId) {
+        // Hide the previous card at once so its actions cannot run against the newly chosen one.
+        hideReferenceDetail(detail, 'cardId');
+    }
+    if (!isValidId(state.reference.openCardId)) {
+        state.reference.openCard = null;
+        return;
+    }
+
+    let card;
+    try {
+        card = (await requestApi(`/api/reference-cards/${Number(state.reference.openCardId)}`))?.card;
+    } catch (error) {
+        if (error.status === 404 && token === state.requests.referenceCard) {
+            state.reference.openCardId = null;
+            state.reference.openCard = null;
+            hideReferenceDetail(detail, 'cardId');
+            return;
+        }
+        throw error;
+    }
+    if (token !== state.requests.referenceCard) {
+        return;
+    }
+    state.reference.openCard = card ?? null;
+
+    setText(byId('reference-card-type'), labelForCardType(card?.card_type));
+    setText(byId('reference-card-title'), typeof card?.title === 'string' ? card.title : 'Reference card');
+    const summary = byId('reference-card-summary');
+    setText(summary, typeof card?.summary === 'string' ? card.summary : '');
+    summary.hidden = !summary.textContent;
+    const fields = byId('reference-card-fields');
+    fields.replaceChildren(...renderDialogueBlocks(card).children);
+    fields.hidden = fields.children.length === 0;
+    const body = byId('reference-card-body');
+    setText(body, typeof card?.body === 'string' ? card.body : '');
+    body.hidden = !body.textContent;
+
+    const tags = validItems(card?.tags).filter((tag) => isValidId(tag?.id) && typeof tag?.name === 'string');
+    byId('reference-card-tags').replaceChildren(...tags.map((tag) => {
+        const pill = make('span', 'tag-pill');
+        pill.append(make('span', '', tag.name));
+        const detach = referenceButton('×', 'detach-tag', { tagId: String(Number(tag.id)) }, 'tag-remove');
+        detach.setAttribute('aria-label', `Remove tag ${tag.name}`);
+        pill.append(detach);
+
+        return pill;
+    }));
+    const attached = new Set(tags.map((tag) => Number(tag.id)));
+    fillSelect(
+        byId('reference-tag-picker'),
+        'Choose a tag',
+        state.tags
+            .filter((tag) => isValidId(tag?.id) && typeof tag?.name === 'string' && !attached.has(Number(tag.id)))
+            .map((tag) => [String(Number(tag.id)), tag.name]),
+    );
+    const remove = byId('reference-delete-card');
+    delete remove.dataset.confirmed;
+    setText(remove, 'Delete card');
+    detail.dataset.cardId = String(Number(state.reference.openCardId));
+    detail.hidden = false;
+}
+
+async function loadReferenceCards() {
+    const token = ++state.requests.referenceCards;
+    const data = await requestApi(buildReferenceCardsUrl({ ...state.reference.filters, page: state.reference.page }));
+    if (token !== state.requests.referenceCards) {
+        return;
+    }
+    const items = validItems(data?.items);
+    state.reference.total = Number(data?.meta?.pagination?.total) || 0;
+    const pageCount = Math.max(1, Math.ceil(state.reference.total / REFERENCE_PAGE_SIZE));
+    if (state.reference.page > pageCount) {
+        state.reference.page = pageCount;
+        await loadReferenceCards();
+        return;
+    }
+    byId('reference-list').replaceChildren(...items.map((card) => renderReferenceCardItem(card)));
+    byId('reference-empty').hidden = items.length > 0;
+
+    setText(byId('reference-summary'), `Showing ${items.length} of ${state.reference.total} cards`);
+    setText(byId('reference-page-label'), `Cards page ${state.reference.page} of ${pageCount}`);
+    byId('previous-reference-page').disabled = state.reference.page <= 1;
+    byId('next-reference-page').disabled = state.reference.page >= pageCount;
+}
+
+function renderCheatSheetItem(sheet) {
+    const item = make('li', 'record-item');
+    const name = typeof sheet?.name === 'string' ? sheet.name : 'Untitled cheat sheet';
+    const heading = make('div', 'record-heading');
+    const count = Number(sheet?.card_count) || 0;
+    heading.append(make('h4', '', name), make('span', 'status-label', count === 1 ? '1 card' : `${count} cards`));
+    item.append(heading);
+    if (isValidId(sheet?.id)) {
+        const actions = make('div', 'record-actions');
+        const open = referenceButton('Open sheet', 'open-sheet', { sheetId: String(Number(sheet.id)) }, 'button button-secondary');
+        open.setAttribute('aria-label', `Open cheat sheet ${name}`);
+        actions.append(open);
+        item.append(actions);
+    }
+
+    return item;
+}
+
+async function loadCheatSheets() {
+    const token = ++state.requests.cheatSheets;
+    const { items, total } = await requestAllPages(
+        (page, limit) => `/api/cheat-sheets?page=${page}&limit=${limit}`,
+        CHEAT_SHEET_LIMIT,
+    );
+    if (token !== state.requests.cheatSheets) {
+        return;
+    }
+    state.reference.sheets = items;
+    byId('cheat-sheet-list').replaceChildren(...items.map((sheet) => renderCheatSheetItem(sheet)));
+    byId('cheat-sheet-empty').hidden = items.length > 0;
+    setText(
+        byId('cheat-sheet-summary'),
+        total > 0 ? `Showing all ${items.length} of ${total} cheat sheets` : '',
+    );
+    syncCheatSheetControls();
+}
+
+function renderCheatSheetCard(membership, count) {
+    const card = membership?.card;
+    const cardId = Number(membership?.reference_card_id);
+    const position = Number(membership?.position);
+    const title = typeof card?.title === 'string' ? card.title : 'Untitled card';
+    const item = make('li', 'cheat-sheet-card');
+    const heading = make('div', 'record-heading');
+    heading.append(make('h4', '', title), make('span', 'status-label', labelForCardType(card?.card_type)));
+    item.append(heading);
+    if (typeof card?.summary === 'string' && card.summary !== '') {
+        item.append(make('p', 'reference-summary', card.summary));
+    }
+    const blocks = renderDialogueBlocks(card);
+    if (blocks.children.length > 0) {
+        item.append(blocks);
+    }
+
+    const actions = make('div', 'record-actions');
+    const data = { cardId: String(cardId), position: String(position) };
+    const up = referenceButton('Move up', 'move-up', data);
+    up.disabled = nudgedPosition(position, 'up', count) === null;
+    up.setAttribute('aria-label', `Move ${title} up`);
+    const down = referenceButton('Move down', 'move-down', data);
+    down.disabled = nudgedPosition(position, 'down', count) === null;
+    down.setAttribute('aria-label', `Move ${title} down`);
+    const open = referenceButton('Open card', 'open-card', { cardId: String(cardId) });
+    open.setAttribute('aria-label', `Open ${title}`);
+    const remove = referenceButton('Remove', 'remove-from-sheet', data);
+    remove.setAttribute('aria-label', `Remove ${title} from this sheet`);
+    actions.append(up, down, open, remove);
+    item.append(actions);
+
+    return item;
+}
+
+async function loadCheatSheetDetail() {
+    const detail = byId('cheat-sheet-detail');
+    const token = ++state.requests.cheatSheet;
+    const sheetId = state.reference.openSheetId;
+    if (shownReferenceId(detail, 'sheetId') !== sheetId) {
+        // Hide the previous sheet at once so its actions cannot run against the newly chosen one.
+        hideReferenceDetail(detail, 'sheetId');
+    }
+    if (!isValidId(sheetId)) {
+        return;
+    }
+
+    let sheet;
+    let cards;
+    try {
+        [sheet, cards] = await Promise.all([
+            requestApi(`/api/cheat-sheets/${Number(sheetId)}`),
+            requestAllPages(
+                (page, limit) => `${buildCheatSheetCardUrl(sheetId)}?page=${page}&limit=${limit}`,
+                CHEAT_SHEET_LIMIT,
+            ),
+        ]);
+    } catch (error) {
+        if (error.status === 404 && token === state.requests.cheatSheet) {
+            state.reference.openSheetId = null;
+            hideReferenceDetail(detail, 'sheetId');
+            return;
+        }
+        throw error;
+    }
+    if (token !== state.requests.cheatSheet) {
+        return;
+    }
+
+    const record = sheet?.cheat_sheet;
+    setText(byId('cheat-sheet-title'), typeof record?.name === 'string' ? record.name : 'Cheat sheet');
+    const description = byId('cheat-sheet-description');
+    setText(description, typeof record?.description === 'string' ? record.description : '');
+    description.hidden = !description.textContent;
+    const items = validItems(cards?.items).filter((item) => isValidId(item?.reference_card_id));
+    const total = cards?.total ?? 0;
+    state.reference.sheetCardCount = total;
+    byId('cheat-sheet-cards').replaceChildren(...items.map((item) => renderCheatSheetCard(item, total)));
+    byId('cheat-sheet-cards-empty').hidden = items.length > 0;
+    setText(
+        byId('cheat-sheet-cards-summary'),
+        total > 0 ? `Showing all ${items.length} cards` : '',
+    );
+    const remove = byId('cheat-sheet-delete');
+    delete remove.dataset.confirmed;
+    setText(remove, 'Delete cheat sheet');
+    detail.dataset.sheetId = String(Number(sheetId));
+    detail.hidden = false;
+}
+
+async function loadReference() {
+    await loadCheatSheets();
+    await Promise.all([loadReferenceCards(), loadReferenceCardDetail(), loadCheatSheetDetail()]);
+}
+
+/**
+ * Arm a destructive reference action on the first press; report whether it is now confirmed.
+ */
+function confirmReferenceAction(button, label) {
+    if (button.dataset.confirmed === 'true') {
+        return true;
+    }
+    button.dataset.confirmed = 'true';
+    setText(button, `Confirm: ${label}`);
+    setNotice('This cannot be undone. Press the button again to confirm.', true);
+
+    return false;
+}
+
+async function handleReferenceAction(button) {
+    const action = button.dataset.referenceAction;
+    // Act on what is on screen, never on a selection whose detail has not rendered yet.
+    const cardId = shownReferenceId(byId('reference-card-detail'), 'cardId');
+    const sheetId = shownReferenceId(byId('cheat-sheet-detail'), 'sheetId');
+
+    if (action === 'open-card' && isValidId(button.dataset.cardId)) {
+        state.reference.openCardId = Number(button.dataset.cardId);
+        await loadReferenceCardDetail();
+        byId('reference-card-title').scrollIntoView({ block: 'nearest' });
+        byId('reference-card-title').focus?.();
+        return;
+    }
+    if (action === 'open-sheet' && isValidId(button.dataset.sheetId)) {
+        state.reference.openSheetId = Number(button.dataset.sheetId);
+        await loadCheatSheetDetail();
+        byId('cheat-sheet-title').scrollIntoView({ block: 'nearest' });
+        return;
+    }
+
+    if (['move-up', 'move-down', 'remove-from-sheet'].includes(action)) {
+        const url = buildCheatSheetCardUrl(sheetId, button.dataset.cardId);
+        if (url === '') {
+            return;
+        }
+        if (action === 'remove-from-sheet') {
+            await requestApi(url, { method: 'DELETE' });
+            setNotice('Card removed from the cheat sheet.');
+        } else {
+            const position = nudgedPosition(
+                button.dataset.position,
+                action === 'move-up' ? 'up' : 'down',
+                state.reference.sheetCardCount,
+            );
+            if (position === null) {
+                return;
+            }
+            await requestApi(url, { method: 'PATCH', body: JSON.stringify({ position }) });
+            setNotice(action === 'move-up' ? 'Card moved up.' : 'Card moved down.');
+        }
+        await Promise.all([loadCheatSheets(), loadCheatSheetDetail()]);
+        return;
+    }
+
+    if (action === 'delete-sheet' && isValidId(sheetId)) {
+        if (!confirmReferenceAction(button, 'delete cheat sheet')) {
+            return;
+        }
+        await requestApi(`/api/cheat-sheets/${Number(sheetId)}`, { method: 'DELETE' });
+        state.reference.openSheetId = null;
+        if (Number(state.reference.filters.cheatSheetId) === Number(sheetId)) {
+            state.reference.filters.cheatSheetId = '';
+        }
+        setNotice('Cheat sheet deleted. Its cards are unchanged.');
+        await loadReference();
+        return;
+    }
+
+    if (!isValidId(cardId)) {
+        return;
+    }
+    if (action === 'edit-card' && state.reference.openCard) {
+        startEditingReferenceCard(state.reference.openCard);
+        return;
+    }
+    if (action === 'delete-card') {
+        if (!confirmReferenceAction(button, 'delete card')) {
+            return;
+        }
+        await requestApi(`/api/reference-cards/${Number(cardId)}`, { method: 'DELETE' });
+        state.reference.openCardId = null;
+        if (state.reference.editingCardId === Number(cardId)) {
+            resetReferenceCardForm();
+        }
+        setNotice('Card deleted.');
+        await loadReference();
+        return;
+    }
+    if (action === 'attach-tag' || action === 'detach-tag') {
+        const tagId = action === 'attach-tag' ? byId('reference-tag-picker').value : button.dataset.tagId;
+        if (!isValidId(tagId)) {
+            setNotice('Choose a tag before adding it.', true);
+            return;
+        }
+        await requestApi(`/api/reference-cards/${Number(cardId)}/tags/${Number(tagId)}`, {
+            method: action === 'attach-tag' ? 'POST' : 'DELETE',
+            ...(action === 'attach-tag' ? { body: '{}' } : {}),
+        });
+        setNotice(action === 'attach-tag' ? 'Tag added to the card.' : 'Tag removed from the card.');
+        await Promise.all([loadReferenceCards(), loadReferenceCardDetail()]);
+        return;
+    }
+    if (action === 'add-to-sheet') {
+        const targetSheet = byId('reference-sheet-picker').value;
+        const url = buildCheatSheetCardUrl(targetSheet);
+        if (url === '') {
+            setNotice('Choose a cheat sheet before adding the card.', true);
+            return;
+        }
+        await requestApi(url, { method: 'POST', body: JSON.stringify({ reference_card_id: Number(cardId) }) });
+        setNotice('Card added to the cheat sheet.');
+        await Promise.all([loadCheatSheets(), loadCheatSheetDetail()]);
+    }
+}
+
+function bindReferenceEvents() {
+    byId('reference-search-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        state.reference.filters = {
+            query: String(form.get('q') ?? ''),
+            cardType: String(form.get('card_type') ?? ''),
+            tagId: String(form.get('tag') ?? ''),
+            cheatSheetId: String(form.get('cheat_sheet') ?? ''),
+        };
+        state.reference.page = 1;
+        await loadReferenceCards().catch(displayError);
+    });
+
+    byId('previous-reference-page').addEventListener('click', async () => {
+        if (state.reference.page > 1) {
+            state.reference.page--;
+            await loadReferenceCards().catch(displayError);
+        }
+    });
+
+    byId('next-reference-page').addEventListener('click', async () => {
+        if (state.reference.page * REFERENCE_PAGE_SIZE < state.reference.total) {
+            state.reference.page++;
+            await loadReferenceCards().catch(displayError);
+        }
+    });
+
+    byId('reference-card-type-input').addEventListener('change', (event) => {
+        byId('reference-dialogue-fieldset').hidden = event.currentTarget.value !== 'dialogue_pattern';
+    });
+
+    byId('reference-card-cancel').addEventListener('click', () => {
+        resetReferenceCardForm();
+    });
+
+    byId('reference-card-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const values = Object.fromEntries(new FormData(event.currentTarget));
+        const editingId = state.reference.editingCardId;
+        try {
+            const data = await requestApi(
+                isValidId(editingId) ? `/api/reference-cards/${Number(editingId)}` : '/api/reference-cards',
+                {
+                    method: isValidId(editingId) ? 'PATCH' : 'POST',
+                    body: JSON.stringify(buildReferenceCardBody(values)),
+                },
+            );
+            resetReferenceCardForm();
+            if (isValidId(data?.card?.id)) {
+                state.reference.openCardId = Number(data.card.id);
+            }
+            setNotice(isValidId(editingId) ? 'Card saved.' : 'Card created.');
+            await loadReference();
+        } catch (error) {
+            displayError(error);
+        }
+    });
+
+    byId('cheat-sheet-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formElement = event.currentTarget;
+        const form = new FormData(formElement);
+        try {
+            const data = await requestApi('/api/cheat-sheets', {
+                method: 'POST',
+                body: JSON.stringify({ name: form.get('name') }),
+            });
+            formElement.reset();
+            if (isValidId(data?.cheat_sheet?.id)) {
+                state.reference.openSheetId = Number(data.cheat_sheet.id);
+            }
+            setNotice('Cheat sheet created.');
+            await Promise.all([loadCheatSheets(), loadCheatSheetDetail()]);
+        } catch (error) {
+            displayError(error);
+        }
+    });
+
+    byId('reference-view').addEventListener('click', async (event) => {
+        const button = event.target.closest('button[data-reference-action]');
+        if (!button || button.disabled) {
+            return;
+        }
+        try {
+            await handleReferenceAction(button);
+        } catch (error) {
+            displayError(error);
+        }
+    });
+}
+
 const VIEW_LOADERS = {
     dashboard: loadDashboard,
     inbox: loadTodos,
@@ -1387,6 +2124,7 @@ const VIEW_LOADERS = {
     projects: () => loadRecords('project'),
     notebooks: () => loadRecords('notebook'),
     libraries: loadLibraries,
+    reference: loadReference,
     activity: loadActivity,
     collaboration: loadCollaboration,
 };
@@ -1427,6 +2165,8 @@ async function initializeWorkspace(email, userId) {
 }
 
 function bindEvents() {
+    bindReferenceEvents();
+
     byId('login-form').addEventListener('submit', async (event) => {
         event.preventDefault();
         const formElement = event.currentTarget;

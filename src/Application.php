@@ -12,10 +12,12 @@ use Cake\Error\Middleware\ErrorHandlerMiddleware;
 use Cake\Event\EventManagerInterface;
 use Cake\Http\BaseApplication;
 use Cake\Http\Middleware\BodyParserMiddleware;
+use Cake\Http\Middleware\CsrfProtectionMiddleware;
 use Cake\Http\MiddlewareQueue;
 use Cake\ORM\Locator\TableLocator;
 use Cake\Routing\Middleware\AssetMiddleware;
 use Cake\Routing\Middleware\RoutingMiddleware;
+use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * Application setup and middleware configuration.
@@ -40,6 +42,17 @@ class Application extends BaseApplication
      */
     public function middleware(MiddlewareQueue $middlewareQueue): MiddlewareQueue
     {
+        $csrfMiddleware = new CsrfProtectionMiddleware([
+            'httponly' => true,
+            'samesite' => 'Strict',
+        ]);
+        $csrfMiddleware->skipCheckCallback(
+            static fn(ServerRequestInterface $request): bool => preg_match(
+                '#^/api/(?:reference-cards|cheat-sheets)(?:/|$)#',
+                $request->getUri()->getPath(),
+            ) !== 1,
+        );
+
         $middlewareQueue
             ->add(new RequestLoggingMiddleware())
             ->add(new ErrorHandlerMiddleware(Configure::read('Error'), $this))
@@ -48,7 +61,8 @@ class Application extends BaseApplication
                 'cacheTime' => Configure::read('Asset.cacheTime'),
             ]))
             ->add(new RoutingMiddleware($this))
-            ->add(new BodyParserMiddleware());
+            ->add(new BodyParserMiddleware())
+            ->add($csrfMiddleware);
 
         return $middlewareQueue;
     }

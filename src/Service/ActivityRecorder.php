@@ -36,6 +36,8 @@ class ActivityRecorder
         'cross_context_request',
         'research_collection',
         'research_collection_item',
+        'reference_card',
+        'cheat_sheet',
     ];
 
     /**

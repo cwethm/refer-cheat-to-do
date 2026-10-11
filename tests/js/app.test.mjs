@@ -4,26 +4,36 @@ import test from 'node:test';
 import {
     ACTIVITY_PAGE_SIZE,
     buildActivityUrl,
+    buildCheatSheetCardUrl,
     buildLibrariesUrl,
     buildNotebooksUrl,
     buildProjectsUrl,
+    buildReferenceCardBody,
+    buildReferenceCardsUrl,
     buildRelatedTodoUrl,
     buildSectionAssignmentBody,
     buildSnoozeBody,
     buildTodoActionUrl,
     buildTodoUrl,
+    DIALOGUE_FIELDS,
+    dialogueBlocks,
     formatActivityEntry,
     formatActivityTimestamp,
     formatSectionLabel,
     getErrorMessage,
     isValidId,
     labelForActivityAction,
+    labelForCardType,
     labelForReviewReason,
     LIBRARY_PAGE_SIZE,
     NOTEBOOK_PAGE_SIZE,
+    nudgedPosition,
     parseSectionOptionValue,
     PROJECT_PAGE_SIZE,
+    REFERENCE_PAGE_SIZE,
+    REFERENCE_SEARCH_MAX_CHARS,
     requestApi,
+    requestAllPages,
     requiresConfirmation,
     sectionOptionValue,
     SECTION_SOURCE_LIMIT,
@@ -87,9 +97,13 @@ test('user-provided text is assigned as text, never parsed as markup', () => {
     assert.equal(element.textContent, hostile);
 });
 
-test('API client unwraps success data and uses same-origin session requests', async () => {
+test('API client sends the CSRF token and uses same-origin session requests', async () => {
     const originalFetch = globalThis.fetch;
+    const originalDocument = globalThis.document;
     let captured;
+    globalThis.document = {
+        querySelector: (selector) => (selector === 'meta[name="csrf-token"]' ? { content: 'csrf-token' } : null),
+    };
     globalThis.fetch = async (path, options) => {
         captured = { path, options };
         return {
@@ -98,14 +112,51 @@ test('API client unwraps success data and uses same-origin session requests', as
         };
     };
     try {
-        assert.deepEqual(await requestApi('/api/todos', {
+        assert.deepEqual(await requestApi('/api/reference-cards', {
             method: 'POST',
             body: JSON.stringify({ title: 'Write tests' }),
         }), { saved: true, meta: { pagination: { total: 1 } } });
-        assert.equal(captured.path, '/api/todos');
+        assert.equal(captured.path, '/api/reference-cards');
         assert.equal(captured.options.credentials, 'same-origin');
         assert.equal(captured.options.headers.Accept, 'application/json');
         assert.equal(captured.options.headers['Content-Type'], 'application/json');
+        assert.equal(captured.options.headers['X-CSRF-Token'], 'csrf-token');
+    } finally {
+        globalThis.fetch = originalFetch;
+        if (originalDocument === undefined) {
+            delete globalThis.document;
+        } else {
+            globalThis.document = originalDocument;
+        }
+    }
+});
+
+test('API pagination helper loads every page up to the reported total', async () => {
+    const originalFetch = globalThis.fetch;
+    const requests = [];
+    globalThis.fetch = async (path) => {
+        requests.push(path);
+        const page = Number(new URL(path, 'http://same-origin').searchParams.get('page'));
+
+        return {
+            ok: true,
+            json: async () => ({
+                data: { items: page === 1 ? [{ id: 1 }] : [{ id: 101 }] },
+                meta: { pagination: { total: 101 } },
+            }),
+        };
+    };
+    try {
+        const data = await requestAllPages(
+            (page, limit) => `/api/cheat-sheets?page=${page}&limit=${limit}`,
+            100,
+        );
+
+        assert.deepEqual(data.items, [{ id: 1 }, { id: 101 }]);
+        assert.deepEqual(requests, [
+            '/api/cheat-sheets?page=1&limit=100',
+            '/api/cheat-sheets?page=2&limit=100',
+        ]);
     } finally {
         globalThis.fetch = originalFetch;
     }
@@ -402,4 +453,133 @@ test('an activity entry formats its action, subject and moment', () => {
     });
 
     assert.deepEqual(formatActivityEntry({}), { action: '', subject: '', when: '' });
+});
+
+test('the reference search URL pages at the client size and sends only meaningful filters', () => {
+    const empty = new URL(buildReferenceCardsUrl(), 'https://example.test');
+    assert.equal(empty.pathname, '/api/reference-cards');
+    assert.equal(empty.searchParams.get('page'), '1');
+    assert.equal(empty.searchParams.get('limit'), String(REFERENCE_PAGE_SIZE));
+    for (const key of ['q', 'card_type', 'tag', 'cheat_sheet']) {
+        assert.equal(empty.searchParams.has(key), false);
+    }
+
+    const filtered = new URL(buildReferenceCardsUrl({
+        query: '  scope creep  ',
+        cardType: 'dialogue_pattern',
+        tagId: '7',
+        cheatSheetId: 3,
+        page: 2.9,
+    }), 'https://example.test');
+    assert.equal(filtered.searchParams.get('q'), 'scope creep');
+    assert.equal(filtered.searchParams.get('card_type'), 'dialogue_pattern');
+    assert.equal(filtered.searchParams.get('tag'), '7');
+    assert.equal(filtered.searchParams.get('cheat_sheet'), '3');
+    assert.equal(filtered.searchParams.get('page'), '2');
+
+    const hostile = new URL(buildReferenceCardsUrl({
+        query: '   ',
+        cardType: 'toString',
+        tagId: '1 OR 1=1',
+        cheatSheetId: -4,
+        page: 'nope',
+    }), 'https://example.test');
+    assert.equal(hostile.searchParams.get('page'), '1');
+    for (const key of ['q', 'card_type', 'tag', 'cheat_sheet']) {
+        assert.equal(hostile.searchParams.has(key), false);
+    }
+});
+
+test('reference search text is bounded by characters, not UTF-16 units', () => {
+    const query = '🙂'.repeat(REFERENCE_SEARCH_MAX_CHARS + 10);
+    const url = new URL(buildReferenceCardsUrl({ query }), 'https://example.test');
+    assert.equal(Array.from(url.searchParams.get('q')).length, REFERENCE_SEARCH_MAX_CHARS);
+});
+
+test('a card payload trims the title, nulls blank text and clears dialogue fields on concepts', () => {
+    const concept = buildReferenceCardBody({
+        card_type: 'concept',
+        title: '  Active listening ',
+        summary: '   ',
+        body: 'Paraphrase first.',
+        aim: 'should be dropped',
+    });
+    assert.deepEqual(concept, {
+        card_type: 'concept',
+        title: 'Active listening',
+        summary: null,
+        body: 'Paraphrase first.',
+        situation: null,
+        aim: null,
+        approach: null,
+        avoid: null,
+        rationale: null,
+    });
+
+    const pattern = buildReferenceCardBody({
+        card_type: 'dialogue_pattern',
+        title: 'Declining scope creep',
+        situation: 'A late request arrives.',
+        aim: '',
+        approach: 'Name the trade-off.',
+    });
+    assert.equal(pattern.card_type, 'dialogue_pattern');
+    assert.equal(pattern.situation, 'A late request arrives.');
+    assert.equal(pattern.aim, null);
+    assert.equal(pattern.approach, 'Name the trade-off.');
+
+    assert.equal(buildReferenceCardBody({ card_type: '__proto__', title: 'x' }).card_type, 'concept');
+});
+
+test('dialogue blocks show populated fields in reading order, only for dialogue patterns', () => {
+    assert.deepEqual(DIALOGUE_FIELDS.map(([field]) => field), ['situation', 'aim', 'approach', 'avoid', 'rationale']);
+    assert.deepEqual(dialogueBlocks({
+        card_type: 'dialogue_pattern',
+        rationale: 'Keeps trust.',
+        situation: 'Late request.',
+        aim: '  ',
+        avoid: null,
+    }), [
+        { field: 'situation', label: 'Situation', text: 'Late request.' },
+        { field: 'rationale', label: 'Rationale', text: 'Keeps trust.' },
+    ]);
+    assert.deepEqual(dialogueBlocks({ card_type: 'concept', situation: 'ignored' }), []);
+    assert.deepEqual(dialogueBlocks(null), []);
+});
+
+test('card types have readable labels with a safe fallback', () => {
+    assert.equal(labelForCardType('concept'), 'Concept');
+    assert.equal(labelForCardType('dialogue_pattern'), 'Dialogue pattern');
+    assert.equal(labelForCardType('constructor'), 'Reference card');
+    assert.equal(labelForCardType(undefined), 'Reference card');
+});
+
+test('cheat sheet membership URLs are built only from valid ids', () => {
+    assert.equal(buildCheatSheetCardUrl(4), '/api/cheat-sheets/4/cards');
+    assert.equal(buildCheatSheetCardUrl('4', '9'), '/api/cheat-sheets/4/cards/9');
+    assert.equal(buildCheatSheetCardUrl('4/../1'), '');
+    assert.equal(buildCheatSheetCardUrl(4, 'x'), '');
+    assert.equal(buildCheatSheetCardUrl(0, 1), '');
+});
+
+test('nudging a card stays within the sheet', () => {
+    assert.equal(nudgedPosition(2, 'up', 3), 1);
+    assert.equal(nudgedPosition('2', 'down', 3), 3);
+    assert.equal(nudgedPosition(1, 'up', 3), null);
+    assert.equal(nudgedPosition(3, 'down', 3), null);
+    assert.equal(nudgedPosition(4, 'up', 3), null);
+    assert.equal(nudgedPosition(2, 'sideways', 3), null);
+    assert.equal(nudgedPosition('x', 'up', 3), null);
+});
+
+test('reference activity is presented as readable sentences and subjects', () => {
+    assert.equal(labelForActivityAction('reference_card.created'), 'Created a reference card');
+    assert.equal(labelForActivityAction('cheat_sheet.card_moved'), 'Moved a card on a cheat sheet');
+    assert.deepEqual(formatActivityEntry({
+        action: 'cheat_sheet.card_added',
+        subject_type: 'cheat_sheet',
+        subject_id: 5,
+        created: null,
+    }), { action: 'Added a card to a cheat sheet', subject: 'Cheat sheet #5', when: '' });
+    assert.equal(formatActivityEntry({ action: 'reference_card.deleted', subject_type: 'reference_card', subject_id: 2 }).subject, 'Reference card #2');
 });

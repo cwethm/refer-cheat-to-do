@@ -16,6 +16,10 @@ class PagesControllerTest extends TestCase
 
         $this->assertResponseOk();
         $this->assertContentType('text/html');
+        $this->assertMatchesRegularExpression(
+            '/<meta name="csrf-token" content="[A-Za-z0-9+\/=]+">/',
+            $this->responseBody(),
+        );
         $this->assertResponseContains('<html lang="en">');
         $this->assertResponseContains('href="#main-content"');
         $this->assertResponseContains('aria-label="Workspace views"');
@@ -40,6 +44,16 @@ class PagesControllerTest extends TestCase
         $this->assertResponseContains('data-view="activity"');
         $this->assertResponseContains('src="/js/app.mjs?');
         $this->assertResponseContains('href="/css/app.css?');
+    }
+
+    public function testReferenceMutationsRequireCsrfToken(): void
+    {
+        $this->configRequest([
+            'headers' => ['Accept' => 'application/json', 'Content-Type' => 'application/json'],
+        ]);
+        $this->post('/api/reference-cards', '{"title":"Missing token"}');
+
+        $this->assertResponseCode(403);
     }
 
     public function testAppPageDoesNotLoadThirdPartyScriptsOrFonts(): void
