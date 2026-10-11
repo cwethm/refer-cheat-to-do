@@ -277,6 +277,20 @@ class CapabilityServiceTest extends TestCase
         $this->assertNull($this->service->ownerIdFor('todo', 200));
     }
 
+    public function testDeletedResourceDoesNotHonorOrphanedGrant(): void
+    {
+        $projects = TableRegistry::getTableLocator()->get('Projects');
+        $project = $projects->newEntity(['user_id' => 1, 'name' => 'Temporary project']);
+        $projects->saveOrFail($project);
+
+        $this->service->grant(1, 2, CapabilityService::CAP_READ, CapabilityService::RESOURCE_PROJECT, (int)$project->id);
+        $projects->deleteOrFail($project);
+
+        $this->assertFalse(
+            $this->service->allows(2, CapabilityService::CAP_READ, CapabilityService::RESOURCE_PROJECT, (int)$project->id),
+        );
+    }
+
     public function testDatabaseRejectsUnknownCapabilityValue(): void
     {
         $this->expectExceptionMessageMatches('/capability/');

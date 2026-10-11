@@ -55,6 +55,15 @@ class LibrariesControllerTest extends TestCase
         $this->assertResponseCode(400);
     }
 
+    public function testListRejectsOversizedPagination(): void
+    {
+        $this->authenticate();
+
+        $this->get('/api/libraries?page=99999999999999999999999');
+
+        $this->assertResponseCode(400);
+    }
+
     public function testAnonymousAccessDenied(): void
     {
         $this->configRequest(['headers' => ['Accept' => 'application/json']]);
@@ -154,6 +163,7 @@ class LibrariesControllerTest extends TestCase
         $this->get('/api/libraries/600/members');
         $this->assertResponseOk();
         $this->assertResponseContains('"Owner project"');
+        $this->assertResponseContains('"pagination"');
     }
 
     public function testAddNotebookMemberAndList(): void
@@ -163,9 +173,33 @@ class LibrariesControllerTest extends TestCase
         $this->post('/api/libraries/600/members/notebook/400');
         $this->assertResponseCode(201);
 
-        $this->get('/api/libraries/600');
+        $this->get('/api/libraries/600/members');
         $this->assertResponseOk();
         $this->assertResponseContains('"Owner notebook"');
+    }
+
+    public function testMembersLimitIsCapped(): void
+    {
+        $this->authenticate();
+        $this->post('/api/libraries/600/members/project/200');
+        $this->assertResponseCode(201);
+
+        $this->get('/api/libraries/600/members?limit=5000');
+
+        $this->assertResponseOk();
+        $payload = json_decode((string)$this->_response->getBody(), true);
+        $this->assertSame(100, $payload['meta']['pagination']['limit']);
+    }
+
+    public function testMembersRejectOversizedPagination(): void
+    {
+        $this->authenticate();
+
+        $this->get('/api/libraries/600/members?page=99999999999999999999999');
+        $this->assertResponseCode(400);
+
+        $this->get('/api/libraries/600/members?limit=99999999999999999999999');
+        $this->assertResponseCode(400);
     }
 
     public function testDuplicateMemberAdditionConflicts(): void

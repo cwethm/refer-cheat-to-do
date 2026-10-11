@@ -333,6 +333,24 @@ class ActivityControllerTest extends TestCase
         $this->assertResponseCode(400);
     }
 
+    public function testNonCanonicalNumericSubjectIdFilterIsRejected(): void
+    {
+        $this->authenticate();
+
+        $this->get('/api/activity?subject_id=1.5');
+
+        $this->assertResponseCode(400);
+    }
+
+    public function testMalformedActionFilterIsRejected(): void
+    {
+        $this->authenticate();
+
+        $this->get('/api/activity?action%5B%5D=todo.created');
+
+        $this->assertResponseCode(400);
+    }
+
     public function testMissingSubjectStillListsHistoricalActivity(): void
     {
         $this->authenticate();

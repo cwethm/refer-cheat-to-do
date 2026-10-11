@@ -19,6 +19,8 @@ class CapabilitiesController extends AppController
     public function index(): Response
     {
         $userId = $this->requireUserId();
+        $page = $this->readPositiveQueryInt('page', 1);
+        $limit = min($this->readPositiveQueryInt('limit', 20), 100);
         $resourceType = (string)$this->request->getQuery('resource_type', '');
         $resourceId = $this->readPositiveQueryInt('resource_id');
         $capabilities = $this->capabilities();
@@ -33,12 +35,24 @@ class CapabilitiesController extends AppController
             throw new NotFoundException('Resource not found.');
         }
 
+        $query = $this->fetchTable('CapabilityGrants')->find()
+            ->where([
+                'resource_type' => $resourceType,
+                'resource_id' => $resourceId,
+                'revoked_at IS' => null,
+            ])
+            ->orderBy(['subject_user_id' => 'ASC', 'capability' => 'ASC']);
+        $total = $query->count();
         $items = [];
-        foreach ($capabilities->grantsForResource($resourceType, $resourceId) as $grant) {
+        foreach ($query->limit($limit)->offset(($page - 1) * $limit) as $grant) {
+            /** @var \App\Model\Entity\CapabilityGrant $grant */
             $items[] = $this->serializeGrant($grant);
         }
 
-        return $this->respond(['items' => $items]);
+        return $this->respond(
+            ['items' => $items],
+            ['pagination' => ['page' => $page, 'limit' => $limit, 'total' => $total]],
+        );
     }
 
     /**
@@ -142,11 +156,21 @@ class CapabilitiesController extends AppController
     /**
      * Read a required positive integer query value.
      */
-    private function readPositiveQueryInt(string $field): int
+    private function readPositiveQueryInt(string $field, ?int $default = null): int
     {
-        $value = $this->request->getQuery($field);
-        if (is_string($value) && ctype_digit($value) && (int)$value > 0) {
-            return (int)$value;
+        $max = intdiv(PHP_INT_MAX, 100);
+        $value = $this->request->getQuery($field, $default);
+        if ($default !== null && $value === $default) {
+            return $default;
+        }
+        if (is_string($value) && ctype_digit($value) && strlen($value) <= strlen((string)$max)) {
+            $parsed = (int)$value;
+            if ($parsed > 0 && $parsed <= $max) {
+                return $parsed;
+            }
+        }
+        if (is_int($value) && $value > 0 && $value <= $max) {
+            return $value;
         }
 
         throw new BadRequestException(sprintf('Invalid query parameter `%s`.', $field));

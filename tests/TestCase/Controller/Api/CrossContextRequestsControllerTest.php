@@ -109,6 +109,7 @@ class CrossContextRequestsControllerTest extends TestCase
         $this->get('/api/cross-context-requests/outbox');
         $this->assertResponseOk();
         $this->assertResponseContains('"status": "pending"');
+        $this->assertResponseContains('"pagination"');
     }
 
     public function testStatusCannotBeMassAssignedOnSend(): void
@@ -158,6 +159,7 @@ class CrossContextRequestsControllerTest extends TestCase
 
         $this->assertResponseOk();
         $this->assertResponseContains('"id": ' . $id);
+        $this->assertResponseContains('"pagination"');
     }
 
     public function testSenderInboxIsEmpty(): void
@@ -207,6 +209,49 @@ class CrossContextRequestsControllerTest extends TestCase
         $todos = TableRegistry::getTableLocator()->get('Todos');
         $todo = $todos->find()->where(['title' => 'Reviewed draft'])->firstOrFail();
         $this->assertSame(2, (int)$todo->get('user_id'));
+        $activity = TableRegistry::getTableLocator()->get('ActivityRecords')->find()
+            ->where([
+                'actor_user_id' => 2,
+                'action' => 'todo.created',
+                'subject_type' => 'todo',
+                'subject_id' => (int)$todo->get('id'),
+            ])
+            ->first();
+        $this->assertNotNull($activity);
+    }
+
+    public function testInboxAndOutboxSupportPaginationParameters(): void
+    {
+        $firstId = $this->sendRequest();
+        $secondId = $this->sendRequest();
+
+        $this->authenticate();
+        $this->get('/api/cross-context-requests/outbox?page=1&limit=1');
+        $this->assertResponseOk();
+        $payload = json_decode((string)$this->_response->getBody(), true);
+        $this->assertSame(1, $payload['meta']['pagination']['limit']);
+        $this->assertSame(2, $payload['meta']['pagination']['total']);
+        $this->assertSame($firstId, $payload['data']['items'][0]['id']);
+
+        $this->authenticate(2);
+        $this->get('/api/cross-context-requests/inbox?page=2&limit=1');
+        $this->assertResponseOk();
+        $payload = json_decode((string)$this->_response->getBody(), true);
+        $this->assertSame(1, $payload['meta']['pagination']['limit']);
+        $this->assertSame(2, $payload['meta']['pagination']['total']);
+        $this->assertSame($secondId, $payload['data']['items'][0]['id']);
+    }
+
+    public function testInboxLimitIsCapped(): void
+    {
+        $this->sendRequest();
+
+        $this->authenticate(2);
+        $this->get('/api/cross-context-requests/inbox?limit=5000');
+
+        $this->assertResponseOk();
+        $payload = json_decode((string)$this->_response->getBody(), true);
+        $this->assertSame(100, $payload['meta']['pagination']['limit']);
     }
 
     public function testRecipientCanLinkExistingTodo(): void

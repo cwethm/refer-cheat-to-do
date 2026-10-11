@@ -96,6 +96,8 @@ class NotebooksController extends AppController
             throw new ValidationException('Invalid notebook payload.');
         }
 
+        $this->activity()->record($userId, 'notebook.updated', 'notebook', (int)$notebook->id);
+
         return $this->respond(['notebook' => $this->serializeNotebook($notebook)]);
     }
 
@@ -152,10 +154,19 @@ class NotebooksController extends AppController
         /** @var \App\Model\Entity\NotebookSection $section */
         $section = $sections->newEntity($data, ['fields' => ['name']]);
         $section->set('notebook_id', (int)$notebook->id);
-        $section->set('position', $sections->nextPosition((int)$notebook->id));
-        if ($section->hasErrors() || !$sections->save($section)) {
+        if ($section->hasErrors()) {
             throw new ValidationException('Invalid section payload.');
         }
+        $section = $sections->getConnection()->transactional(
+            function () use ($sections, $section, $notebook): NotebookSection {
+                $section->set('position', $sections->nextPosition((int)$notebook->id));
+                if ($section->hasErrors() || !$sections->save($section)) {
+                    throw new ValidationException('Invalid section payload.');
+                }
+
+                return $section;
+            },
+        );
 
         return $this->respond(['section' => $this->serializeSection($section)], [], 201);
     }
@@ -172,13 +183,7 @@ class NotebooksController extends AppController
 
         /** @var \App\Model\Table\NotebookSectionsTable $sections */
         $sections = $this->fetchTable('NotebookSections');
-        if (array_key_exists('name', $data)) {
-            $section = $sections->patchEntity($section, $data, ['fields' => ['name']]);
-            if ($section->hasErrors() || !$sections->save($section)) {
-                throw new ValidationException('Invalid section payload.');
-            }
-        }
-
+        $position = null;
         if (array_key_exists('position', $data)) {
             $position = $data['position'];
             if (is_string($position) && ctype_digit($position)) {
@@ -187,13 +192,28 @@ class NotebooksController extends AppController
             if (!is_int($position)) {
                 throw new BadRequestException('Invalid section position.');
             }
+        }
+        if (array_key_exists('name', $data)) {
+            $section = $sections->patchEntity($section, $data, ['fields' => ['name']]);
+            if ($section->hasErrors()) {
+                throw new ValidationException('Invalid section payload.');
+            }
+        }
+
+        $sections->getConnection()->transactional(function () use ($sections, $section, $data, $position): void {
+            if (array_key_exists('name', $data) && !$sections->save($section)) {
+                throw new ValidationException('Invalid section payload.');
+            }
+            if ($position === null) {
+                return;
+            }
             try {
                 $sections->moveToPosition($section, $position);
             } catch (InvalidArgumentException $exception) {
                 throw new BadRequestException($exception->getMessage(), null, $exception);
             }
-            $section = $this->fetchNotebookSectionOrFail($sectionId, (int)$notebook->id);
-        }
+        });
+        $section = $this->fetchNotebookSectionOrFail($sectionId, (int)$notebook->id);
 
         return $this->respond(['section' => $this->serializeSection($section)]);
     }

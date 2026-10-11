@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Model\Behavior;
 
 use Cake\Datasource\EntityInterface;
+use Cake\ORM\Association\BelongsTo;
 use Cake\ORM\Behavior;
 use InvalidArgumentException;
 
@@ -37,6 +38,7 @@ class SectionOrderingBehavior extends Behavior
     {
         $table = $this->table();
         $positionField = (string)$this->getConfig('positionField');
+        $this->lockParentRow($parentId);
         $row = $table->find()
             ->where([$this->parentField() => $parentId])
             ->select(['max' => $table->find()->func()->max($positionField)])
@@ -57,6 +59,7 @@ class SectionOrderingBehavior extends Behavior
         $parentId = (int)$section->get($this->parentField());
 
         $table->getConnection()->transactional(function () use ($table, $section, $position, $parentId): void {
+            $this->lockParentRow($parentId);
             $siblings = $this->orderedSiblings($parentId);
             if ($position < 1 || $position > count($siblings)) {
                 throw new InvalidArgumentException('Invalid section position.');
@@ -64,12 +67,15 @@ class SectionOrderingBehavior extends Behavior
 
             $key = $this->primaryKeyOf($section);
             $ordered = [];
+            $current = $section;
             foreach ($siblings as $sibling) {
                 if ($this->primaryKeyOf($sibling) !== $key) {
                     $ordered[] = $sibling;
+                } else {
+                    $current = $sibling;
                 }
             }
-            array_splice($ordered, $position - 1, 0, [$section]);
+            array_splice($ordered, $position - 1, 0, [$current]);
 
             $this->writePositions($ordered);
             unset($table);
@@ -81,7 +87,10 @@ class SectionOrderingBehavior extends Behavior
      */
     public function renumberPositions(int $parentId): void
     {
-        $this->writePositions($this->orderedSiblings($parentId));
+        $this->table()->getConnection()->transactional(function () use ($parentId): void {
+            $this->lockParentRow($parentId);
+            $this->writePositions($this->orderedSiblings($parentId));
+        });
     }
 
     /**
@@ -152,5 +161,31 @@ class SectionOrderingBehavior extends Behavior
         }
 
         return $field;
+    }
+
+    /**
+     * Lock the parent container row while allocating or rewriting sibling positions.
+     */
+    private function lockParentRow(int $parentId): void
+    {
+        $association = null;
+        foreach ($this->table()->associations() as $candidate) {
+            if ($candidate instanceof BelongsTo && $candidate->getForeignKey() === $this->parentField()) {
+                $association = $candidate;
+                break;
+            }
+        }
+        if (!$association instanceof BelongsTo) {
+            throw new InvalidArgumentException('SectionOrdering behavior requires a matching parent association.');
+        }
+
+        $table = $association->getTarget();
+        $row = $table->getConnection()->execute(
+            sprintf('SELECT id FROM %s WHERE id = ? FOR UPDATE', $table->getTable()),
+            [$parentId],
+        )->fetch('assoc');
+        if ($row === false) {
+            throw new InvalidArgumentException('Unknown parent container.');
+        }
     }
 }

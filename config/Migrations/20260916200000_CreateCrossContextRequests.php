@@ -36,7 +36,7 @@ class CreateCrossContextRequests extends BaseMigration
                 'update' => 'NO_ACTION',
             ])
             ->addForeignKey('resolved_by_user_id', 'users', 'id', [
-                'delete' => 'SET_NULL',
+                'delete' => 'RESTRICT',
                 'update' => 'NO_ACTION',
             ])
             ->addForeignKey('resulting_todo_id', 'todos', 'id', [

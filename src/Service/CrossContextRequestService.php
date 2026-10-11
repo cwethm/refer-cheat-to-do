@@ -101,43 +101,44 @@ class CrossContextRequestService
     /**
      * Pending requests addressed to contexts the actor may resolve.
      *
-     * @return list<\App\Model\Entity\CrossContextRequest>
+     * @return array{items: list<\App\Model\Entity\CrossContextRequest>, total: int}
      */
-    public function inbox(int $actorUserId): array
+    public function inbox(int $actorUserId, int $page = 1, int $limit = 100): array
     {
-        $items = [];
-        $rows = $this->tables->get('CrossContextRequests')->find()
+        $conditions = $this->inboxConditions($actorUserId);
+
+        $query = $this->tables->get('CrossContextRequests')->find()
             ->where(['status' => self::STATUS_PENDING])
-            ->orderBy(['id' => 'ASC'])
-            ->all();
-        foreach ($rows as $row) {
+            ->where($conditions)
+            ->orderBy(['id' => 'ASC']);
+        $total = $query->count();
+        $items = [];
+        foreach ($query->limit($limit)->offset(($page - 1) * $limit) as $row) {
             /** @var \App\Model\Entity\CrossContextRequest $row */
-            if ($this->canResolve($actorUserId, $row)) {
-                $items[] = $row;
-            }
+            $items[] = $row;
         }
 
-        return $items;
+        return ['items' => $items, 'total' => $total];
     }
 
     /**
      * Requests the actor sent.
      *
-     * @return list<\App\Model\Entity\CrossContextRequest>
+     * @return array{items: list<\App\Model\Entity\CrossContextRequest>, total: int}
      */
-    public function outbox(int $actorUserId): array
+    public function outbox(int $actorUserId, int $page = 1, int $limit = 100): array
     {
-        $items = [];
-        $rows = $this->tables->get('CrossContextRequests')->find()
+        $query = $this->tables->get('CrossContextRequests')->find()
             ->where(['created_by_user_id' => $actorUserId])
-            ->orderBy(['id' => 'ASC'])
-            ->all();
-        foreach ($rows as $row) {
+            ->orderBy(['id' => 'ASC']);
+        $total = $query->count();
+        $items = [];
+        foreach ($query->limit($limit)->offset(($page - 1) * $limit) as $row) {
             /** @var \App\Model\Entity\CrossContextRequest $row */
             $items[] = $row;
         }
 
-        return $items;
+        return ['items' => $items, 'total' => $total];
     }
 
     /**
@@ -163,8 +164,6 @@ class CrossContextRequestService
      */
     public function modify(int $actorUserId, int $requestId, array $changes): CrossContextRequest
     {
-        $request = $this->requireResolvable($actorUserId, $requestId);
-
         $requests = $this->tables->get('CrossContextRequests');
         $patch = [];
         if (is_string($changes['title'] ?? null)) {
@@ -177,13 +176,19 @@ class CrossContextRequestService
             throw new DomainException('Nothing to modify.');
         }
 
-        /** @var \App\Model\Entity\CrossContextRequest $request */
-        $request = $requests->patchEntity($request, $patch, ['fields' => ['title', 'body']]);
-        if ($request->hasErrors() || $requests->save($request) === false) {
-            throw new DomainException('Invalid cross-context request.');
-        }
+        return $this->withLockedResolvableRequest(
+            $actorUserId,
+            $requestId,
+            function (CrossContextRequest $request) use ($requests, $patch): CrossContextRequest {
+                /** @var \App\Model\Entity\CrossContextRequest $request */
+                $request = $requests->patchEntity($request, $patch, ['fields' => ['title', 'body']]);
+                if ($request->hasErrors() || $requests->save($request) === false) {
+                    throw new DomainException('Invalid cross-context request.');
+                }
 
-        return $request;
+                return $request;
+            },
+        );
     }
 
     /**
@@ -196,12 +201,17 @@ class CrossContextRequestService
      */
     public function accept(int $actorUserId, int $requestId, array $options = []): CrossContextRequest
     {
-        $request = $this->requireResolvable($actorUserId, $requestId);
         $requests = $this->tables->get('CrossContextRequests');
-        $targetOwnerId = (int)$this->capabilities->ownerIdFor($request->target_type, (int)$request->target_id);
 
-        return $requests->getConnection()->transactional(
-            function () use ($request, $requests, $options, $actorUserId, $targetOwnerId): CrossContextRequest {
+        return $this->withLockedResolvableRequest(
+            $actorUserId,
+            $requestId,
+            function (CrossContextRequest $request) use ($requests, $options, $actorUserId): CrossContextRequest {
+                $targetOwnerId = $this->capabilities->ownerIdFor($request->target_type, (int)$request->target_id);
+                if ($targetOwnerId === null) {
+                    throw new DomainException('Unknown target context.');
+                }
+
                 $todoId = null;
                 if (array_key_exists('link_todo_id', $options)) {
                     $todoId = $this->resolveLinkedTodoId($options, $targetOwnerId);
@@ -230,15 +240,19 @@ class CrossContextRequestService
      */
     public function reject(int $actorUserId, int $requestId, ?string $note = null): CrossContextRequest
     {
-        $request = $this->requireResolvable($actorUserId, $requestId);
+        return $this->withLockedResolvableRequest(
+            $actorUserId,
+            $requestId,
+            function (CrossContextRequest $request) use ($actorUserId, $note): CrossContextRequest {
+                $request->set('status', self::STATUS_REJECTED);
+                $request->set('resolved_by_user_id', $actorUserId);
+                $request->set('resolved_at', new DateTime());
+                $request->set('resolution_note', $note);
+                $this->tables->get('CrossContextRequests')->saveOrFail($request);
 
-        $request->set('status', self::STATUS_REJECTED);
-        $request->set('resolved_by_user_id', $actorUserId);
-        $request->set('resolved_at', new DateTime());
-        $request->set('resolution_note', $note);
-        $this->tables->get('CrossContextRequests')->saveOrFail($request);
-
-        return $request;
+                return $request;
+            },
+        );
     }
 
     /**
@@ -249,34 +263,40 @@ class CrossContextRequestService
      */
     public function callback(int $actorUserId, int $requestId, string $summary): CrossContextRequest
     {
-        $request = $this->find($requestId);
-        if ($request->isPending()) {
-            throw new DomainException('A request must be resolved before a callback.');
-        }
-        if ($request->callback_at !== null) {
-            throw new DomainException('This request already has a callback.');
-        }
+        $summary = trim($summary);
         if ($summary === '' || mb_strlen($summary) > 10000) {
             throw new DomainException('Invalid callback summary.');
         }
-        if (!$this->canResolve($actorUserId, $request)) {
-            throw new DomainException('Unknown cross-context request.');
-        }
-        $allowed = $this->capabilities->allows(
-            $actorUserId,
-            CapabilityService::CAP_CALLBACK,
-            $request->source_type,
-            (int)$request->source_id,
+
+        return $this->tables->get('CrossContextRequests')->getConnection()->transactional(
+            function () use ($actorUserId, $requestId, $summary): CrossContextRequest {
+                $request = $this->lockRequest($requestId);
+                if ($request->isPending()) {
+                    throw new DomainException('A request must be resolved before a callback.');
+                }
+                if ($request->callback_at !== null) {
+                    throw new DomainException('This request already has a callback.');
+                }
+                if (!$this->canResolve($actorUserId, $request)) {
+                    throw new DomainException('Unknown cross-context request.');
+                }
+                $allowed = $this->capabilities->allows(
+                    $actorUserId,
+                    CapabilityService::CAP_CALLBACK,
+                    $request->source_type,
+                    (int)$request->source_id,
+                );
+                if (!$allowed) {
+                    throw new DomainException('Not permitted to call back to the source context.');
+                }
+
+                $request->set('callback_summary', $summary);
+                $request->set('callback_at', new DateTime());
+                $this->tables->get('CrossContextRequests')->saveOrFail($request);
+
+                return $request;
+            },
         );
-        if (!$allowed) {
-            throw new DomainException('Not permitted to call back to the source context.');
-        }
-
-        $request->set('callback_summary', $summary);
-        $request->set('callback_at', new DateTime());
-        $this->tables->get('CrossContextRequests')->saveOrFail($request);
-
-        return $request;
     }
 
     /**
@@ -295,21 +315,48 @@ class CrossContextRequestService
     }
 
     /**
-     * Load a pending request the actor may resolve.
+     * Load a request in the current transaction and lock it for update.
      *
-     * @throws \DomainException When the request is missing, already resolved, or not resolvable.
+     * @throws \DomainException When it does not exist.
      */
-    private function requireResolvable(int $actorUserId, int $requestId): CrossContextRequest
+    private function lockRequest(int $requestId): CrossContextRequest
     {
-        $request = $this->find($requestId);
-        if (!$this->canResolve($actorUserId, $request)) {
+        $table = $this->tables->get('CrossContextRequests');
+        $row = $table->getConnection()->execute(
+            'SELECT id FROM cross_context_requests WHERE id = ? FOR UPDATE',
+            [$requestId],
+        )->fetch('assoc');
+        if ($row === false) {
             throw new DomainException('Unknown cross-context request.');
         }
-        if (!$request->isPending()) {
-            throw new DomainException('This request is already resolved.');
-        }
 
-        return $request;
+        return $this->find($requestId);
+    }
+
+    /**
+     * Resolve a pending request inside a write transaction.
+     *
+     * @param callable(\App\Model\Entity\CrossContextRequest): \App\Model\Entity\CrossContextRequest $operation
+     * @throws \DomainException When the request is missing, already resolved, or not resolvable.
+     */
+    private function withLockedResolvableRequest(
+        int $actorUserId,
+        int $requestId,
+        callable $operation,
+    ): CrossContextRequest {
+        return $this->tables->get('CrossContextRequests')->getConnection()->transactional(
+            function () use ($actorUserId, $requestId, $operation): CrossContextRequest {
+                $request = $this->lockRequest($requestId);
+                if (!$this->canResolve($actorUserId, $request)) {
+                    throw new DomainException('Unknown cross-context request.');
+                }
+                if (!$request->isPending()) {
+                    throw new DomainException('This request is already resolved.');
+                }
+
+                return $operation($request);
+            },
+        );
     }
 
     /**
@@ -399,5 +446,49 @@ class CrossContextRequestService
         }
 
         throw new DomainException(sprintf('Invalid field `%s`.', $field));
+    }
+
+    /**
+     * Query conditions for requests the actor may resolve.
+     *
+     * @return array<string, mixed>
+     */
+    private function inboxConditions(int $actorUserId): array
+    {
+        $projects = $this->tables->get('Projects')->find()
+            ->select(['id'])
+            ->where(['user_id' => $actorUserId]);
+        $notebooks = $this->tables->get('Notebooks')->find()
+            ->select(['id'])
+            ->where(['user_id' => $actorUserId]);
+        $projectGrants = $this->tables->get('CapabilityGrants')->find()
+            ->select(['resource_id'])
+            ->where([
+                'subject_user_id' => $actorUserId,
+                'resource_type' => CapabilityService::RESOURCE_PROJECT,
+                'resource_id IN' => $this->tables->get('Projects')->find()->select(['id']),
+                'capability' => CapabilityService::CAP_CONTRIBUTE,
+                'revoked_at IS' => null,
+            ]);
+        $notebookGrants = $this->tables->get('CapabilityGrants')->find()
+            ->select(['resource_id'])
+            ->where([
+                'subject_user_id' => $actorUserId,
+                'resource_type' => CapabilityService::RESOURCE_NOTEBOOK,
+                'resource_id IN' => $this->tables->get('Notebooks')->find()->select(['id']),
+                'capability' => CapabilityService::CAP_CONTRIBUTE,
+                'revoked_at IS' => null,
+            ]);
+
+        $conditions = [
+            'OR' => [
+                ['target_type' => CapabilityService::RESOURCE_PROJECT, 'target_id IN' => $projects],
+                ['target_type' => CapabilityService::RESOURCE_NOTEBOOK, 'target_id IN' => $notebooks],
+                ['target_type' => CapabilityService::RESOURCE_PROJECT, 'target_id IN' => $projectGrants],
+                ['target_type' => CapabilityService::RESOURCE_NOTEBOOK, 'target_id IN' => $notebookGrants],
+            ],
+        ];
+
+        return $conditions;
     }
 }

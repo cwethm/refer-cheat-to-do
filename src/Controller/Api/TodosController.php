@@ -325,6 +325,10 @@ class TodosController extends AppController
         /** @var \App\Model\Table\TodosTable $todosTable */
         $todosTable = $this->fetchTable('Todos');
 
+        $this->activity()->record($userId, 'todo.restored', 'todo', (int)$todo->id, [
+            'status' => (string)$todo->status,
+        ]);
+
         return $this->respond(['todo' => $this->serializeTodo($todosTable->loadTags($todo))]);
     }
 

@@ -93,6 +93,8 @@ class ProjectsController extends AppController
             throw new ValidationException('Invalid project payload.');
         }
 
+        $this->activity()->record($userId, 'project.updated', 'project', (int)$project->id);
+
         return $this->respond(['project' => $this->serializeProject($project)]);
     }
 
@@ -149,10 +151,19 @@ class ProjectsController extends AppController
         /** @var \App\Model\Entity\ProjectSection $section */
         $section = $sections->newEntity($data, ['fields' => ['name']]);
         $section->set('project_id', (int)$project->id);
-        $section->set('position', $sections->nextPosition((int)$project->id));
-        if ($section->hasErrors() || !$sections->save($section)) {
+        if ($section->hasErrors()) {
             throw new ValidationException('Invalid section payload.');
         }
+        $section = $sections->getConnection()->transactional(
+            function () use ($sections, $section, $project): ProjectSection {
+                $section->set('position', $sections->nextPosition((int)$project->id));
+                if ($section->hasErrors() || !$sections->save($section)) {
+                    throw new ValidationException('Invalid section payload.');
+                }
+
+                return $section;
+            },
+        );
 
         return $this->respond(['section' => $this->serializeSection($section)], [], 201);
     }
@@ -169,13 +180,7 @@ class ProjectsController extends AppController
 
         /** @var \App\Model\Table\ProjectSectionsTable $sections */
         $sections = $this->fetchTable('ProjectSections');
-        if (array_key_exists('name', $data)) {
-            $section = $sections->patchEntity($section, $data, ['fields' => ['name']]);
-            if ($section->hasErrors() || !$sections->save($section)) {
-                throw new ValidationException('Invalid section payload.');
-            }
-        }
-
+        $position = null;
         if (array_key_exists('position', $data)) {
             $position = $data['position'];
             if (is_string($position) && ctype_digit($position)) {
@@ -184,13 +189,28 @@ class ProjectsController extends AppController
             if (!is_int($position)) {
                 throw new BadRequestException('Invalid section position.');
             }
+        }
+        if (array_key_exists('name', $data)) {
+            $section = $sections->patchEntity($section, $data, ['fields' => ['name']]);
+            if ($section->hasErrors()) {
+                throw new ValidationException('Invalid section payload.');
+            }
+        }
+
+        $sections->getConnection()->transactional(function () use ($sections, $section, $data, $position): void {
+            if (array_key_exists('name', $data) && !$sections->save($section)) {
+                throw new ValidationException('Invalid section payload.');
+            }
+            if ($position === null) {
+                return;
+            }
             try {
                 $sections->moveToPosition($section, $position);
             } catch (InvalidArgumentException $exception) {
                 throw new BadRequestException($exception->getMessage(), null, $exception);
             }
-            $section = $this->fetchProjectSectionOrFail($sectionId, (int)$project->id);
-        }
+        });
+        $section = $this->fetchProjectSectionOrFail($sectionId, (int)$project->id);
 
         return $this->respond(['section' => $this->serializeSection($section)]);
     }

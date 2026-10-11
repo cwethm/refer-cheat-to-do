@@ -106,7 +106,11 @@ class CapabilityService
         if ($subjectUserId < 1 || $resourceId < 1) {
             return false;
         }
-        if ($this->ownerIdFor($resourceType, $resourceId) === $subjectUserId) {
+        $ownerId = $this->ownerIdFor($resourceType, $resourceId);
+        if ($ownerId === null) {
+            return false;
+        }
+        if ($ownerId === $subjectUserId) {
             return true;
         }
 
@@ -123,6 +127,9 @@ class CapabilityService
     public function grantedCapabilities(int $subjectUserId, string $resourceType, int $resourceId): array
     {
         if (!$this->isKnownResourceType($resourceType) || $subjectUserId < 1 || $resourceId < 1) {
+            return [];
+        }
+        if ($this->ownerIdFor($resourceType, $resourceId) === null) {
             return [];
         }
 
@@ -280,6 +287,9 @@ class CapabilityService
     public function grantsForResource(string $resourceType, int $resourceId): array
     {
         if (!$this->isKnownResourceType($resourceType) || $resourceId < 1) {
+            return [];
+        }
+        if ($this->ownerIdFor($resourceType, $resourceId) === null) {
             return [];
         }
 
