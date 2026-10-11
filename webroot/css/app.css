@@ -156,6 +156,19 @@ input::placeholder, textarea::placeholder { color: #8b958e; }
 .collaboration-surface { display: grid; gap: 0.8rem; margin-top: 1.25rem; }
 .collaboration-surface .tag-form, .collaboration-surface .form-stack { margin: 0; }
 .collaboration-surface .record-description { overflow-wrap: anywhere; white-space: pre-wrap; }
+.reference-filter { grid-template-columns: minmax(12rem, 2fr) repeat(3, minmax(8rem, 1fr)) auto; }
+.reference-detail, .reference-editor, .reference-sheets { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.8rem; margin-top: 1.25rem; }
+#reference-view select { max-width: 100%; }
+#reference-view .panel-title, #reference-view .eyebrow { overflow-wrap: anywhere; }
+.reference-detail .record-actions, .reference-sheets .tag-form, .reference-editor .form-stack { margin: 0; }
+.reference-summary { margin: 0; color: var(--muted); overflow-wrap: anywhere; white-space: pre-wrap; }
+.reference-body { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.reference-fields { display: grid; gap: 0.6rem; margin: 0; }
+.reference-field dt { color: var(--muted); font-size: 0.78rem; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; }
+.reference-field dd { margin: 0.15rem 0 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.reference-dialogue-fieldset { display: grid; gap: 0.45rem; min-width: 0; margin: 0; padding: 0.8rem 1rem 1rem; border: 1px solid var(--line); border-radius: 0.75rem; }
+.cheat-sheet-cards { display: grid; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
+.cheat-sheet-card { display: grid; gap: 0.6rem; min-width: 0; padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: 0.85rem; background: #fff; }
 .notice { min-height: 1.5rem; margin-bottom: 1rem; color: var(--muted); }.notice.is-error { color: var(--coral); }
 .login-panel { max-width: 34rem; margin: 7vh auto; padding: clamp(1.5rem, 5vw, 3rem); border: 1px solid var(--line); border-radius: 1.2rem; background: white; box-shadow: var(--shadow); }
 .login-panel .intro { margin-bottom: 1.5rem; }

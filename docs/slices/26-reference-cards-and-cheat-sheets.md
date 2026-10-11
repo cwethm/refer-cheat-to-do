@@ -3,8 +3,9 @@
 ## Slice Contract
 
 ### Status
-PROPOSED — first slice of Phase F (`docs/intended-use.md`). The owner has confirmed the
-dialogue-pattern structure below: a summary plus optional structured fields.
+IMPLEMENTED — first slice of Phase F (`docs/intended-use.md`). The owner has confirmed the
+dialogue-pattern structure below: a summary plus optional structured fields. The cheat-sheet
+decision is recorded in `docs/adr/0004-cheat-sheets-as-ordered-card-membership.md` (option 2).
 
 ### Goal
 Give the owner a first-class, searchable place for short reference material that is consulted rather
@@ -92,3 +93,49 @@ or needs its own, applying the Rule of Two (`development-slice-protocol.md` §12
 - Substring search over bodies is slow at large scale. The upgrade path (PostgreSQL full-text search)
   is a later, separate decision.
 - A flat list of cards becomes hard to browse; sheets and tags are the answer, not a nested hierarchy.
+
+### Delivered API
+- `GET`/`POST /api/reference-cards` — `GET` accepts `q` (≤255 characters, escaped substring
+  search over title, summary, the dialogue-pattern fields and body), `card_type`, `tag`,
+  `cheat_sheet`, `page` and `limit` (≤100); results are ordered by title.
+- `GET`/`PATCH`/`DELETE /api/reference-cards/{id}`
+- `POST`/`DELETE /api/reference-cards/{id}/tags/{tagId}`
+- `GET`/`POST /api/cheat-sheets` — each sheet reports its `card_count`.
+- `GET`/`PATCH`/`DELETE /api/cheat-sheets/{id}` — deleting a sheet keeps its cards.
+- `GET`/`POST /api/cheat-sheets/{id}/cards` — `POST` takes `reference_card_id` and an optional
+  `position`; a card already on the sheet returns `409`.
+- `PATCH`/`DELETE /api/cheat-sheets/{id}/cards/{cardId}` — `PATCH` takes `position`; removing a
+  card closes the gap.
+
+Every endpoint is owner-only: another user's card, sheet or tag and a nonexistent one all return
+`404`. A `tag` or `cheat_sheet` search filter naming another user's record matches nothing.
+Activity is recorded under the subject types `reference_card` and `cheat_sheet`; the
+account export and restore cover cards, sheets, card tags and sheet memberships.
+
+The **Reference** client view (`/app`) offers search with type, tag and sheet filters, a card
+reading view with dialogue-pattern blocks, a create and edit form, tagging, adding a card to a
+sheet, an ordered cheat-sheet view with Move up, Move down and Remove, and two-step confirmation
+before deleting a card or a sheet. Renaming a sheet and editing its description are available
+through the API only.
+
+### Completion
+- Migration `20261011020000_CreateReferenceCardsAndCheatSheets` applies, rolls back to
+  `20261010220000_CreateResearchCollections`, and reapplies on PostgreSQL.
+- `SectionOrderingBehavior` now works on tables with a composite primary key, so cheat-sheet
+  membership reuses it (Rule of Two, ADR 0004); its existing tests pass with a new composite-key
+  test.
+- PHPUnit: the new reference-card, cheat-sheet, ordering and portability tests pass. The full suite
+  ran 733 tests; only the unrelated `ApplicationTest::testBootstrapInDebug` fails, because this
+  checkout does not provide the optional DebugKit plugin.
+- PHPCS passes. PHPStan reports no errors in changed code; the 29 pre-existing errors in
+  `src/Console/Installer.php` (Composer classes not installed) remain and keep CI's static-analysis
+  step red on `main` as well.
+- Client unit and security tests pass (`node --test tests/js/*.test.mjs`, 41 tests).
+- `tests/e2e/reference.spec.mjs` covers the empty state, creating both card types, search over
+  dialogue fields, type and tag filters, text-only insertion, building, reordering, reloading and
+  pruning a cheat sheet, deletion behind confirmation, an armed deletion never reaching a card
+  that is still loading, an axe audit of the open card and sheet, and
+  no overflow at 320 CSS pixels with long unbroken text. The accessibility spec audits the Reference
+  view and checks overflow at 320, 375, 768 and 1280 CSS pixels. Every browser spec passes except
+  the pre-existing `collaboration.spec.mjs` "stale capability lookups" test, which fails in the
+  same way without this slice's changes.

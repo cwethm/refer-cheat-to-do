@@ -52,6 +52,7 @@ $this->disableAutoLayout();
                     <button class="view-button" type="button" data-view="projects" aria-pressed="false">Projects</button>
                     <button class="view-button" type="button" data-view="notebooks" aria-pressed="false">Notebooks</button>
                     <button class="view-button" type="button" data-view="libraries" aria-pressed="false">Libraries</button>
+                    <button class="view-button" type="button" data-view="reference" aria-pressed="false">Reference</button>
                     <button class="view-button" type="button" data-view="review" aria-pressed="false">Review</button>
                     <button class="view-button" type="button" data-view="activity" aria-pressed="false">Activity</button>
                     <button class="view-button" type="button" data-view="collaboration" aria-pressed="false">Collaboration</button>
@@ -262,6 +263,116 @@ $this->disableAutoLayout();
                     <h4 class="panel-title">Notebooks</h4>
                     <ul id="library-notebooks" class="record-list"></ul>
                     <p id="library-members-empty" class="empty-copy" hidden>This Library has no members yet.</p>
+                </section>
+            </section>
+            <section id="reference-view" class="view-panel" aria-labelledby="reference-title" hidden>
+                <div class="section-heading">
+                    <div><div class="eyebrow">Look it up mid-conversation</div><h2 id="reference-title">Reference</h2></div>
+                </div>
+                <p class="intro">Concepts and dialogue patterns you consult rather than complete. Cards are private to you and never become ToDos.</p>
+                <form id="reference-search-form" class="filter-bar reference-filter" role="search" aria-label="Search reference cards">
+                    <label class="search-field" for="reference-search">Search cards<input id="reference-search" name="q" type="search" maxlength="255" placeholder="Search titles, summaries and text"></label>
+                    <label for="reference-type-filter">Type
+                        <select id="reference-type-filter" name="card_type">
+                            <option value="">Any type</option><option value="concept">Concept</option>
+                            <option value="dialogue_pattern">Dialogue pattern</option>
+                        </select>
+                    </label>
+                    <label for="reference-tag-filter">Tag
+                        <select id="reference-tag-filter" name="tag"><option value="">Any tag</option></select>
+                    </label>
+                    <label for="reference-sheet-filter">Cheat sheet
+                        <select id="reference-sheet-filter" name="cheat_sheet"><option value="">Any sheet</option></select>
+                    </label>
+                    <button class="button button-secondary" type="submit">Find cards</button>
+                </form>
+                <p id="reference-summary" class="result-summary"></p>
+                <ul id="reference-list" class="record-list"></ul>
+                <p id="reference-empty" class="empty-copy" hidden>No cards match. Create one below.</p>
+                <div class="pagination">
+                    <button id="previous-reference-page" class="button button-quiet" type="button" disabled>Previous cards</button>
+                    <span id="reference-page-label" aria-live="polite"></span>
+                    <button id="next-reference-page" class="button button-quiet" type="button" disabled>Next cards</button>
+                </div>
+                <section id="reference-card-detail" class="surface reference-detail" aria-labelledby="reference-card-title" hidden>
+                    <div class="section-heading">
+                        <div><div id="reference-card-type" class="eyebrow"></div><h3 id="reference-card-title" class="panel-title" tabindex="-1"></h3></div>
+                    </div>
+                    <p id="reference-card-summary" class="reference-summary"></p>
+                    <dl id="reference-card-fields" class="reference-fields"></dl>
+                    <p id="reference-card-body" class="reference-body"></p>
+                    <div id="reference-card-tags" class="todo-meta"></div>
+                    <div class="record-actions">
+                        <label for="reference-tag-picker">Add a tag
+                            <select id="reference-tag-picker"><option value="">Choose a tag</option></select>
+                        </label>
+                        <button class="button button-quiet" type="button" data-reference-action="attach-tag">Add tag</button>
+                    </div>
+                    <div class="record-actions">
+                        <label for="reference-sheet-picker">Add to a cheat sheet
+                            <select id="reference-sheet-picker"><option value="">Choose a cheat sheet</option></select>
+                        </label>
+                        <button class="button button-quiet" type="button" data-reference-action="add-to-sheet">Add to sheet</button>
+                    </div>
+                    <div class="record-actions">
+                        <button class="button button-secondary" type="button" data-reference-action="edit-card">Edit card</button>
+                        <button id="reference-delete-card" class="button button-danger" type="button" data-reference-action="delete-card">Delete card</button>
+                    </div>
+                </section>
+                <section class="surface reference-editor" aria-labelledby="reference-form-title">
+                    <div><div class="eyebrow">Write it down once</div><h3 id="reference-form-title" class="panel-title">Create a card</h3></div>
+                    <form id="reference-card-form" class="form-stack">
+                        <label for="reference-card-type-input">Type</label>
+                        <select id="reference-card-type-input" name="card_type">
+                            <option value="concept">Concept</option><option value="dialogue_pattern">Dialogue pattern</option>
+                        </select>
+                        <label for="reference-card-title-input">Title</label>
+                        <input id="reference-card-title-input" name="title" maxlength="255" required placeholder="e.g. Active listening">
+                        <label for="reference-card-summary-input">Summary <span class="optional">(the line you read at a glance)</span></label>
+                        <input id="reference-card-summary-input" name="summary" maxlength="500">
+                        <fieldset id="reference-dialogue-fieldset" class="reference-dialogue-fieldset" hidden>
+                            <legend>Dialogue pattern <span class="optional">(each optional)</span></legend>
+                            <label for="reference-card-situation-input">Situation</label>
+                            <textarea id="reference-card-situation-input" name="situation" rows="2" maxlength="2000"></textarea>
+                            <label for="reference-card-aim-input">Aim</label>
+                            <textarea id="reference-card-aim-input" name="aim" rows="2" maxlength="2000"></textarea>
+                            <label for="reference-card-approach-input">Approach</label>
+                            <textarea id="reference-card-approach-input" name="approach" rows="2" maxlength="2000"></textarea>
+                            <label for="reference-card-avoid-input">Avoid</label>
+                            <textarea id="reference-card-avoid-input" name="avoid" rows="2" maxlength="2000"></textarea>
+                            <label for="reference-card-rationale-input">Rationale</label>
+                            <textarea id="reference-card-rationale-input" name="rationale" rows="2" maxlength="2000"></textarea>
+                        </fieldset>
+                        <label for="reference-card-body-input">Text <span class="optional">(optional, plain text)</span></label>
+                        <textarea id="reference-card-body-input" name="body" rows="4"></textarea>
+                        <div class="record-actions">
+                            <button id="reference-card-submit" class="button button-primary" type="submit">Create card</button>
+                            <button id="reference-card-cancel" class="button button-quiet" type="button" hidden>Cancel editing</button>
+                        </div>
+                    </form>
+                </section>
+                <section class="surface reference-sheets" aria-labelledby="cheat-sheets-title">
+                    <div><div class="eyebrow">Keep the right cards together</div><h3 id="cheat-sheets-title" class="panel-title">Cheat sheets</h3></div>
+                    <form id="cheat-sheet-form" class="tag-form">
+                        <label for="cheat-sheet-name">Create a cheat sheet</label>
+                        <input id="cheat-sheet-name" name="name" maxlength="255" required placeholder="e.g. Difficult meetings">
+                        <button class="button button-secondary" type="submit">Create sheet</button>
+                    </form>
+                    <p id="cheat-sheet-summary" class="result-summary"></p>
+                    <ul id="cheat-sheet-list" class="record-list"></ul>
+                    <p id="cheat-sheet-empty" class="empty-copy" hidden>No cheat sheets yet.</p>
+                </section>
+                <section id="cheat-sheet-detail" class="surface reference-detail" aria-labelledby="cheat-sheet-title" hidden>
+                    <div class="section-heading">
+                        <div><div class="eyebrow">Cheat sheet</div><h3 id="cheat-sheet-title" class="panel-title"></h3></div>
+                    </div>
+                    <p id="cheat-sheet-description" class="intro"></p>
+                    <p id="cheat-sheet-cards-summary" class="result-summary"></p>
+                    <ol id="cheat-sheet-cards" class="cheat-sheet-cards"></ol>
+                    <p id="cheat-sheet-cards-empty" class="empty-copy" hidden>This sheet has no cards yet. Open a card and add it here.</p>
+                    <div class="record-actions">
+                        <button id="cheat-sheet-delete" class="button button-danger" type="button" data-reference-action="delete-sheet">Delete cheat sheet</button>
+                    </div>
                 </section>
             </section>
             <section id="review-view" class="view-panel" aria-labelledby="review-title" hidden>
