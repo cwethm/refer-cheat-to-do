@@ -826,8 +826,12 @@ function syncTagControls() {
         }
         filter.value = state.tags.some((tag) => String(tag.id) === selected) ? selected : '';
     }
-    if (!state.tags.some((tag) => isValidId(tag?.id) && String(Number(tag.id)) === state.reference.filters.tagId)) {
+    if (
+        state.reference.filters.tagId !== ''
+        && !state.tags.some((tag) => isValidId(tag?.id) && String(Number(tag.id)) === state.reference.filters.tagId)
+    ) {
         state.reference.filters.tagId = '';
+        state.reference.page = 1;
     }
 
     const list = byId('tag-list');
