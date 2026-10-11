@@ -117,6 +117,15 @@ class CapabilitiesControllerTest extends TestCase
         $this->assertSame(100, $payload['meta']['pagination']['limit']);
     }
 
+    public function testListRejectsOversizedPagination(): void
+    {
+        $this->authenticate();
+
+        $this->get('/api/capabilities?resource_type=project&resource_id=200&page=99999999999999999999999');
+
+        $this->assertResponseCode(400);
+    }
+
     public function testGrantorIsTakenFromSessionNotPayload(): void
     {
         $this->authenticate();
