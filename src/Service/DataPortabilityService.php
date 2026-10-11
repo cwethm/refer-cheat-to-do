@@ -785,6 +785,11 @@ class DataPortabilityService
                 }
             }
         }
+        if (
+            $type === 'cheat_sheets' && $data['description'] !== null && mb_strlen($data['description']) > 5000
+        ) {
+            throw new DomainException('Cheat sheet description exceeds its stored character limit.');
+        }
         if ($type === 'activity_records') {
             if (
                 !in_array($data['subject_type'], ActivityRecorder::SUBJECT_TYPES, true)
