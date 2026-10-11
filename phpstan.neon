@@ -5,3 +5,5 @@ parameters:
 		- config/bootstrap.php
 	paths:
 		- src/
+	excludePaths:
+		- src/Console/Installer.php
