@@ -3,7 +3,10 @@
 ## Slice Contract
 
 ### Status
-PROPOSED — fourth slice of Phase F (`docs/intended-use.md`)
+PROPOSED — scheduled last in Phase F (`docs/intended-use.md`). Fast lookup (Slice 26) and offline
+access (Slice 35) do most of the work of not straining to recall; practice reinforces the cards the
+owner wants to know by heart. It depends only on Slice 26, so it can be moved earlier without
+affecting any other contract.
 
 ### Goal
 Resurface reference cards on a deterministic schedule so that concepts and dialogue patterns are
@@ -20,7 +23,8 @@ retained, not only stored, and the owner is not straining to recall them when th
   deterministic rule: `recalled` lengthens the interval up to the maximum, `forgot` returns it to the
   default. Plus a snooze that reschedules without changing the interval.
 - A **Practise** client view: the card's title and summary are shown first, the body is revealed on
-  request, then the owner picks `recalled` or `forgot`.
+  request, then the owner picks `recalled` or `forgot`. A session can optionally be limited to one
+  cheat sheet or one issue (Slice 30), for example the sheet for tomorrow's meeting.
 
 ### Out of scope
 - Any adaptive or learned scheduling, ratings beyond the two outcomes, streaks, statistics or
@@ -30,12 +34,13 @@ retained, not only stored, and the owner is not straining to recall them when th
 - AI-generated questions or answers.
 
 ### Dependencies
-Slice 26 (cards), Slice 7 (the scheduling and explainability precedent), Slice 12 (activity).
+Slice 26 (cards), Slice 7 (the scheduling and explainability precedent), Slice 12 (activity), and
+Slice 30 (issues) for the optional scoping.
 
 ### Required decision
 Whether the date arithmetic reuses `ReviewSchedulingService`. It is currently the single authority
-for ToDo review dates. Cards would be its second consumer (and community needs, Slice 31, a third),
-so the Rule of Two and Three applies (`development-slice-protocol.md` §12): extract only the shared
+for ToDo review dates. Because Slice 31 now precedes this slice, community needs are the second
+consumer of that kind of rule and cards the third, so the Rule of Two and Three applies (`development-slice-protocol.md` §12): extract only the shared
 computation, not a generic "reviewable" abstraction, and leave ToDo behaviour byte-for-byte unchanged.
 
 ### Required threat and authorization review

@@ -27,8 +27,10 @@ again by date, kind, tag or text.
   (`development-slice-protocol.md` §12); otherwise left duplicated and documented.
 
 ### Out of scope
-- Links to cards, other records, ToDos or issues (Slice 28). Follow-up ToDos are created through the
-  existing ToDo endpoints; nothing is extracted or created automatically.
+- Links to cards, other records, ToDos or issues (Slice 28) and person records (Slice 33).
+  `participants` stays free text; people are later linked in addition, and the text is never parsed
+  into person records. Follow-up ToDos are created through the existing ToDo endpoints; nothing is
+  extracted or created automatically.
 - Contact details, linking participants to user accounts, a "people" record, calendar integration,
   reminders, recurring events, attachments, audio or transcription.
 - Sharing or capability grants, and any agent or AI summarisation.

@@ -3,7 +3,9 @@
 ## Slice Contract
 
 ### Status
-PROPOSED — first slice of Phase F (`docs/intended-use.md`)
+PROPOSED — first slice of Phase F (`docs/intended-use.md`). The dialogue-pattern structure below is
+the recommended default and is awaiting the owner's confirmation; the rest of the contract does not
+depend on it.
 
 ### Goal
 Give the owner a first-class, searchable place for short reference material that is consulted rather
@@ -14,11 +16,19 @@ quickly enough to use during a conversation.
 - `ReferenceCard`: user-owned record with a required `title` (≤255 characters), a `card_type` from a
   closed set (`concept`, `dialogue_pattern`, enforced by a database `CHECK`), a one-line `summary`
   (≤500 characters, the line read at a glance) and plain-text `body` (≤65,536 UTF-8 bytes, as in
-  Slice 22). Only the title is required.
+  Slice 22). Only the title is required. `concept` and `dialogue_pattern` are defined in
+  `docs/intended-use.md`.
+- Dialogue-pattern fields (recommended): optional `situation`, `aim`, `approach`, `avoid` and
+  `rationale`, each plain text of at most 2,000 characters, valid only when `card_type` is
+  `dialogue_pattern` (a database `CHECK` requires them to be `NULL` otherwise, so the type keeps its
+  meaning). The client shows populated fields as labelled blocks beneath the summary and hides
+  empty ones. If the owner chooses summary plus free text instead, these five fields and their
+  `CHECK` are dropped and nothing else in the contract changes.
 - Tagging a card with the user's existing tags.
 - Cheat sheets: a named, ordered selection of cards, with a card allowed in more than one sheet.
 - CRUD API following the established conventions (`data`/`meta`, `error.code`/`message`/`details`).
-- Search over title, summary and body, filtered by `card_type`, tag and cheat sheet, with the
+- Search over title, summary, dialogue-pattern fields and body, filtered by `card_type`, tag and
+  cheat sheet, with the
   wildcard escaping and bounded pagination used for ToDo search.
 - A **Reference** client view: search-first lookup, a card reading view and an ordered cheat-sheet
   view that is legible at 320 CSS pixels.
@@ -27,7 +37,8 @@ quickly enough to use during a conversation.
 
 ### Out of scope
 - Sharing, capability grants or any public access. Cards are private (`docs/intended-use.md`).
-- Links between cards and other items (Slice 28), recall practice (Slice 29), printing (Slice 23).
+- Links between cards and other items, including a pattern to the concepts it relies on (Slice 28),
+  recall practice (Slice 29), bundles and offline copies (Slices 34 and 35), printing (Slice 23).
 - Rich-text, Markdown or HTML rendering, attachments, import from other products, offline caching.
 - Archive or trash for cards; deletion is permanent behind a confirmation.
 - Full-text search infrastructure. Case-insensitive substring search is adequate at personal scale.
@@ -66,7 +77,8 @@ or needs its own, applying the Rule of Two (`development-slice-protocol.md` §12
 ### Test plan
 - Migration apply, rollback and reapply.
 - PHPUnit: ownership and the full denied-path matrix for every endpoint; `card_type` constraint;
-  title, summary and body length boundaries; membership ordering and cross-user membership
+  dialogue-pattern fields rejected on a concept card and accepted at their length boundary; title,
+  summary and body length boundaries; membership ordering and cross-user membership
   rejection; search escaping of `%`, `_` and `\`; pagination boundaries; delete cascade behaviour;
   activity entries; export contains the new rows and no other user's rows.
 - A regression test that creating cards changes no ToDo list, review queue or dashboard count.

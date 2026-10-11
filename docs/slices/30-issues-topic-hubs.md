@@ -8,7 +8,8 @@ PROPOSED — fifth slice of Phase F (`docs/intended-use.md`)
 ### Goal
 Give each social issue the owner is engaged with a named place that gathers everything known about
 it — cards, records, ToDos, Projects, Notebooks and research — so the material is organised around
-the issue and not scattered by type.
+the issue and not scattered by type. Once needs (Slice 31) join, the hub is also where the owner
+finds the detailed issues and factors to weigh when forming a recommendation.
 
 ### In scope
 - A user-owned hub for an issue: `name` (≤255 characters) and a short plain-text `description`
@@ -23,8 +24,10 @@ the issue and not scattered by type.
 
 ### Out of scope
 - Issue status, severity, positions or stances, deadlines, or any workflow state.
-- Sharing a hub, or collaborating on one. Community needs (Slice 31) join a hub when that slice
-  lands; decisions are records and are already eligible members.
+- Sharing a hub, or collaborating on one. Community needs (Slice 31) and people (Slice 33) join a hub
+  when those slices land; decisions are records and are already eligible members.
+- A hub is a standing home for a subject. A purpose-bound or temporary selection of items is a
+  bundle (Slice 34).
 - Automatic membership, such as pulling in everything carrying a tag.
 - Authority over members: a hub grants nothing over what it groups.
 

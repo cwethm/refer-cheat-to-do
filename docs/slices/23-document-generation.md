@@ -25,7 +25,10 @@ involved. The first intended use is a printable cheat sheet, the fallback when t
 ### Dependencies
 Slice 22 (ResearchCollection), Slice 26 (cards and cheat sheets), Slices 10 and 12. Discussion and
 event records, and community needs (Slices 27 and 31), are not data sources unless a later decision
-adds them with the sensitive-information constraints in `docs/intended-use.md`.
+adds them with the sensitive-information constraints in `docs/intended-use.md`. A bundle (Slice 34) is
+the natural data source for packaging a set of planning, meeting, discussion or topic material for
+evaluation, but whether packaging is a rendered document at all depends on the owner's answer to
+the "evaluation" question there; the bundle's sensitive-member exclusion would carry over.
 
 ### Required threat and authorization review
 Templates that interpolate user-supplied content are an injection surface. Before implementation the
