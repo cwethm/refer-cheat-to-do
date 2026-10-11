@@ -239,6 +239,20 @@ class ActivityRecorderTest extends TestCase
         $this->recorder()->forActor(1, ['subject_id' => '1.5']);
     }
 
+    public function testForActorRejectsLeadingZeroSubjectId(): void
+    {
+        $this->expectException(DomainException::class);
+
+        $this->recorder()->forActor(1, ['subject_id' => '01']);
+    }
+
+    public function testForActorRejectsOversizedSubjectId(): void
+    {
+        $this->expectException(DomainException::class);
+
+        $this->recorder()->forActor(1, ['subject_id' => '99999999999999999999999']);
+    }
+
     public function testForActorRejectsNonStringActionFilter(): void
     {
         $this->expectException(DomainException::class);

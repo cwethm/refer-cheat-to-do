@@ -466,6 +466,7 @@ class CrossContextRequestService
             ->where([
                 'subject_user_id' => $actorUserId,
                 'resource_type' => CapabilityService::RESOURCE_PROJECT,
+                'resource_id IN' => $this->tables->get('Projects')->find()->select(['id']),
                 'capability' => CapabilityService::CAP_CONTRIBUTE,
                 'revoked_at IS' => null,
             ]);
@@ -474,6 +475,7 @@ class CrossContextRequestService
             ->where([
                 'subject_user_id' => $actorUserId,
                 'resource_type' => CapabilityService::RESOURCE_NOTEBOOK,
+                'resource_id IN' => $this->tables->get('Notebooks')->find()->select(['id']),
                 'capability' => CapabilityService::CAP_CONTRIBUTE,
                 'revoked_at IS' => null,
             ]);

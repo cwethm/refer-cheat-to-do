@@ -57,18 +57,22 @@ class SectionOrderingBehavior extends Behavior
         $parentId = (int)$section->get($this->parentField());
 
         $table->getConnection()->transactional(function () use ($table, $section, $position, $parentId): void {
+            $this->lockParentRow($parentId);
             $siblings = $this->orderedSiblings($parentId);
             if ($position < 1 || $position > count($siblings)) {
                 throw new InvalidArgumentException('Invalid section position.');
             }
 
             $ordered = [];
+            $current = $section;
             foreach ($siblings as $sibling) {
                 if ((int)$sibling->get('id') !== (int)$section->get('id')) {
                     $ordered[] = $sibling;
+                } else {
+                    $current = $sibling;
                 }
             }
-            array_splice($ordered, $position - 1, 0, [$section]);
+            array_splice($ordered, $position - 1, 0, [$current]);
 
             $this->writePositions($ordered);
             unset($table);
@@ -80,7 +84,10 @@ class SectionOrderingBehavior extends Behavior
      */
     public function renumberPositions(int $parentId): void
     {
-        $this->writePositions($this->orderedSiblings($parentId));
+        $this->table()->getConnection()->transactional(function () use ($parentId): void {
+            $this->lockParentRow($parentId);
+            $this->writePositions($this->orderedSiblings($parentId));
+        });
     }
 
     /**

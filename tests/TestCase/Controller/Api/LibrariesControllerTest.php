@@ -55,6 +55,15 @@ class LibrariesControllerTest extends TestCase
         $this->assertResponseCode(400);
     }
 
+    public function testListRejectsOversizedPagination(): void
+    {
+        $this->authenticate();
+
+        $this->get('/api/libraries?page=99999999999999999999999');
+
+        $this->assertResponseCode(400);
+    }
+
     public function testAnonymousAccessDenied(): void
     {
         $this->configRequest(['headers' => ['Accept' => 'application/json']]);

@@ -126,7 +126,12 @@ class ActivityRecorder
         if ($subjectId !== null && $subjectId !== '') {
             if (is_int($subjectId) && $subjectId > 0) {
                 $conditions['ActivityRecords.subject_id'] = $subjectId;
-            } elseif (is_string($subjectId) && ctype_digit($subjectId) && (int)$subjectId > 0) {
+            } elseif (
+                is_string($subjectId)
+                && ctype_digit($subjectId)
+                && (int)$subjectId > 0
+                && (string)(int)$subjectId === $subjectId
+            ) {
                 $conditions['ActivityRecords.subject_id'] = (int)$subjectId;
             } else {
                 throw new DomainException('Invalid activity subject id.');

@@ -158,14 +158,18 @@ class CapabilitiesController extends AppController
      */
     private function readPositiveQueryInt(string $field, ?int $default = null): int
     {
+        $max = intdiv(PHP_INT_MAX, 100);
         $value = $this->request->getQuery($field, $default);
         if ($default !== null && $value === $default) {
             return $default;
         }
-        if (is_string($value) && ctype_digit($value) && (int)$value > 0) {
-            return (int)$value;
+        if (is_string($value) && ctype_digit($value) && strlen($value) <= strlen((string)$max)) {
+            $parsed = (int)$value;
+            if ($parsed > 0 && $parsed <= $max) {
+                return $parsed;
+            }
         }
-        if (is_int($value) && $value > 0) {
+        if (is_int($value) && $value > 0 && $value <= $max) {
             return $value;
         }
 

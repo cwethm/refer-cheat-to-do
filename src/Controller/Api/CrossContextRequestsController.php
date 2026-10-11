@@ -144,7 +144,11 @@ class CrossContextRequestsController extends AppController
             'target_type' => (string)$request->target_type,
             'target_id' => (int)$request->target_id,
         ]);
-        if (($options['create_todo'] ?? false) === true && $request->resulting_todo_id !== null) {
+        if (
+            !array_key_exists('link_todo_id', $options)
+            && ($options['create_todo'] ?? false) === true
+            && $request->resulting_todo_id !== null
+        ) {
             $this->activity()->record($userId, 'todo.created', 'todo', (int)$request->resulting_todo_id, [
                 'status' => TodoLifecycleService::STATUS_INBOX,
             ]);
@@ -258,12 +262,16 @@ class CrossContextRequestsController extends AppController
      */
     private function readPositiveQueryInt(string $field, int $default): int
     {
+        $max = intdiv(PHP_INT_MAX, 100);
         $value = $this->request->getQuery($field, $default);
-        if (is_int($value) && $value > 0) {
+        if (is_int($value) && $value > 0 && $value <= $max) {
             return $value;
         }
-        if (is_string($value) && ctype_digit($value) && (int)$value > 0) {
-            return (int)$value;
+        if (is_string($value) && ctype_digit($value) && strlen($value) <= strlen((string)$max)) {
+            $parsed = (int)$value;
+            if ($parsed > 0 && $parsed <= $max) {
+                return $parsed;
+            }
         }
 
         throw new BadRequestException(sprintf('Invalid query parameter `%s`.', $field));
