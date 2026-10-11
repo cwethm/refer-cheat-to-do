@@ -79,6 +79,9 @@ No endpoint, schema, domain rule or authorization rule changed.
 - Section options are gathered by listing Projects and Notebooks once each and reading each record's
   sections, so the picker covers the newest `SECTION_SOURCE_LIMIT` (100) of each kind.
 - The module was not split; the client security suite still reads the whole `webroot/js/` directory.
+- A Library's Projects and Notebooks are read from `GET /api/libraries/{id}/members`, built by
+  `buildLibraryMembersUrl` at the API's 100-row cap. `GET /api/libraries/{id}` returns the Library
+  alone.
 
 ## Accessibility and responsive review
 - Both new views, their forms, per-record rename fields and the widened picker have programmatic
@@ -109,11 +112,27 @@ No endpoint, schema, domain rule or authorization rule changed.
 ## Known limitations
 - The picker covers the first 100 Projects and the first 100 Notebooks. No endpoint lists every
   section at once, and adding one is out of scope.
+- A Library shows at most its first 100 Projects and 100 Notebooks; the members endpoint pages, the
+  view does not.
 - Libraries cannot be created, renamed, deleted, or have members added or removed from the client.
   The endpoints exist; the screens do not.
 - Sections still cannot be reordered, and there is no bulk or drag-and-drop assignment.
 - Deleting a Notebook or section relies on the server's emptiness rules; the client surfaces the
   resulting error rather than offering to empty them first.
+
+## Post-delivery corrections
+A later review change (PR #26) moved Library members from `GET /api/libraries/{id}` to the paged
+members endpoint and moved section-position allocation under a parent lock. PHPStan failures hid the
+PHPUnit and browser jobs in CI, so two regressions went unseen until the gate was restored:
+
+- Opening a Library showed no members. The client now reads the members endpoint, and the browser
+  suite's clean-up does the same, so Libraries with members are emptied and deleted again.
+- `POST /api/projects/{id}/sections` and `POST /api/notebooks/{id}/sections` rejected a name-only
+  body, which is what the client sends, with `422`. The early check now validates only the
+  client-supplied name; `position` is allocated under the lock. Name-only controller tests cover both.
+
+Stale tests that had not run since were corrected at the same time. With them, CI runs 757 PHPUnit
+tests, 43 client unit and security tests and 58 browser tests, all passing.
 
 ## Slice Completion Report
 

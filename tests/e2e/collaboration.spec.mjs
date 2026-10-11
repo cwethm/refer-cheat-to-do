@@ -145,7 +145,7 @@ test('stale capability lookups do not replace the current resource grants', asyn
 
     releaseFirstLookup();
     await staleResponse;
-    await expect(page.locator('#capability-list')).toHaveText('User #202 · read');
+    await expect(page.locator('#capability-list .record-description')).toHaveText(['User #202 · read']);
 });
 
 test('a request can be sent, accepted, declined, and called back', async ({ page, browser }) => {
