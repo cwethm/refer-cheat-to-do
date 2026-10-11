@@ -82,6 +82,39 @@ class CapabilitiesControllerTest extends TestCase
         $this->get('/api/capabilities?resource_type=project&resource_id=200');
         $this->assertResponseOk();
         $this->assertResponseContains('"subject_user_id": 2');
+        $this->assertResponseContains('"pagination"');
+    }
+
+    public function testListSupportsPagination(): void
+    {
+        $users = TableRegistry::getTableLocator()->get('Users');
+        $extra = $users->newEntity(['email' => 'fourth@example.com', 'password' => 'pw']);
+        $users->saveOrFail($extra);
+
+        $this->service()->grant(1, 2, 'read', 'project', 200);
+        $this->service()->grant(1, 3, 'read', 'project', 200);
+        $this->service()->grant(1, (int)$extra->id, 'query', 'project', 200);
+
+        $this->authenticate();
+        $this->get('/api/capabilities?resource_type=project&resource_id=200&page=2&limit=1');
+
+        $this->assertResponseOk();
+        $payload = json_decode((string)$this->_response->getBody(), true);
+        $this->assertSame(1, $payload['meta']['pagination']['limit']);
+        $this->assertSame(3, $payload['meta']['pagination']['total']);
+        $this->assertCount(1, $payload['data']['items']);
+        $this->assertSame(3, $payload['data']['items'][0]['subject_user_id']);
+    }
+
+    public function testListLimitIsCapped(): void
+    {
+        $this->authenticate();
+
+        $this->get('/api/capabilities?resource_type=project&resource_id=200&limit=5000');
+
+        $this->assertResponseOk();
+        $payload = json_decode((string)$this->_response->getBody(), true);
+        $this->assertSame(100, $payload['meta']['pagination']['limit']);
     }
 
     public function testGrantorIsTakenFromSessionNotPayload(): void

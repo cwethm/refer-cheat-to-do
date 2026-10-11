@@ -66,14 +66,14 @@ class LibrariesController extends AppController
     }
 
     /**
-     * View an owned library with its members.
+     * View an owned library.
      */
     public function view(string $id): Response
     {
         $userId = $this->requireUserId();
         $library = $this->fetchOwnedLibraryOrFail($id, $userId);
 
-        return $this->respond(['library' => $this->serializeLibrary($library, true)]);
+        return $this->respond(['library' => $this->serializeLibrary($library)]);
     }
 
     /**
@@ -124,8 +124,24 @@ class LibrariesController extends AppController
     {
         $userId = $this->requireUserId();
         $library = $this->fetchOwnedLibraryOrFail($id, $userId);
+        $page = $this->readPositiveQueryInt('page', 1);
+        $limit = min($this->readPositiveQueryInt('limit', 20), 100);
+        $members = $this->serializeMembers($library, $userId, $page, $limit);
 
-        return $this->respond($this->serializeMembers($library, $userId));
+        return $this->respond(
+            [
+                'projects' => $members['projects'],
+                'notebooks' => $members['notebooks'],
+            ],
+            [
+                'pagination' => [
+                    'page' => $page,
+                    'limit' => $limit,
+                    'projects_total' => $members['projects_total'],
+                    'notebooks_total' => $members['notebooks_total'],
+                ],
+            ],
+        );
     }
 
     /**
@@ -276,9 +292,9 @@ class LibrariesController extends AppController
      *
      * @return array<string, mixed>
      */
-    private function serializeLibrary(Library $library, bool $withMembers = false): array
+    private function serializeLibrary(Library $library): array
     {
-        $payload = [
+        return [
             'id' => (int)$library->id,
             'user_id' => (int)$library->user_id,
             'name' => (string)$library->name,
@@ -286,11 +302,6 @@ class LibrariesController extends AppController
             'created' => $library->created?->format(DATE_ATOM),
             'modified' => $library->modified?->format(DATE_ATOM),
         ];
-        if ($withMembers) {
-            $payload += $this->serializeMembers($library, (int)$library->user_id);
-        }
-
-        return $payload;
     }
 
     /**
@@ -298,40 +309,71 @@ class LibrariesController extends AppController
      *
      * @return array<string, mixed>
      */
-    private function serializeMembers(Library $library, int $userId): array
+    private function serializeMembers(Library $library, int $userId, int $page, int $limit): array
     {
-        $membership = $this->membership();
+        $projects = $this->serializeOwnedRecords(
+            'Projects',
+            'project_id',
+            'libraries_projects',
+            (int)$library->id,
+            $userId,
+            $page,
+            $limit,
+        );
+        $notebooks = $this->serializeOwnedRecords(
+            'Notebooks',
+            'notebook_id',
+            'libraries_notebooks',
+            (int)$library->id,
+            $userId,
+            $page,
+            $limit,
+        );
 
         return [
-            'projects' => $this->serializeOwnedRecords(
-                'Projects',
-                $membership->memberIds($library, LibraryMembershipService::MEMBER_PROJECT),
-                $userId,
-            ),
-            'notebooks' => $this->serializeOwnedRecords(
-                'Notebooks',
-                $membership->memberIds($library, LibraryMembershipService::MEMBER_NOTEBOOK),
-                $userId,
-            ),
+            'projects' => $projects['items'],
+            'projects_total' => $projects['total'],
+            'notebooks' => $notebooks['items'],
+            'notebooks_total' => $notebooks['total'],
         ];
     }
 
     /**
      * Serialize owned records referenced by id, skipping anything not owned by the caller.
      *
-     * @param list<int> $ids
-     * @return list<array<string, mixed>>
+     * @return array{items: list<array<string, mixed>>, total: int}
      */
-    private function serializeOwnedRecords(string $table, array $ids, int $userId): array
-    {
-        if ($ids === []) {
-            return [];
-        }
+    private function serializeOwnedRecords(
+        string $table,
+        string $memberKey,
+        string $joinTable,
+        int $libraryId,
+        int $userId,
+        int $page,
+        int $limit,
+    ): array {
+        $joinAlias = $joinTable . '_members';
+        $query = $this->fetchTable($table)->find()
+            ->select([
+                $table . '.id',
+                $table . '.name',
+                $table . '.description',
+            ])
+            ->innerJoin(
+                [$joinAlias => $joinTable],
+                [
+                    sprintf('%s.%s = %s.id', $joinAlias, $memberKey, $table),
+                    sprintf('%s.library_id', $joinAlias) => $libraryId,
+                ],
+            )
+            ->where([sprintf('%s.user_id', $table) => $userId])
+            ->orderBy([sprintf('%s.id', $table) => 'ASC']);
+        $total = $query->count();
 
         $items = [];
-        $rows = $this->fetchTable($table)->find()
-            ->where(['id IN' => $ids, 'user_id' => $userId])
-            ->orderBy(['id' => 'ASC'])
+        $rows = $query
+            ->limit($limit)
+            ->offset(($page - 1) * $limit)
             ->all();
         foreach ($rows as $row) {
             $items[] = [
@@ -341,6 +383,6 @@ class LibrariesController extends AppController
             ];
         }
 
-        return $items;
+        return ['items' => $items, 'total' => $total];
     }
 }

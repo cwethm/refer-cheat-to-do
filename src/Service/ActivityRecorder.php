@@ -124,15 +124,23 @@ class ActivityRecorder
 
         $subjectId = $filters['subject_id'] ?? null;
         if ($subjectId !== null && $subjectId !== '') {
-            if (!is_numeric($subjectId) || (int)$subjectId < 1) {
+            if (is_int($subjectId) && $subjectId > 0) {
+                $conditions['ActivityRecords.subject_id'] = $subjectId;
+            } elseif (is_string($subjectId) && ctype_digit($subjectId) && (int)$subjectId > 0) {
+                $conditions['ActivityRecords.subject_id'] = (int)$subjectId;
+            } else {
                 throw new DomainException('Invalid activity subject id.');
             }
-            $conditions['ActivityRecords.subject_id'] = (int)$subjectId;
         }
 
         $action = $filters['action'] ?? null;
-        if ($action !== null && trim((string)$action) !== '') {
-            $conditions['ActivityRecords.action'] = $this->normalizeAction((string)$action);
+        if ($action !== null && $action !== '') {
+            if (!is_string($action)) {
+                throw new DomainException('Invalid activity action.');
+            }
+            if (trim($action) !== '') {
+                $conditions['ActivityRecords.action'] = $this->normalizeAction($action);
+            }
         }
 
         /** @var \Cake\ORM\Query\SelectQuery<\App\Model\Entity\ActivityRecord> $query */

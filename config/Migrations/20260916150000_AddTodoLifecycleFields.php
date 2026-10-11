@@ -36,7 +36,10 @@ class AddTodoLifecycleFields extends BaseMigration
      */
     public function down(): void
     {
-        $this->execute("UPDATE todos SET status = 'inbox' WHERE status IN ('done', 'archived', 'trashed')");
+        $this->execute(
+            "UPDATE todos SET status = 'inbox', archived_at = NULL, trashed_at = NULL, previous_status = NULL "
+            . "WHERE status IN ('done', 'archived', 'trashed')",
+        );
         $this->execute('ALTER TABLE todos DROP CONSTRAINT IF EXISTS todos_status_chk');
         $this->execute('ALTER TABLE todos DROP CONSTRAINT IF EXISTS todos_archived_at_chk');
         $this->execute('ALTER TABLE todos DROP CONSTRAINT IF EXISTS todos_trashed_at_chk');

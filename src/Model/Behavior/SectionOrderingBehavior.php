@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Model\Behavior;
 
 use Cake\Datasource\EntityInterface;
+use Cake\ORM\Association\BelongsTo;
 use Cake\ORM\Behavior;
 use InvalidArgumentException;
 
@@ -35,6 +36,7 @@ class SectionOrderingBehavior extends Behavior
     {
         $table = $this->table();
         $positionField = (string)$this->getConfig('positionField');
+        $this->lockParentRow($parentId);
         $row = $table->find()
             ->where([$this->parentField() => $parentId])
             ->select(['max' => $table->find()->func()->max($positionField)])
@@ -130,5 +132,31 @@ class SectionOrderingBehavior extends Behavior
         }
 
         return $field;
+    }
+
+    /**
+     * Lock the parent container row while allocating or rewriting sibling positions.
+     */
+    private function lockParentRow(int $parentId): void
+    {
+        $association = null;
+        foreach ($this->table()->associations() as $candidate) {
+            if ($candidate instanceof BelongsTo && $candidate->getForeignKey() === $this->parentField()) {
+                $association = $candidate;
+                break;
+            }
+        }
+        if (!$association instanceof BelongsTo) {
+            throw new InvalidArgumentException('SectionOrdering behavior requires a matching parent association.');
+        }
+
+        $table = $association->getTarget();
+        $row = $table->getConnection()->execute(
+            sprintf('SELECT id FROM %s WHERE id = ? FOR UPDATE', $table->getTable()),
+            [$parentId],
+        )->fetch('assoc');
+        if ($row === false) {
+            throw new InvalidArgumentException('Unknown parent container.');
+        }
     }
 }

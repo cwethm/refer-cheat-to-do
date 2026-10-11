@@ -134,9 +134,9 @@ class CrossContextRequestServiceTest extends TestCase
         $this->allowSending();
         $this->service->send(1, $this->payload());
 
-        $this->assertSame([], $this->service->inbox(1));
-        $this->assertCount(1, $this->service->inbox(2));
-        $this->assertSame([], $this->service->inbox(3));
+        $this->assertSame([], $this->service->inbox(1)['items']);
+        $this->assertCount(1, $this->service->inbox(2)['items']);
+        $this->assertSame([], $this->service->inbox(3)['items']);
     }
 
     public function testOutboxShowsSenderRequests(): void
@@ -144,8 +144,8 @@ class CrossContextRequestServiceTest extends TestCase
         $this->allowSending();
         $this->service->send(1, $this->payload());
 
-        $this->assertCount(1, $this->service->outbox(1));
-        $this->assertSame([], $this->service->outbox(2));
+        $this->assertCount(1, $this->service->outbox(1)['items']);
+        $this->assertSame([], $this->service->outbox(2)['items']);
     }
 
     public function testSenderCanViewButNotResolve(): void
@@ -339,7 +339,7 @@ class CrossContextRequestServiceTest extends TestCase
 
         $this->expectException(DomainException::class);
         $this->expectExceptionMessage('Invalid callback summary.');
-        $this->service->callback(2, (int)$request->id, '');
+        $this->service->callback(2, (int)$request->id, '   ');
     }
 
     public function testSendTaskDoesNotGrantEditOrContributeOnTarget(): void

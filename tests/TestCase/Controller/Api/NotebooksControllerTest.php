@@ -119,6 +119,10 @@ class NotebooksControllerTest extends TestCase
         $notebook = $notebooks->get(400);
         $this->assertSame(1, (int)$notebook->user_id);
         $this->assertSame('Renamed notebook', $notebook->name);
+        $activity = TableRegistry::getTableLocator()->get('ActivityRecords')->find()
+            ->where(['actor_user_id' => 1, 'action' => 'notebook.updated', 'subject_id' => 400])
+            ->first();
+        $this->assertNotNull($activity);
     }
 
     public function testEditRejectsCrossUserNotebook(): void
@@ -222,6 +226,17 @@ class NotebooksControllerTest extends TestCase
 
         $this->assertResponseCode(400);
         $this->assertResponseContains('"code": "BAD_REQUEST"');
+    }
+
+    public function testRenameAndInvalidReorderRollBackTogether(): void
+    {
+        $this->authenticate();
+
+        $this->patch('/api/notebooks/400/sections/502', ['name' => 'Renamed archive', 'position' => 9]);
+
+        $this->assertResponseCode(400);
+        $sections = TableRegistry::getTableLocator()->get('NotebookSections');
+        $this->assertSame('Archive notes', (string)$sections->get(502)->name);
     }
 
     public function testReorderRejectsNonNumericPosition(): void

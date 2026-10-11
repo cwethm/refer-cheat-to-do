@@ -29,14 +29,10 @@ class CreateTodoRelationships extends BaseMigration
             . 'CHECK (result_summary IS NULL OR objective_satisfied_at IS NOT NULL)',
         );
 
-        $this->table('related_todos')
+        $this->table('related_todos', ['id' => false, 'primary_key' => ['todo_id', 'related_todo_id']])
             ->addColumn('todo_id', 'integer', ['null' => false])
             ->addColumn('related_todo_id', 'integer', ['null' => false])
             ->addColumn('created', 'datetime', ['null' => true, 'default' => null])
-            ->addIndex(['todo_id', 'related_todo_id'], [
-                'unique' => true,
-                'name' => 'related_todos_pair_unique',
-            ])
             ->addIndex(['related_todo_id'], ['name' => 'related_todos_related_idx'])
             ->addForeignKey('todo_id', 'todos', 'id', [
                 'delete' => 'CASCADE',

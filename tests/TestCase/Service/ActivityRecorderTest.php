@@ -232,6 +232,20 @@ class ActivityRecorderTest extends TestCase
         $this->recorder()->forActor(1, ['subject_id' => 'abc']);
     }
 
+    public function testForActorRejectsNonCanonicalNumericSubjectId(): void
+    {
+        $this->expectException(DomainException::class);
+
+        $this->recorder()->forActor(1, ['subject_id' => '1.5']);
+    }
+
+    public function testForActorRejectsNonStringActionFilter(): void
+    {
+        $this->expectException(DomainException::class);
+
+        $this->recorder()->forActor(1, ['action' => ['todo.created']]);
+    }
+
     public function testRedactIsIdempotent(): void
     {
         $recorder = $this->recorder();

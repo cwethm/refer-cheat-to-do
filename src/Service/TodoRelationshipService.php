@@ -126,28 +126,43 @@ class TodoRelationshipService
     public function setParent(Todo $todo, ?Todo $parent): Todo
     {
         if ($parent === null) {
-            $todo->set('parent_todo_id', null);
+            return $this->todos->getConnection()->transactional(function () use ($todo): Todo {
+                $todo = $this->lockTodo((int)$todo->id);
+                $todo->set('parent_todo_id', null);
+
+                return $this->todos->saveOrFail($todo);
+            });
+        }
+
+        return $this->todos->getConnection()->transactional(function () use ($todo, $parent): Todo {
+            $ids = [(int)$todo->id, (int)$parent->id];
+            sort($ids);
+            foreach ($ids as $id) {
+                $this->lockTodo($id);
+            }
+            /** @var \App\Model\Entity\Todo $todo */
+            $todo = $this->todos->get((int)$todo->id);
+            /** @var \App\Model\Entity\Todo $parent */
+            $parent = $this->todos->get((int)$parent->id);
+
+            $this->assertSameOwner($todo, $parent);
+            if ((int)$parent->id === (int)$todo->id) {
+                throw new DomainException('A ToDo cannot be its own parent.');
+            }
+            if ($this->wouldCreateCycle((int)$todo->id, (int)$parent->id, true)) {
+                throw new DomainException('This parent would create a cycle in the hierarchy.');
+            }
+
+            $todo->set('parent_todo_id', (int)$parent->id);
 
             return $this->todos->saveOrFail($todo);
-        }
-
-        $this->assertSameOwner($todo, $parent);
-        if ((int)$parent->id === (int)$todo->id) {
-            throw new DomainException('A ToDo cannot be its own parent.');
-        }
-        if ($this->wouldCreateCycle((int)$todo->id, (int)$parent->id)) {
-            throw new DomainException('This parent would create a cycle in the hierarchy.');
-        }
-
-        $todo->set('parent_todo_id', (int)$parent->id);
-
-        return $this->todos->saveOrFail($todo);
+        });
     }
 
     /**
      * Whether making `$parentId` the parent of `$todoId` would create a cycle.
      */
-    public function wouldCreateCycle(int $todoId, int $parentId): bool
+    public function wouldCreateCycle(int $todoId, int $parentId, bool $lock = false): bool
     {
         if ($todoId === $parentId) {
             return true;
@@ -164,11 +179,7 @@ class TodoRelationshipService
             }
             $seen[$currentId] = true;
 
-            $parent = $this->todos->find()
-                ->select(['parent_todo_id'])
-                ->where(['id' => $currentId])
-                ->first();
-            $next = $parent?->get('parent_todo_id');
+            $next = $this->parentTodoIdFor($currentId, $lock);
             if ($next === null) {
                 return false;
             }
@@ -176,6 +187,50 @@ class TodoRelationshipService
         }
 
         return true;
+    }
+
+    /**
+     * Lock a ToDo row for update in the current transaction and return the fresh entity.
+     */
+    private function lockTodo(int $todoId): Todo
+    {
+        $row = $this->todos->getConnection()->execute(
+            'SELECT id FROM todos WHERE id = ? FOR UPDATE',
+            [$todoId],
+        )->fetch('assoc');
+        if ($row === false) {
+            throw new DomainException('Unknown ToDo.');
+        }
+
+        /** @var \App\Model\Entity\Todo $todo */
+        $todo = $this->todos->get($todoId);
+
+        return $todo;
+    }
+
+    /**
+     * Read a parent id, optionally locking the visited ancestor row.
+     */
+    private function parentTodoIdFor(int $todoId, bool $lock): ?int
+    {
+        if (!$lock) {
+            $parent = $this->todos->find()
+                ->select(['parent_todo_id'])
+                ->where(['id' => $todoId])
+                ->first();
+
+            return $parent?->get('parent_todo_id') === null ? null : (int)$parent->get('parent_todo_id');
+        }
+
+        $row = $this->todos->getConnection()->execute(
+            'SELECT parent_todo_id FROM todos WHERE id = ? FOR UPDATE',
+            [$todoId],
+        )->fetch('assoc');
+        if (!is_array($row) || $row['parent_todo_id'] === null) {
+            return null;
+        }
+
+        return (int)$row['parent_todo_id'];
     }
 
     /**

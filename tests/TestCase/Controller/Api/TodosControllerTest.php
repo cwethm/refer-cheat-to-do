@@ -877,6 +877,10 @@ class TodosControllerTest extends TestCase
         $this->assertResponseOk();
         $this->assertResponseContains('"status": "active"');
         $this->assertResponseContains('"trashed_at": null');
+        $activity = TableRegistry::getTableLocator()->get('ActivityRecords')->find()
+            ->where(['actor_user_id' => 1, 'action' => 'todo.restored', 'subject_id' => 10])
+            ->first();
+        $this->assertNotNull($activity);
     }
 
     public function testRepeatedTransitionReturnsConflict(): void

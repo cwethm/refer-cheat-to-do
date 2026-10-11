@@ -119,6 +119,10 @@ class ProjectsControllerTest extends TestCase
         $project = $projects->get(200);
         $this->assertSame(1, (int)$project->user_id);
         $this->assertSame('Renamed project', $project->name);
+        $activity = TableRegistry::getTableLocator()->get('ActivityRecords')->find()
+            ->where(['actor_user_id' => 1, 'action' => 'project.updated', 'subject_id' => 200])
+            ->first();
+        $this->assertNotNull($activity);
     }
 
     public function testEditRejectsCrossUserProject(): void
@@ -222,6 +226,17 @@ class ProjectsControllerTest extends TestCase
 
         $this->assertResponseCode(400);
         $this->assertResponseContains('"code": "BAD_REQUEST"');
+    }
+
+    public function testRenameAndInvalidReorderRollBackTogether(): void
+    {
+        $this->authenticate();
+
+        $this->patch('/api/projects/200/sections/302', ['name' => 'Renamed review', 'position' => 9]);
+
+        $this->assertResponseCode(400);
+        $sections = TableRegistry::getTableLocator()->get('ProjectSections');
+        $this->assertSame('Review', (string)$sections->get(302)->name);
     }
 
     public function testReorderRejectsNonNumericPosition(): void

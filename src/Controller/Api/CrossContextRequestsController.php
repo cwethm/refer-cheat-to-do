@@ -5,6 +5,7 @@ namespace App\Controller\Api;
 
 use App\Model\Entity\CrossContextRequest;
 use App\Service\CrossContextRequestService;
+use App\Service\TodoLifecycleService;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\ConflictException;
 use Cake\Http\Exception\NotFoundException;
@@ -40,13 +41,19 @@ class CrossContextRequestsController extends AppController
     public function inbox(): Response
     {
         $userId = $this->requireUserId();
+        $page = $this->readPositiveQueryInt('page', 1);
+        $limit = min($this->readPositiveQueryInt('limit', 20), 100);
+        $result = $this->requests()->inbox($userId, $page, $limit);
 
         $items = [];
-        foreach ($this->requests()->inbox($userId) as $request) {
+        foreach ($result['items'] as $request) {
             $items[] = $this->serialize($request);
         }
 
-        return $this->respond(['items' => $items]);
+        return $this->respond(
+            ['items' => $items],
+            ['pagination' => ['page' => $page, 'limit' => $limit, 'total' => $result['total']]],
+        );
     }
 
     /**
@@ -55,13 +62,19 @@ class CrossContextRequestsController extends AppController
     public function outbox(): Response
     {
         $userId = $this->requireUserId();
+        $page = $this->readPositiveQueryInt('page', 1);
+        $limit = min($this->readPositiveQueryInt('limit', 20), 100);
+        $result = $this->requests()->outbox($userId, $page, $limit);
 
         $items = [];
-        foreach ($this->requests()->outbox($userId) as $request) {
+        foreach ($result['items'] as $request) {
             $items[] = $this->serialize($request);
         }
 
-        return $this->respond(['items' => $items]);
+        return $this->respond(
+            ['items' => $items],
+            ['pagination' => ['page' => $page, 'limit' => $limit, 'total' => $result['total']]],
+        );
     }
 
     /**
@@ -131,6 +144,11 @@ class CrossContextRequestsController extends AppController
             'target_type' => (string)$request->target_type,
             'target_id' => (int)$request->target_id,
         ]);
+        if (($options['create_todo'] ?? false) === true && $request->resulting_todo_id !== null) {
+            $this->activity()->record($userId, 'todo.created', 'todo', (int)$request->resulting_todo_id, [
+                'status' => TodoLifecycleService::STATUS_INBOX,
+            ]);
+        }
 
         return $this->respond(['request' => $this->serialize($request)]);
     }
@@ -233,6 +251,22 @@ class CrossContextRequestsController extends AppController
         }
 
         return $data;
+    }
+
+    /**
+     * Read a positive integer query value.
+     */
+    private function readPositiveQueryInt(string $field, int $default): int
+    {
+        $value = $this->request->getQuery($field, $default);
+        if (is_int($value) && $value > 0) {
+            return $value;
+        }
+        if (is_string($value) && ctype_digit($value) && (int)$value > 0) {
+            return (int)$value;
+        }
+
+        throw new BadRequestException(sprintf('Invalid query parameter `%s`.', $field));
     }
 
     /**
