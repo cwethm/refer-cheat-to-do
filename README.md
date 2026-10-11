@@ -17,9 +17,11 @@ This repository currently contains **MVP 1** work in progress:
 - devcontainer/Docker-compatible development environment
 - GitHub Actions CI
 
-There is no public self-registration endpoint yet; the first account is created
-from the console with `bin/cake set_user_password`
-(see [Step 9](#9-create-the-first-user-account)).
+There is no public self-registration. The first account is created from the
+console with `bin/cake set_user_password`
+(see [Step 9](#9-create-the-first-user-account)); after that, a signed-in user can
+invite someone by email from the **Account** view, and a locked-out user can reset
+their password by email. Both need outgoing mail (`EMAIL_TRANSPORT_DEFAULT_URL`).
 
 ## Technology stack
 
@@ -372,8 +374,9 @@ todo.example.com`, or at a load balancer) and make sure
 
 ### 9. Create the first user account
 
-The API has no registration endpoint yet, so create the first account from the
-console. The command validates the password, hashes it the way the `User` entity
+The API has no public registration endpoint, so create the first account from the
+console. Further accounts can be invited from the **Account** view once outgoing
+mail is configured (`EMAIL_TRANSPORT_DEFAULT_URL`, `EMAIL_FROM`). The command validates the password, hashes it the way the `User` entity
 does, and lowercases the email like the login endpoint:
 
 ```bash
@@ -383,7 +386,7 @@ bin/cake set_user_password owner@example.com --create
 The command prompts for the password twice when `--password` is omitted, which
 keeps it out of the shell history. Use `--password 'a-strong-password'` for
 unattended runs, and the same command without `--create` to reset a forgotten
-password later.
+password later. Setting a password this way signs the account out everywhere.
 
 Passwords must be at least eight characters. Only the plain password is a valid
 credential: the stored hash is not accepted by `/api/auth/login`.
@@ -434,8 +437,8 @@ A 401 means the account or the password does not match.
 - keep `DEBUG=false` and `APP_ENV=production`
 - use a unique `SECURITY_SALT` per environment and never commit it
 - restrict environment files to `chmod 600` and keep credentials out of shell history
-- serve the application over HTTPS only and set `session.cookie_secure=1`,
-  `session.cookie_httponly=1`, and `session.cookie_samesite=Lax` in `php.ini`
+- serve the application over HTTPS only and set `session.cookie_secure=1` in `php.ini`;
+  the application itself sets `HttpOnly`, `SameSite=Strict` and strict session ids
 - limit PostgreSQL network access to the application host, or require TLS for managed databases
 - add log rotation for `logs/*.log` and schedule database backups
 - apply updates as described below
@@ -476,6 +479,8 @@ bin/cake migrations status -c default        # list applied migrations
 | `DATABASE_URL` | none | full DSN that overrides the individual `DB_*` values; query arguments become driver options, so a TLS-only managed database can use `...?ssl_mode=require` |
 | `TEST_DB_HOST` / `TEST_DB_PORT` / `TEST_DB_DATABASE` / `TEST_DB_USERNAME` / `TEST_DB_PASSWORD` | fall back to the `DB_*` values, database defaults to `<DB_DATABASE>_test` | PHPUnit connection |
 | `DATABASE_TEST_URL` | none | full DSN for the test connection |
+| `EMAIL_TRANSPORT_DEFAULT_URL` | none (PHP `mail()`) | outgoing mail for invitation and password reset links, e.g. `smtp://mail.example.com:587?tls=true` (credentials go in the URL user part) |
+| `EMAIL_FROM` | `noreply@localhost.localdomain` | sender address of invitation and password reset messages |
 
 `.env.example` contains a development-oriented starting point for these values.
 
@@ -675,7 +680,9 @@ npm run test:e2e
 Playwright starts `php -S 127.0.0.1:8765 -t webroot webroot/index.php` itself,
 waits for `/api/health`, recreates `refer_cheat_to_do_e2e`, migrates it, creates
 the account with `bin/cake set_user_password`, and seeds more ToDos than fit on
-one client page. The PostgreSQL role only needs permission to create databases.
+one client page. It also starts a local SMTP sink on `127.0.0.1:8766`
+(`E2E_SMTP_PORT`) that receives invitation and reset messages, so the account
+specs can follow the emailed links. The PostgreSQL role only needs permission to create databases.
 
 Override any default through the environment, for example `E2E_PORT`,
 `E2E_DB_DATABASE`, `E2E_USER_EMAIL`, or `E2E_USER_PASSWORD`; see
