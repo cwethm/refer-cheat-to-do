@@ -6,7 +6,7 @@
 and information-continuity system. This document records how the owner actually intends to use the
 application day to day, and is the basis for the revisions in `docs/roadmap.md`.
 
-It was written from the owner's own description of the use, then revised with the owner's
+It was written from the owner's own description of the use, then revised twice with the owner's
 confirmations and answers (see [Decisions and open questions](#decisions-and-open-questions)). Where
 something is still a recommendation and not a decision, it says so, so that it can be corrected
 rather than silently built.
@@ -34,8 +34,11 @@ legibility matter more than structure.
 
 - Records of **discussions** and **events**: when, who was involved, what was said, what was
   decided and what was learned.
-- **People** who matter to the work: why they matter, what is known about them, and everything they
-  connect to (see Slice 33 and the sensitive-information rules below).
+- **People, groups and organisations** that matter to the work: why they matter, what is known about
+  them, how they are connected to one another by *defined* relationships, what each could contribute
+  (strengths, abilities, assets) and in what capacity (as part of a team, as a volunteer, or as a paid
+  consultant or contractor), and everything they connect to (see Slice 33 and the
+  sensitive-information rules below).
 - **Details from other discussions** that turn out to matter somewhere else, so they can be found
   from the place where they are needed and not only from where they were first recorded.
 
@@ -67,6 +70,15 @@ Selecting **resource bundles** — named sets of items of any kind — for two p
 
 A bundle is a deliberate selection made for a purpose. It is not a topic hub (an issue, Slice 30),
 which is a standing home for everything about a subject.
+
+Offline access is **read-only**. Recording something while offline is not planned, because it would
+need an offline write queue and conflict handling.
+
+### 6. Share: cheat sheets with named people
+
+Cheat sheets are meant to be shareable, read-only, with named people in the community who have
+accounts (Slice 36, which needs Slice 19 first). It is deliberately limited to cheat sheets:
+records, people and organisations, needs and decisions are never shared.
 
 ## Dialogue patterns: definition, place and function
 
@@ -100,7 +112,7 @@ before or during a conversation, assembled into a cheat sheet for a particular m
 a conversation so that what was learned is not lost, and revised when the next record shows it was
 wrong.
 
-**Structure — recommendation, not yet confirmed.** There are two reasonable shapes:
+**Structure — confirmed by the owner.** There were two reasonable shapes:
 
 1. *Summary line plus free text.* Cheapest and most flexible. A phone reader has to find their way
    through unstructured text, and a cheat sheet cannot show only the part that matters.
@@ -109,10 +121,9 @@ wrong.
    Only a title is ever required. The client shows the populated fields as labelled blocks, so a
    pattern is readable at a glance: when it comes up, what to do, what to avoid.
 
-Recommended: shape 2. It is the shape that best serves "not straining to recall", and it costs five
+Decided: shape 2. It is the shape that best serves "not straining to recall", and it costs five
 optional columns that are only valid for dialogue-pattern cards. It is specified that way in
-`docs/slices/26-reference-cards-and-cheat-sheets.md` and can be changed to shape 1 before that slice
-starts.
+`docs/slices/26-reference-cards-and-cheat-sheets.md`.
 
 ## A few concrete scenarios
 
@@ -145,11 +156,12 @@ against real use.
 | Group knowledge into contexts | Notebooks, Libraries, ResearchCollections | Contents of a Notebook are ToDos; there is no reference-material record |
 | Reference cards and cheat sheets | Only a ToDo's free-text `notes` | No record type that is consulted rather than completed; no quick lookup; no cheat sheets |
 | Discussion and event records | Free-text ToDo notes | No dated, kind-aware record or timeline |
-| People | Nothing | No person record, and no way to connect one to what it relates to |
+| People, groups and organisations | Nothing | No record of them, of how they relate to each other, or of what they can contribute, and no way to connect one to what it relates to |
 | Details from other discussions | ToDo-to-ToDo relationships; ResearchCollection item links | No way to link a card, record, person or issue to another |
 | Social issues | Tags, Libraries (membership of Projects and Notebooks only) | No issue hub that gathers cards, records, needs, people and ToDos |
 | Community needs as perspective | Cross-context requests (Project/Notebook, capability-gated) | No record of a need, the factors around it, and how current that knowledge is |
 | Planning and strategy | Projects, terminal objectives, review scheduling | No decision log, no view joining knowledge and perspectives to plans |
+| Sharing reference material | Capability grants on Projects and Notebooks (Slices 10, 11, 18); accounts created only by the operator | No way to share a cheat sheet, and no way to create a recipient's account without a shell (Slice 19) |
 | Not forgetting what was learned | ToDo review queue only | Nothing resurfaces cards for recall |
 | Bundles | Nothing | No purpose-built selection of mixed items |
 | Offline use on a phone | Nothing, and the client rules forbid it without an ADR | No offline store, and the standing client security rules must be deliberately amended (Slice 35) |
@@ -185,26 +197,33 @@ Records, people and needs can describe other people, sometimes in difficult circ
 community work itself may be sensitive. The existing posture (private, owner-scoped, redacted logs,
 no outbound requests) is the right baseline. For the slices in this direction it becomes explicit:
 
-- **People are the most sensitive object in the system.** A person record is wanted (Slice 33), so
-  it is designed with safeguards and not left out: a display name that can be an alias, initials or a
-  role; no contact fields unless the owner asks for them; no link to a user account; owner-only; real
-  deletion. The *set of connections* is itself sensitive even when each record is harmless, so the
-  export and every bundle treat it that way.
+- **People and organisations are the most sensitive object in the system.** A record for them is
+  wanted (Slice 33), so it is designed with safeguards and not left out: a display name that can be
+  an alias, initials or a role; no contact fields unless the owner asks for them; no link to a user
+  account; owner-only; real deletion. The *set of connections* is itself sensitive even when each
+  record is harmless, and so are the *relationships* (who works or volunteers with whom can reveal an
+  affiliation) and the *contributions* (statements about what a third party can do), so the export and
+  every bundle treat all of it that way.
 - **Minimise personal data.** Participants in a record and the people in a need are free text or
-  person records, never contact details. The interface encourages roles, initials or aliases.
+  party records, never contact details. The interface encourages roles, initials or aliases.
+  Contributions record what a party offers, in terms of what they can do; never impairments,
+  conditions or health, and never finances.
 - **What not to record.** No code can enforce this, so it is guidance for the owner: avoid recording
   about an identifiable private individual their health, immigration or legal status, home address
   or precise location, political or religious affiliation, or anything that could put them at risk if
   the database were ever disclosed. Prefer a role or alias, and keep the detail in your head or on
   paper.
-- **No sharing in Phase F.** No new record type receives a capability resource type, and none can be
-  made public. Sharing cheat sheets with others is a separate decision (see the open questions) and
-  needs its own ADR, migration and denied-path tests under ADR 0002.
-- **No agent access by default.** Slice 24 must not give agents access to records, needs or people
-  unless the owner grants it explicitly per resource, and must treat their content as untrusted input.
-- **Bundles are a disclosure unit.** A bundle exposes content to a device or file, so people, needs
-  and records are excluded from an offline copy or package unless the owner explicitly allows it for
-  that bundle (Slice 34).
+- **Sharing is limited to published cheat sheets (Slice 36).** The owner wants cheat sheets shareable
+  with named people. That is the one exception to "private by default", it is read-only, it is for
+  people with accounts, and it comes with an ADR, a migration and denied-path tests under ADR 0002.
+  No other new record type receives a capability resource type, and nothing can be made public. A
+  published cheat sheet never contains links, people and organisations, records, needs or decisions.
+  It is the first time one user's text is shown to another, so hostile-content tests apply.
+- **No agent access by default.** Slice 24 must not give agents access to records, needs, or people
+  and organisations unless the owner grants it explicitly per resource, and must treat their content as untrusted input.
+- **Bundles are a disclosure unit.** A bundle exposes content to a device or file, so people and
+  organisations, needs and records are excluded from an offline copy or package unless the owner
+  explicitly allows it for that bundle (Slice 34).
 - **An offline copy is the largest new exposure.** Once content is on a phone, the server cannot
   revoke it and the phone's own protection is what remains. Slice 35 therefore needs an ADR, a
   limited lifetime for every copy, and removal on logout and expiry.
@@ -212,15 +231,16 @@ no outbound requests) is the right baseline. For the slices in this direction it
   Denied-path tests outweigh happy-path tests, as in Slice 21.
 - **Logs stay content-free.** New endpoints must not log titles, bodies, names, participants or
   search text (`SafeLogEvent` only).
-- **Deletion is real.** Deleting a record, card, person or need removes it, behind the explicit
+- **Deletion is real.** Deleting a record, card, party or need removes it, behind the explicit
   confirmation pattern from Slice 17. It does not rewrite free text elsewhere that mentions a
-  deleted person; this is stated in the slice and shown in the interface.
+  deleted person or organisation; this is stated in the slice and shown in the interface.
 - **Operator responsibilities.** Disk encryption, database backups and their retention are
   deployment concerns, documented in the README, not features of the application.
 
 ## Standing requirements for every Phase F slice
 
-A slice in `docs/roadmap.md` Phase F is not complete unless it also:
+A slice in `docs/roadmap.md` Phase F is not complete unless it also (Slice 36 meets the same list,
+with the single, reviewed exception of read-only reads by named grantees):
 
 1. Is owner-scoped, with ownership set from the session and immutable; inaccessible and nonexistent
    ids both return `404`.
@@ -246,20 +266,26 @@ A slice in `docs/roadmap.md` Phase F is not complete unless it also:
 
 ### Assumptions still in force
 
-1. The owner is the main user. Collaboration stays on the existing capability model; Phase F is
-   single-user.
-2. Plain text is enough for cards, records, people, needs and decisions. Formatting is deferred, and
-   would need the same untrusted-content handling as Slice 22.
+1. The owner is the main user. Collaboration stays on the existing capability model. Phase F is
+   single-user until Slice 36, which adds read-only sharing of published cheat sheets with named
+   people and nothing else.
+2. Plain text is enough for cards, records, people and organisations, needs and decisions.
+   Formatting is deferred, and would need the same untrusted-content handling as Slice 22.
+3. "Assets" in a contribution means a resource a party could put toward the work (a vehicle, a venue,
+   equipment, a network), not their finances. Corrected below if that is wrong.
 
 ### Decisions recorded from the owner's answers
 
 | # | Question | Outcome |
 | --- | --- | --- |
-| 1 | Structure of dialogue patterns | Owner asked for the definition, place and function first (above). A structured shape is **recommended**, pending confirmation |
-| 2 | Is a person record needed? | **Yes**: a record of important details and relevance, connections, and what the person is related to or referenced by. Slice 33 |
-| 3 | Is offline access a real need? | **Yes**: bundles for local access (frequent or temporary) and for packaging sets for evaluation or planning refinement. Slices 34 and 35 |
-| 4 | Needs before recall practice? | Owner's stated aim is perspective and factors for recommendations, which favours needs first. **Applied**: Slices 30 and 31 now precede 29, and Slice 31 is reframed around perspective and factors. Reversible, because slice numbers do not encode order |
-| 5 | Decision log with revisit dates | Owner asked for the structure and benefits first. Specified in `docs/slices/32-planning-and-strategic-thinking.md`, pending confirmation |
+| 1 | Structure of dialogue patterns | **Confirmed**: a summary plus optional `situation`, `aim`, `approach`, `avoid` and `rationale`. Slice 26 |
+| 2 | Is a person record needed? | **Yes**, and **groups and organisations too**. Person-to-person (and person-to-organisation) connections use **defined relationships**. Each party records contributions (strengths, abilities, assets) by engagement: **team, volunteer, or paid consultant or contractor**. Slice 33 |
+| 3 | Is offline access a real need? | **Yes**, as bundles for local access (frequent or temporary) and for packaging sets for evaluation or planning refinement. **Read-only is enough**; recording while offline is not planned. Slices 34 and 35 |
+| 4 | Needs before recall practice? | Owner's stated aim is perspective and factors for recommendations, which favours needs first. **Applied**: Slices 30 and 31 precede 29. Reversible, because slice numbers do not encode order |
+| 5 | Decision log with revisit dates | **Confirmed**: Slice 32 |
+| 6 | Order of the tail | **Confirmed**: 33, 34, 35, then 29. Slice 19 and then Slice 36 follow (see 7); either can be pulled ahead of 29 without changing a dependency |
+| 7 | Share cheat sheets with named people? | **Yes, definitely.** New Slice 36, which needs Slice 19 (accounts) and an ADR first. Only cheat sheets |
+| 8 | Needs reframing (Slice 31) | Owner asked what it involves; explained below. **Confirmation pending** |
 
 ### Implications of the ordering choice (question 4)
 
@@ -289,27 +315,57 @@ The owner's aim is to enrich recommendations and contributions with broader pers
 which fits the second order, so it is the one applied. It is reversible: slice numbers do not encode
 order, and moving Slice 29 earlier changes no dependency.
 
+### What the needs reframing involves
+
+The first draft of Slice 31 treated a need as a *follow-through item*: a title, a status, a due date,
+and a "needs attention" list for needs with no movement. The reframing follows from the owner's stated
+aim, which is to enrich recommendations and contributions with broader perspective and detail. A need is
+now first a piece of *perspective and context*, and second a follow-through item:
+
+- **Two new fields.** `factors` (the circumstances, constraints, trade-offs and other considerations
+  around the need, who else is affected, what has been tried) and `last_confirmed_on` (when the owner
+  last checked that what is recorded is still true).
+- **A new main view, Perspectives.** The needs on an issue or tag with their descriptions, factors and
+  how recently each was confirmed. Needs that are `met` or `closed` stay in it, because what happened
+  is also perspective.
+- **Changed attention rules.** A need that is out of date misleads the thinking it informs, so
+  `not_confirmed_recently` is a rule. An `open` need no longer has to have a follow-up ToDo (the owner
+  may record it purely as perspective); `no_follow_up` applies only to `in_progress` needs.
+- **Unchanged.** Needs are private, are not ToDos, and never enter the ToDo review queue or the
+  dashboard counts.
+
+To confirm: that this emphasis is right, and that `factors` and `last_confirmed_on` are the right two
+fields to add.
+
 ### Open questions
 
-1. **Dialogue pattern structure.** Confirm the structured shape (summary plus optional `situation`,
-   `aim`, `approach`, `avoid`, `rationale`), or choose summary plus free text.
-2. **Decision log.** Confirm the shape in Slice 32, in particular the expected-outcome and
-   outcome-note fields and the three statuses (`active`, `superseded`, `withdrawn`).
-3. **People.** Which details matter, and are any contact details wanted? Are *groups or
-   organisations* wanted as well as individuals? Are person-to-person connections (who works with
-   whom) wanted, or only connections to other records?
-4. **"Evaluation".** Who evaluates a packaged bundle: the owner later, another person, or an AI
-   assistant? This decides whether packaging is only a download (Slice 34 and Slice 23) or also
-   involves agent access (Slice 24).
-5. **Offline use.** Is read-only enough? Reading a bundle offline is one slice. *Recording
-   something while offline* (for instance a record after an event with no signal) needs an offline
-   write queue and conflict handling and would be a separate, much larger slice. Which phone and
-   browser are used, and is a screen lock in place? Those choices constrain the at-rest design in
-   Slice 35.
-6. **Needs.** Confirm the reframing in Slice 31: needs as perspective and factors, with a
-   "last confirmed" date, and follow-through only for in-progress needs.
-7. **Order of the tail.** After Slice 32 the proposed order is people (33), bundles (34), offline
-   (35), then recall practice (29). Is that right?
-8. **Sharing.** Should cheat sheets (not records, people or needs) eventually be shareable with named
-   people in the community? Slice 23 would then be where a published version is produced, and
-   Slice 19 (accounts) would be a prerequisite.
+1. **"Evaluation": for what purpose?** The earlier question asked *who* evaluates a packaged bundle.
+   The purpose decides the who, and it decides what has to be built:
+
+   | Purpose | Who evaluates | What it needs | New exposure |
+   | --- | --- | --- | --- |
+   | Check readiness before a meeting, or review after an event | The owner, later | The bundle opened in the app or offline (Slices 34 and 35) | None |
+   | Refine a plan: find gaps, test assumptions, compare expected with actual outcomes | The owner later, a trusted person, or an AI assistant | A rendered, downloadable or printable package (Slice 23), or agent access to the bundle (Slice 24) | A file leaves the system, or data goes to a model and its provider |
+   | Get another person's view, or brief someone on a topic | Another person | For reference material, a published cheat sheet (Slice 36); for anything else, a new and narrower kind of sharing that does not exist | Another user sees the content |
+
+   Which of these do you intend? **Applied meanwhile:** Slice 34 ships no packaging format, so nothing
+   leaves the system except an offline copy you ask for (Slice 35). Documents (Slice 23) and agents
+   (Slice 24) wait for this answer.
+2. **Offline device.** Which phone and browser do you use, and is a screen lock in place? They constrain
+   the at-rest design in Slice 35.
+3. **Needs reframing.** Confirm the reframing above.
+4. **People and organisations.** Confirm that "assets" means resources and not finances, and that no
+   contact details are wanted. The starter list of relationship types (for example "works with",
+   "volunteers with", "employs / works for", "contracts / contracted by", "introduced by") is
+   illustrative and editable, so it can be corrected in use.
+5. **Sharing.**
+   - Will the people you share with be willing to have an account on this installation (an invitation
+     under Slice 19), or would a printed or downloaded copy be enough for some of them?
+   - Should a shared sheet be a **published copy** that you republish to update (the leaning: you
+     review exactly what is shared, and a later edit reaches nobody by accident), or **live**, always
+     showing your current cards (always current, but every edit, including a mistake, is visible at
+     once)?
+   - Dialogue-pattern fields (`avoid`, `rationale`) are the likeliest to mention other people. Should
+     they be shareable, left out by default, or chosen per card?
+   - Slice 19 and then Slice 36 currently follow recall practice (29). Slice 36 does not depend on 29,
+     so it can move ahead of it. Do you want sharing sooner?

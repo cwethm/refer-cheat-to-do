@@ -27,10 +27,10 @@ capability model, with every action attributable and reversible.
 Slices 10 (capabilities), 12 (activity history), 22, 23. Phase F record types (`docs/intended-use.md`)
 are in the data an agent could reach. Bundles (Slice 34) are the likely unit of explicit per-resource
 disclosure to an agent; adding `bundle` to the closed capability resource vocabulary would be a
-deliberate migration, and a bundle's default exclusion of people, needs and records carries over.
+deliberate migration, and a bundle's default exclusion of people and organisations, needs and records carries over.
 
 ### Required threat and authorization review
-Discussion and event records, community needs, decisions and people (Slices 27, 31, 32, 33) may describe other
+Discussion and event records, community needs, decisions, and people and organisations (Slices 27, 31, 32, 33) may describe other
 people and sensitive community work. They are excluded from agent access by default: an agent may
 read them only through a grant that names that resource, never through a type-wide or inherited
 grant, and their content is untrusted input in every case.

@@ -18,13 +18,13 @@ elsewhere for evaluation or planning refinement.
   for temporary bundles (a database `CHECK`), and `allow_sensitive`, a boolean defaulting to false.
 - Explicit membership of items by type, from the types that exist when the slice is built: reference
   cards, cheat sheets, records (including decisions), ToDos, Projects, Notebooks,
-  ResearchCollections, issues, needs and people. A member is a typed `(type, id)` pair in a join
+  ResearchCollections, issues, needs and parties (people, groups and organisations). A member is a typed `(type, id)` pair in a join
   table with a closed vocabulary `CHECK`, as in Slices 22 and 28, and deleting an item removes its
   memberships by the same trigger mechanism.
 - An explicit, one-time **add from** action that copies the current members of a cheat sheet or an
   issue hub into the bundle as individual members. It is a copy, not a live link, and is never
   automatic.
-- **Sensitive types** are people, needs and records (including decisions). Members of those types are
+- **Sensitive types** are parties, needs and records (including decisions). Members of those types are
   listed in the bundle but are left out of its contents unless `allow_sensitive` is true. The
   client marks them and states why they are missing.
 - A bounded **contents** endpoint: each member's content as serialised by that item's own endpoint
@@ -49,7 +49,7 @@ elsewhere for evaluation or planning refinement.
   destructive, lifecycle, ownership or permission authority over a member.
 
 ### Dependencies
-Slices 26 (cards and sheets), 27 (records), 30 (issues), 31 (needs), 32 (decisions) and 33 (people),
+Slices 26 (cards and sheets), 27 (records), 30 (issues), 31 (needs), 32 (decisions) and 33 (people and organisations),
 for the types that exist when it is built; Slice 9 (the non-authority invariant), 21 (export),
 12 (activity), 17 (confirmation pattern).
 

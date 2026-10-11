@@ -24,7 +24,7 @@ finds the detailed issues and factors to weigh when forming a recommendation.
 
 ### Out of scope
 - Issue status, severity, positions or stances, deadlines, or any workflow state.
-- Sharing a hub, or collaborating on one. Community needs (Slice 31) and people (Slice 33) join a hub
+- Sharing a hub, or collaborating on one. Community needs (Slice 31) and people and organisations (Slice 33) join a hub
   when those slices land; decisions are records and are already eligible members.
 - A hub is a standing home for a subject. A purpose-bound or temporary selection of items is a
   bundle (Slice 34).

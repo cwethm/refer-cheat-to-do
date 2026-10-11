@@ -28,7 +28,7 @@ event records, and community needs (Slices 27 and 31), are not data sources unle
 adds them with the sensitive-information constraints in `docs/intended-use.md`. A bundle (Slice 34) is
 the natural data source for packaging a set of planning, meeting, discussion or topic material for
 evaluation, but whether packaging is a rendered document at all depends on the owner's answer to
-the "evaluation" question there; the bundle's sensitive-member exclusion would carry over.
+the "evaluation" question there; the bundle's sensitive-member exclusion would carry over. Printing or downloading a published cheat sheet that has been shared with a recipient (Slice 36) is a possible later consumer.
 
 ### Required threat and authorization review
 Templates that interpolate user-supplied content are an injection surface. Before implementation the

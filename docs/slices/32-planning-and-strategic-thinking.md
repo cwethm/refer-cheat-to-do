@@ -3,8 +3,8 @@
 ## Slice Contract
 
 ### Status
-PROPOSED — Phase F (`docs/intended-use.md`). The decision-log shape below is a recommendation
-awaiting the owner's confirmation.
+PROPOSED — Phase F (`docs/intended-use.md`). The owner has confirmed the decision-log shape below: a
+decision as a kind of record with a status, a revisit date, an expected outcome and an outcome note.
 
 ### Goal
 Join what is known to what is planned. Let the owner record decisions together with the reasoning and

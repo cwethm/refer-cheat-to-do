@@ -710,5 +710,6 @@ MVP 1 and post-MVP Slices 14–18 and 20–22 are implemented (see
 [docs/roadmap.md](docs/roadmap.md) for per-slice status). Account lifecycle and
 self-registration (Slice 19) is still pending. The next direction is Phase F: reference cards and
 cheat sheets, discussion and event records, cross-links, issues, community needs, planning and a
-decision log, people, bundles, and offline access to bundles, with recall practice last, described in
-[docs/intended-use.md](docs/intended-use.md).
+decision log, people and organisations, bundles, read-only offline access to bundles, recall
+practice, and finally sharing cheat sheets with named people (which needs Slice 19 first), described
+in [docs/intended-use.md](docs/intended-use.md).

@@ -3,9 +3,8 @@
 ## Slice Contract
 
 ### Status
-PROPOSED — first slice of Phase F (`docs/intended-use.md`). The dialogue-pattern structure below is
-the recommended default and is awaiting the owner's confirmation; the rest of the contract does not
-depend on it.
+PROPOSED — first slice of Phase F (`docs/intended-use.md`). The owner has confirmed the
+dialogue-pattern structure below: a summary plus optional structured fields.
 
 ### Goal
 Give the owner a first-class, searchable place for short reference material that is consulted rather
@@ -18,12 +17,11 @@ quickly enough to use during a conversation.
   (≤500 characters, the line read at a glance) and plain-text `body` (≤65,536 UTF-8 bytes, as in
   Slice 22). Only the title is required. `concept` and `dialogue_pattern` are defined in
   `docs/intended-use.md`.
-- Dialogue-pattern fields (recommended): optional `situation`, `aim`, `approach`, `avoid` and
+- Dialogue-pattern fields (confirmed by the owner): optional `situation`, `aim`, `approach`, `avoid` and
   `rationale`, each plain text of at most 2,000 characters, valid only when `card_type` is
   `dialogue_pattern` (a database `CHECK` requires them to be `NULL` otherwise, so the type keeps its
   meaning). The client shows populated fields as labelled blocks beneath the summary and hides
-  empty ones. If the owner chooses summary plus free text instead, these five fields and their
-  `CHECK` are dropped and nothing else in the contract changes.
+  empty ones.
 - Tagging a card with the user's existing tags.
 - Cheat sheets: a named, ordered selection of cards, with a card allowed in more than one sheet.
 - CRUD API following the established conventions (`data`/`meta`, `error.code`/`message`/`details`).
@@ -36,7 +34,9 @@ quickly enough to use during a conversation.
   (extending the closed `activity_records_subject_type_chk` set by migration).
 
 ### Out of scope
-- Sharing, capability grants or any public access. Cards are private (`docs/intended-use.md`).
+- Sharing, capability grants or any public access. Cards are private in this slice. The owner wants
+  cheat sheets shareable with named people; that is Slice 36, which publishes a read-only copy of a
+  sheet and needs Slice 19 first (`docs/intended-use.md`).
 - Links between cards and other items, including a pattern to the concepts it relies on (Slice 28),
   recall practice (Slice 29), bundles and offline copies (Slices 34 and 35), printing (Slice 23).
 - Rich-text, Markdown or HTML rendering, attachments, import from other products, offline caching.

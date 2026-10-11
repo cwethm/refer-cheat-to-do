@@ -12,12 +12,14 @@ one discussion are found where they are needed rather than only where they were 
 ### In scope
 - A user-owned link between two items, each of a type from a closed set: `todo`, `project`,
   `notebook`, `research_collection`, `reference_card`, `record`. Later slices that add an item type
-  (`need`, Slice 31; `person`, Slice 33) extend the vocabulary only through a deliberate migration.
+  (`need`, Slice 31; `party`, Slice 33) extend the vocabulary only through a deliberate migration.
   Issue membership (Slice 30) and bundle membership (Slice 34) group items and are separate
   mechanisms; a link relates two specific items.
 - Links are the mechanism for "connected to" everywhere in Phase F: a pattern to the concepts it
-  uses, a record to the cards it produced, a decision to what informed it (Slice 32), a person to
-  what they relate to (Slice 33). A link may join two items of the same type.
+  uses, a record to the cards it produced, a decision to what informed it (Slice 32), a person or
+  organisation to what it relates to (Slice 33). A link may join two items of the same type, except
+  two parties: a party-to-party connection must name a defined relationship, so it uses the
+  relationships of Slice 33 and a link between two parties is rejected.
 - Optional short `label` on a link (≤100 characters) describing the relationship.
 - Create, list and remove links, and a backlinks listing for any item: outgoing and incoming links
   together, bounded and paginated.

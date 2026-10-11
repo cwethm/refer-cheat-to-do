@@ -45,7 +45,7 @@ broader perspective. Secondarily, make sure a need that is being acted on is not
 
 ### Out of scope
 - Contact details, addresses, linking to user accounts, or identifying individuals beyond free text.
-  People are a separate record (Slice 33), which a need can then link to. The interface encourages
+  People and organisations are a separate record (Slice 33), which a need can then link to. The interface encourages
   roles, initials or aliases (`docs/intended-use.md`, sensitive information).
 - Sharing, assigning a need to another user, requests between people, or any capability grant. Needs
   are private. Shared solidarity work would need its own ADR extending ADR 0002.

@@ -25,8 +25,8 @@ The first post-MVP slice, **14 — Client-facing daily workflow**, is **APPROVED
 same-origin client at `/app` for the completed API without adding domain features or changing API
 authorization; see `docs/slices/14-client-facing-daily-workflow.md`.
 
-Slices 14–18 and 20–22 are delivered; Slice 19 (account lifecycle) is still PROPOSED and is not needed
-for single-owner use. The owner's description of how the application will actually be used —
+Slices 14–18 and 20–22 are delivered; Slice 19 (account lifecycle) is still PROPOSED; it is not needed
+for single-owner use but is a prerequisite of sharing cheat sheets (Slice 36). The owner's description of how the application will actually be used —
 reference cards and cheat sheets, records of discussions and events, planning and strategic thinking,
 and organising material around social issues and community solidarity needs — is recorded in
 `docs/intended-use.md`. It shows that the system so far covers tasks, projects and gathered source
@@ -39,7 +39,7 @@ Work after Slice 14 is organized into phases. Each numbered slice has a contract
 `docs/slices/`; a contract marked PROPOSED has not been implemented.
 
 Slice numbers are stable identifiers, not an execution order. Phase order governs, so the Phase F
-slices (26–35) are built before the Phase G slices (23–25) even though their numbers are higher.
+slices (26–36) are built before the Phase G slices (23–25) even though their numbers are higher.
 
 ### Phase A — Front-end testing hardening (DELIVERED)
 
@@ -75,8 +75,9 @@ Each follows the Slice 14 rule: no new domain rules, no new endpoints, no new au
 ### Phase D — Account and operations maturity
 
 19. Account lifecycle and session security (invitation, password change and reset, rate limiting) —
-    **PROPOSED**, not started. Accounts are still created with `bin/cake set_user_password`. It becomes
-    a prerequisite if cheat sheets are ever shared with other people (see `docs/intended-use.md`).
+    **PROPOSED**, not started. Accounts are still created with `bin/cake set_user_password`. The owner
+    wants cheat sheets shared with named people, so it is now a prerequisite of Slice 36 and is
+    scheduled inside Phase F, immediately before it (see `docs/intended-use.md`).
 20. Operational maturity (dashboard query performance, structured logging, observability) —
     **IMPLEMENTED**; see `docs/application-design.md` (the contract's status line still reads
     PROPOSED)
@@ -109,27 +110,37 @@ after the list.
     `docs/slices/31-community-solidarity-needs.md`
 32. Planning and strategic thinking, with a decision log and revisit dates — **PROPOSED**; see
     `docs/slices/32-planning-and-strategic-thinking.md`
-33. People — **PROPOSED**; see `docs/slices/33-people.md`
+33. People and organisations, with defined relationships and contributions — **PROPOSED**; see
+    `docs/slices/33-people-and-organisations.md`
 34. Bundles of resources for local access and packaging — **PROPOSED**; see
     `docs/slices/34-bundles.md`
 35. Offline access to bundles — **PROPOSED**; needs an ADR and the owner's approval first, because it
     amends the standing client storage and service-worker rules; see
     `docs/slices/35-offline-access.md`
-29. Recall practice for reference cards — **PROPOSED**; built last in the phase; see
+29. Recall practice for reference cards — **PROPOSED**; see
     `docs/slices/29-recall-practice-for-reference-cards.md`
+19. Account lifecycle and session security — the Phase D slice above, built here as the prerequisite
+    of Slice 36; see `docs/slices/19-account-lifecycle-and-session-security.md`
+36. Sharing cheat sheets with named people — **PROPOSED**; needs Slice 19 and an ADR first; see
+    `docs/slices/36-sharing-cheat-sheets.md`
 
 Ordering notes:
 
 - Slice 27 follows 26 because it reuses its tag and client conventions, and 28 needs both. Slices 30,
   31 and 32 need 28's links. Slice 33 (people) comes after the records, needs and decisions it
   connects to exist, and 34 after every type it can contain.
-- Slice 29 depends only on 26. It is placed last because the owner's stated purpose for community
-  needs is to broaden the perspective behind recommendations, which Slices 30 and 31 serve directly.
-  The choice is reversible: moving 29 earlier changes no dependency. The implications of each order
-  are set out in `docs/intended-use.md`.
+- The owner confirmed the order 33, 34, 35, then 29. Slice 29 depends only on 26. It follows 30 and 31
+  because the owner's stated purpose for community needs is to broaden the perspective behind
+  recommendations, which those slices serve directly. The choice is reversible: moving 29 earlier
+  changes no dependency. The implications of each order are set out in `docs/intended-use.md`.
+- Slice 36 depends on Slices 19 and 26 and on no other Phase F slice, so it follows 19 and can be moved
+  ahead of 29, or earlier still, without changing a dependency. It is placed after 29 only to leave the
+  confirmed order undisturbed; whether to bring it forward is an open question in
+  `docs/intended-use.md`.
 - Slice 35 does not start until its ADR is accepted and the owner has agreed to amend
   `docs/front-end-testing-policy.md` and `tests/js/client-security.test.mjs` as that ADR specifies.
-  Slice 34 is useful on its own as a way to gather and reopen sets of material.
+  Slice 34 is useful on its own as a way to gather and reopen sets of material. Offline access is
+  read-only; recording while offline is not planned.
 
 ### Phase G — Document, agent and automation expansion
 

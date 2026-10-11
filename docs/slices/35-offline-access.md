@@ -3,8 +3,10 @@
 ## Slice Contract
 
 ### Status
-PROPOSED — Phase F (`docs/intended-use.md`). **Requires an ADR and the owner's explicit approval
-before any implementation**, because it deliberately amends standing client security rules.
+PROPOSED — Phase F (`docs/intended-use.md`). The owner has confirmed that **read-only offline access
+is enough**. **Requires an ADR and the owner's explicit approval before any implementation**, because
+it deliberately amends standing client security rules; the owner's phone, browser and screen-lock
+practice are inputs to that ADR.
 
 ### Goal
 Let the owner keep chosen bundles (Slice 34) available on their phone without a connection,
