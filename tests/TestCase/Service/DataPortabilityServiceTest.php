@@ -173,6 +173,29 @@ class DataPortabilityServiceTest extends TestCase
         }
     }
 
+    public function testCheatSheetDescriptionLimitIsEnforcedDuringRestore(): void
+    {
+        $records = $this->exported();
+        foreach ($records as &$row) {
+            if (($row['type'] ?? null) === 'cheat_sheets') {
+                $row['data']['description'] = str_repeat('d', 5001);
+            }
+        }
+        unset($row);
+        $stream = $this->encoded($records);
+        try {
+            $this->service()->restore(3, $stream);
+            $this->fail('An oversized cheat sheet description was accepted.');
+        } catch (DomainException) {
+            $this->assertSame(
+                [['schema' => DataPortabilityService::SCHEMA], ['end' => true, 'records' => 0]],
+                $this->exported(3),
+            );
+        } finally {
+            fclose($stream);
+        }
+    }
+
     /**
      * Service under test.
      */

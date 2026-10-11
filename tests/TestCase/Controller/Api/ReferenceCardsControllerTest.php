@@ -143,6 +143,16 @@ class ReferenceCardsControllerTest extends TestCase
         $this->assertResponseCode(401);
     }
 
+    public function testReferenceMutationRequiresCsrfToken(): void
+    {
+        $this->replaceRequest([
+            'headers' => ['Accept' => 'application/json', 'Content-Type' => 'application/json'],
+        ]);
+        $this->post('/api/reference-cards', (string)json_encode(['title' => 'Without CSRF']));
+
+        $this->assertResponseCode(403);
+    }
+
     public function testIndexListsOnlyOwnedCardsInTitleOrder(): void
     {
         $this->authenticate();

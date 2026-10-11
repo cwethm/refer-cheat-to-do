@@ -167,7 +167,16 @@ class ReferenceCardsController extends AppController
         $cards = $this->fetchTable('ReferenceCards');
         /** @var \App\Model\Table\CheatSheetsReferenceCardsTable $memberships */
         $memberships = $this->fetchTable('CheatSheetsReferenceCards');
-        $cards->getConnection()->transactional(function () use ($cards, $memberships, $card, $cardId): void {
+        $cards->getConnection()->transactional(function () use (
+            $cards,
+            $memberships,
+            $card,
+            $cardId,
+        ): void {
+            $cards->getConnection()->execute(
+                'SELECT id FROM reference_cards WHERE id = ? FOR UPDATE',
+                [$cardId],
+            );
             $sheetIds = $memberships->find()
                 ->select(['cheat_sheet_id'])
                 ->where(['reference_card_id' => $cardId])

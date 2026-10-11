@@ -148,6 +148,16 @@ class CheatSheetsControllerTest extends TestCase
         }
     }
 
+    public function testCheatSheetMutationRequiresCsrfToken(): void
+    {
+        $this->replaceRequest([
+            'headers' => ['Accept' => 'application/json', 'Content-Type' => 'application/json'],
+        ]);
+        $this->post('/api/cheat-sheets', (string)json_encode(['name' => 'Without CSRF']));
+
+        $this->assertResponseCode(403);
+    }
+
     public function testIndexListsOnlyOwnedSheetsWithCardCounts(): void
     {
         $this->authenticate();

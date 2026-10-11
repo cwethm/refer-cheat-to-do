@@ -33,6 +33,7 @@ import {
     REFERENCE_PAGE_SIZE,
     REFERENCE_SEARCH_MAX_CHARS,
     requestApi,
+    requestAllPages,
     requiresConfirmation,
     sectionOptionValue,
     SECTION_SOURCE_LIMIT,
@@ -127,6 +128,37 @@ test('API client sends the CSRF token and uses same-origin session requests', as
         } else {
             globalThis.document = originalDocument;
         }
+    }
+});
+
+test('API pagination helper loads every page up to the reported total', async () => {
+    const originalFetch = globalThis.fetch;
+    const requests = [];
+    globalThis.fetch = async (path) => {
+        requests.push(path);
+        const page = Number(new URL(path, 'http://same-origin').searchParams.get('page'));
+
+        return {
+            ok: true,
+            json: async () => ({
+                data: { items: page === 1 ? [{ id: 1 }] : [{ id: 101 }] },
+                meta: { pagination: { total: 101 } },
+            }),
+        };
+    };
+    try {
+        const data = await requestAllPages(
+            (page, limit) => `/api/cheat-sheets?page=${page}&limit=${limit}`,
+            100,
+        );
+
+        assert.deepEqual(data.items, [{ id: 1 }, { id: 101 }]);
+        assert.deepEqual(requests, [
+            '/api/cheat-sheets?page=1&limit=100',
+            '/api/cheat-sheets?page=2&limit=100',
+        ]);
+    } finally {
+        globalThis.fetch = originalFetch;
     }
 });
 

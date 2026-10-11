@@ -1618,19 +1618,18 @@ function syncCheatSheetControls() {
     fillSelect(byId('reference-sheet-picker'), 'Choose a cheat sheet', options);
 }
 
-async function requestAllPages(buildUrl, limit) {
+export async function requestAllPages(buildUrl, limit) {
     const firstPage = await requestApi(buildUrl(1, limit));
     const total = Number(firstPage?.meta?.pagination?.total) || 0;
     const pageCount = Math.max(1, Math.ceil(total / limit));
-    const remainingPages = await Promise.all(
-        Array.from({ length: pageCount - 1 }, (_, index) => requestApi(buildUrl(index + 2, limit))),
-    );
+    const items = validItems(firstPage?.items);
+    for (let page = 2; page <= pageCount; page++) {
+        const data = await requestApi(buildUrl(page, limit));
+        items.push(...validItems(data?.items));
+    }
 
     return {
-        items: [
-            ...validItems(firstPage?.items),
-            ...remainingPages.flatMap((page) => validItems(page?.items)),
-        ],
+        items,
         total,
     };
 }
