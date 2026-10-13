@@ -3,9 +3,10 @@
 ## Slice Contract
 
 ### Status
-IMPLEMENTED — first slice of Phase F (`docs/intended-use.md`). The owner has confirmed the
-dialogue-pattern structure below: a summary plus optional structured fields. The cheat-sheet
-decision is recorded in `docs/adr/0004-cheat-sheets-as-ordered-card-membership.md` (option 2).
+APPROVED — first slice of Phase F (`docs/intended-use.md`). Approved by the owner on 2026-10-13
+after using the Reference view in the client. The owner has confirmed the dialogue-pattern
+structure below: a summary plus optional structured fields. The cheat-sheet decision is recorded in
+`docs/adr/0004-cheat-sheets-as-ordered-card-membership.md` (option 2).
 
 ### Goal
 Give the owner a first-class, searchable place for short reference material that is consulted rather
@@ -149,3 +150,9 @@ capability test asserts the grant-description rows rather than the entire list (
 contains the Revoke button); the client's request-token guard already ignores older responses.
 PR #32 also scopes the Reference tag-picker test to its region so the Records tag picker cannot
 make its label ambiguous. No domain or authorization changes are required.
+
+### Approval
+Approved by the owner on 2026-10-13. CI on `main` passed at merge commit `0c50060` (PR #32), and
+the owner has used the Reference view in the client. The owner's deployment had to apply the
+pending migrations `20261010220000` to `20261011100000` before sign-in and the Reference view
+worked; running `bin/cake migrations migrate` after every deploy is required.
