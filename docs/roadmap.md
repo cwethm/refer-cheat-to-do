@@ -32,7 +32,8 @@ and organising material around social issues and community solidarity needs — 
 `docs/intended-use.md`. It shows that the system so far covers tasks, projects and gathered source
 material but has no record type for reference material, discussions, events, decisions or community
 needs. **Phase F below, now ahead of the remaining domain expansion, closes that gap.** Slice 26
-(reference cards and cheat sheets) is **APPROVED**; Slice 27 is next.
+(reference cards and cheat sheets) is **APPROVED**. Slice 27's contract is approved and its
+completion is in progress: rename to `entries`, shared tag handling, then the remaining work.
 
 ## Post-MVP sequence
 
@@ -102,7 +103,7 @@ after the list.
 
 26. Reference cards and cheat sheets — **APPROVED**; see
     `docs/slices/26-reference-cards-and-cheat-sheets.md`
-27. Discussion and event records — **PROPOSED**; see
+27. Discussion and event entries — contract **APPROVED**, completion in progress; see
     `docs/slices/27-discussion-and-event-records.md`
 28. Cross-links and backlinks — **PROPOSED**; see `docs/slices/28-cross-links-and-backlinks.md`
 30. Issues: topic hubs for social issues — **PROPOSED**; see `docs/slices/30-issues-topic-hubs.md`
@@ -127,8 +128,10 @@ after the list.
 Ordering notes:
 
 - Slice 27 follows 26 because it reuses its tag and client conventions, and 28 needs both. Slices 30,
-  31 and 32 need 28's links. Slice 33 (people) comes after the records, needs and decisions it
+  31 and 32 need 28's links. Slice 33 (people) comes after the entries, needs and decisions it
   connects to exist, and 34 after every type it can contain.
+- Slice 27 is completed in three steps, each its own pull request: rename `records` to `entries`,
+  share tag handling with Slice 26, then the remaining work. See the Work plan in its contract.
 - The owner confirmed the order 33, 34, 35, then 29. Slice 29 depends only on 26. It follows 30 and 31
   because the owner's stated purpose for community needs is to broaden the perspective behind
   recommendations, which those slices serve directly. The choice is reversible: moving 29 earlier
