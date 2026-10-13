@@ -32,7 +32,7 @@ and organising material around social issues and community solidarity needs — 
 `docs/intended-use.md`. It shows that the system so far covers tasks, projects and gathered source
 material but has no record type for reference material, discussions, events, decisions or community
 needs. **Phase F below, now ahead of the remaining domain expansion, closes that gap.** Slice 26
-(reference cards and cheat sheets) is delivered; Slice 27 is next.
+(reference cards and cheat sheets) is **APPROVED**; Slice 27 is next.
 
 ## Post-MVP sequence
 
@@ -100,7 +100,7 @@ unaffected, browser-tested), and the sensitive-information constraints that go w
 Listed in the order they are intended to be built. Slice numbers are not the order; see the note
 after the list.
 
-26. Reference cards and cheat sheets — **IMPLEMENTED**; see
+26. Reference cards and cheat sheets — **APPROVED**; see
     `docs/slices/26-reference-cards-and-cheat-sheets.md`
 27. Discussion and event records — **PROPOSED**; see
     `docs/slices/27-discussion-and-event-records.md`
