@@ -80,8 +80,7 @@ Each follows the Slice 14 rule: no new domain rules, no new endpoints, no new au
     created by invitation; `bin/cake set_user_password` remains the operator recovery path. It is
     the prerequisite of Slice 36.
 20. Operational maturity (dashboard query performance, structured logging, observability) —
-    **IMPLEMENTED**; see `docs/application-design.md` (the contract's status line still reads
-    PROPOSED)
+    **IMPLEMENTED**; see `docs/slices/20-operational-maturity.md` and `docs/application-design.md`
 21. Data export and account data portability — **IMPLEMENTED**; see
     `docs/slices/21-data-export-and-portability.md`
 
